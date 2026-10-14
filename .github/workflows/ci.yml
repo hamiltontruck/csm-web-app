@@ -41,3 +41,6 @@ jobs:
 
       - name: Validate Docker Compose
         run: docker compose config --quiet
+        env:
+          CSM_SA_PASSWORD: CiOnly-StrongPassword-2026!
+          CSM_JWT_SECRET: ci-only-jwt-secret-with-more-than-32-characters
