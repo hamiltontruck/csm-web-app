@@ -1,0 +1,206 @@
+@page "/hr"
+@rendermode InteractiveServer
+
+@using CSM.Web.Services
+
+@inject NavigationManager Navigation
+@inject IAuthService AuthService
+@inject IContractorService ContractorService
+
+<PageTitle>HR Management</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <h2>Human Resource Management</h2>
+
+    <div class="row g-3 mt-3">
+
+        <div class="col-lg-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Employees</h6>
+                    <h2>@_employeeCount</h2>
+
+                    <div class="d-grid gap-2 mt-2">
+                        <button class="btn btn-primary"
+                                @onclick="OpenCompanyEmployees">
+                            Company
+                        </button>
+
+                        <button class="btn btn-outline-primary"
+                                @onclick="OpenSiteEmployees">
+                            Site
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+         <div class="col-lg-3">
+             <div class="card text-center shadow-sm">
+                 <div class="card-body">
+                     <h6>Contractors</h6>
+                     <h2>@_contractorCount</h2>
+
+                     <button class="btn btn-primary mt-2"
+                             @onclick="OpenContractors">
+                         Manage Contractors
+                     </button>
+                 </div>
+             </div>
+         </div>
+
+        <div class="col-lg-3">
+            <div class="card text-center shadow-sm"
+                 role="button"
+                 @onclick='() => Navigation.NavigateTo("/hr/attendance")'>
+
+                <div class="card-body">
+                    <h6>Attendance</h6>
+                    <h2>0%</h2>
+                    <button class="btn btn-primary mt-2"
+                            @onclick="OpenAttendance">
+                        Manage Attendances
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="col-lg-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Site Assignments</h6>
+                    <h2>0</h2>
+
+                    <button class="btn btn-primary mt-2"
+                            @onclick="OpenSiteAssignments">
+                        Manage Site Assignments
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Shifts</h6>
+                    <h2>0</h2>
+
+                    <button class="btn btn-primary mt-2"
+                            @onclick="OpenShifts">
+                        Manage Shifts
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Leave</h6>
+                    <h2>0</h2>
+
+                    <button class="btn btn-primary mt-2"
+                            @onclick="OpenLeave">
+                        Manage Leave
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Timesheets</h6>
+                    <h2>0</h2>
+                    <button class="btn btn-primary mt-2"
+                            @onclick="OpenTimesheets">
+                        Manage Timesheets
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3">
+            <div class="card text-center shadow-sm">
+                <div class="card-body">
+                    <h6>Payroll</h6>
+                    <h2>ETB 0</h2>
+
+                    <button class="btn btn-primary mt-2"
+                            @onclick="OpenPayroll">
+                        Manage Payroll
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+@code {
+    private int _employeeCount = 0;
+    private int _contractorCount;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var contractors =
+            await ContractorService.GetContractorsAsync();
+
+        _contractorCount = contractors.Count;
+
+        StateHasChanged();
+    }
+
+    private void OpenCompanyEmployees()
+    {
+        Navigation.NavigateTo("/hr/employees/company");
+    }
+
+    private void OpenSiteEmployees()
+    {
+        Navigation.NavigateTo("/hr/employees/site");
+    }
+
+    private void OpenContractors()
+    {
+        Navigation.NavigateTo("/hr/contractors");
+    }
+
+    private void OpenAttendance()
+        {
+            Navigation.NavigateTo("/hr/attendance");
+        }
+
+    private void OpenSiteAssignments()
+    {
+        Navigation.NavigateTo("/hr/site-assignments");
+    }
+
+    private void OpenShifts()
+    {
+        Navigation.NavigateTo("/hr/shifts");
+    }
+
+    private void OpenLeave()
+    {
+        Navigation.NavigateTo("/hr/leave");
+    }
+
+    private void OpenTimesheets()
+    {
+        Navigation.NavigateTo("/hr/timesheets");
+    }
+
+    private void OpenPayroll()
+    {
+        Navigation.NavigateTo("/hr/payroll");
+    }
+}

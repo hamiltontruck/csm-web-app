@@ -1,0 +1,189 @@
+@page "/equipment/create"
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Services
+@inject IEquipmentService EquipmentService
+@inject NavigationManager Navigation
+
+<PageTitle>New Equipment</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">New Equipment</h3>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="GoBack">
+            Cancel
+        </button>
+    </div>
+
+    <EditForm Model="model" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">
+                <strong>Equipment Information</strong>
+            </div>
+
+            <div class="card-body">
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+                        <label class="form-label">Equipment Code</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.EquipmentCode" />
+                    </div>
+
+                    <div class="col-md-8">
+                        <label class="form-label">Name</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.Name" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Category</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.Category" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Make</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.Make" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Model</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.Model" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Serial Number</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.SerialNumber" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Registration</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.RegistrationNumber" />
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">
+                <strong>Ownership & Meter</strong>
+            </div>
+
+            <div class="card-body">
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+                        <label class="form-label">Ownership</label>
+                        <InputSelect class="form-select"
+                                     @bind-Value="model.OwnershipType">
+                            <option>Owned</option>
+                            <option>Rented</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Current Meter</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="model.CurrentMeterReading" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Meter Unit</label>
+                        <InputSelect class="form-select"
+                                     @bind-Value="model.MeterUnit">
+                            <option>Hours</option>
+                            <option>KM</option>
+                        </InputSelect>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <strong>Cost Information</strong>
+            </div>
+
+            <div class="card-body">
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">Purchase Cost (ETB)</label>
+
+                        <div class="input-group">
+                            <span class="input-group-text">ETB</span>
+                            <InputNumber class="form-control"
+                                         @bind-Value="model.PurchaseCost" />
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Rental Rate</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="model.RentalRate" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Rental Start</label>
+                        <InputDate class="form-control"
+                                   @bind-Value="model.RentalStartDate" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Rental End</label>
+                        <InputDate class="form-control"
+                                   @bind-Value="model.RentalEndDate" />
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary"
+                    type="submit"
+                    disabled="@saving">
+                @(saving ? "Saving..." : "Create Equipment")
+            </button>
+
+            <button class="btn btn-outline-secondary"
+                    type="button"
+                    @onclick="GoBack">
+                Cancel
+            </button>
+        </div>
+
+    </EditForm>
+
+</div>
+
+@code {
+    private readonly CreateEquipmentRequest model = new();
+    private bool saving;
+
+    private async Task Save()
+    {
+        saving = true;
+
+        var id = await EquipmentService.CreateEquipmentAsync(model);
+
+        Navigation.NavigateTo($"/equipment/{id}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/equipment");
+    }
+}

@@ -1,0 +1,212 @@
+@page "/compliance/document-categories/{Id:guid}/edit"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Services
+
+@inject IComplianceService ComplianceService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Document Category</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2>Edit Document Category</h2>
+            <p class="text-muted mb-0">
+                Update the document category information.
+            </p>
+        </div>
+
+        <button class="btn btn-secondary"
+                @onclick="Back"
+                disabled="@_saving">
+            Back
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="alert alert-info">
+            Loading document category...
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+    else if (_request is not null)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">Category Code</label>
+
+                        <input class="form-control"
+                               maxlength="30"
+                               @bind="_request.CategoryCode" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Name</label>
+
+                        <input class="form-control"
+                               maxlength="200"
+                               @bind="_request.Name" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Description</label>
+
+                        <textarea class="form-control"
+                                  maxlength="1000"
+                                  rows="4"
+                                  @bind="_request.Description"></textarea>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-check">
+
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="isActive"
+                                   @bind="_request.IsActive" />
+
+                            <label class="form-check-label"
+                                   for="isActive">
+                                Active
+                            </label>
+
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+
+                    <button class="btn btn-primary"
+                            @onclick="Save"
+                            disabled="@_saving">
+
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>Save Changes</span>
+                        }
+
+                    </button>
+
+                    <button class="btn btn-secondary"
+                            @onclick="Back"
+                            disabled="@_saving">
+                        Cancel
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private UpdateDocumentCategoryRequest? _request;
+
+    private bool _loading = true;
+    private bool _saving;
+
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var category =
+                await ComplianceService.GetDocumentCategoryAsync(Id);
+
+            if (category is null)
+            {
+                _errorMessage = "Document category was not found.";
+                return;
+            }
+
+            _request = new UpdateDocumentCategoryRequest
+            {
+                CategoryCode = category.CategoryCode,
+                Name = category.Name,
+                Description = category.Description,
+                IsActive = category.IsActive
+            };
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        _errorMessage = null;
+
+        if (_request is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.CategoryCode))
+        {
+            _errorMessage = "Category Code is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.Name))
+        {
+            _errorMessage = "Name is required.";
+            return;
+        }
+
+        try
+        {
+            _saving = true;
+
+            await ComplianceService.UpdateDocumentCategoryAsync(
+                Id,
+                _request);
+
+            Navigation.NavigateTo(
+                "/compliance/document-categories");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(
+            "/compliance/document-categories");
+    }
+}

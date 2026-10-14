@@ -1,0 +1,178 @@
+@page "/users/{Id:guid}"
+
+@using CSM.Web.Services
+@using CSM.Web.Models.Users
+
+@inject UserWebService UserService
+@inject NavigationManager Navigation
+
+<PageTitle>User Profile</PageTitle>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else if (profile is null)
+{
+    <div class="alert alert-danger">
+        User not found.
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3>@profile.FullName</h3>
+            <div class="text-muted">@profile.Email</div>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            Back
+        </button>
+    </div>
+
+    <div class="row g-4">
+
+        <div class="col-lg-4">
+
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+
+                    <div class="display-4 text-primary mb-3">
+                        <i class="bi bi-person-circle"></i>
+                    </div>
+
+                    <h5>@profile.JobTitle</h5>
+
+                    @if (profile.IsActive)
+                    {
+                        <span class="badge bg-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Inactive</span>
+                    }
+
+                    <hr />
+
+                    <div class="text-start">
+
+                        <div class="mb-2">
+                            <strong>Phone</strong><br />
+                            @profile.PhoneNumber
+                        </div>
+
+                        <div class="mb-2">
+                            <strong>Default Site</strong><br />
+                            @(profile.DefaultSiteName ?? "None")
+                        </div>
+
+                        <div class="mb-2">
+                            <strong>Last Login</strong><br />
+                            @(profile.LastLoginAtUtc?.ToString("dd MMM yyyy HH:mm") ?? "Never")
+                        </div>
+
+                        <div>
+                            <strong>Joined</strong><br />
+                            @profile.CreatedAtUtc.ToString("dd MMM yyyy")
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-lg-8">
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    Roles
+                </div>
+
+                <div class="card-body">
+                    @foreach (var role in profile.Roles)
+                    {
+                        <span class="badge bg-primary me-2 mb-2">
+                            @role
+                        </span>
+                    }
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    Assigned Construction Sites
+                </div>
+
+                <div class="card-body">
+
+                    @if (profile.Sites.Any())
+                    {
+                        @foreach (var site in profile.Sites)
+                        {
+                            @if (site.IsDefault)
+                            {
+                                <div class="mb-2">
+                                    <span class="badge bg-success me-2">
+                                        Default
+                                    </span>
+
+                                    @site.Name
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="mb-2">
+                                    <span class="badge bg-info text-dark me-2">
+                                        Site
+                                    </span>
+
+                                    @site.Name
+                                </div>
+                            }
+                        }
+                    }
+                    else
+                    {
+                        <span class="text-muted">
+                            No assigned sites.
+                        </span>
+                    }
+
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private UserProfileModel? profile;
+
+    private bool loading = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        profile = await UserService.GetProfileAsync(Id);
+
+        loading = false;
+
+        StateHasChanged();
+    }
+
+    private void Back()
+        => Navigation.NavigateTo("/users");
+}

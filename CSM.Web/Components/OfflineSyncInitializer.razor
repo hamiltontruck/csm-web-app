@@ -1,0 +1,76 @@
+@using CSM.Web.Services
+@implements IDisposable
+
+@inject IOfflineSyncService OfflineSyncService
+@inject IOfflineSyncCoordinator OfflineSyncCoordinator
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
+@inject IConfiguration Configuration
+
+
+@code {
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(
+        bool firstRender)
+    {
+        if (!firstRender || _initialized)
+        {
+            return;
+        }
+
+        _initialized = true;
+
+        var token =
+            await SessionStorage.GetAsync<string>("jwt");
+
+        if (token.Success &&
+            !string.IsNullOrWhiteSpace(token.Value))
+        {
+            var apiBaseUrl =
+                Configuration["ApiSettings:PublicBaseUrl"]
+                ?? Configuration["ApiSettings:BaseUrl"];
+
+            if (!string.IsNullOrWhiteSpace(apiBaseUrl))
+            {
+                await JSRuntime.InvokeVoidAsync(
+                    "csmOfflineSync.configureApi",
+                    apiBaseUrl,
+                    token.Value);
+
+                await JSRuntime.InvokeVoidAsync(
+                    "csmConnectionState.registerBrowserSyncHandler");
+            }
+        }
+
+        OfflineSyncService.ConnectionRestored += OnConnectionRestored;
+        OfflineSyncService.ConnectionLost += OnConnectionLost;
+
+        await OfflineSyncService.InitializeConnectionMonitoringAsync();
+
+
+    }
+
+    private async void OnConnectionRestored()
+    {
+        try
+        {
+            await OfflineSyncCoordinator.SyncAsync();
+        }
+        catch
+        {
+            // Synchronization errors remain queued for a later attempt.
+        }
+    }
+
+    private void OnConnectionLost()
+    {
+        // Connection state is handled by OfflineSyncService.
+    }
+
+    public void Dispose()
+    {
+        OfflineSyncService.ConnectionRestored -= OnConnectionRestored;
+        OfflineSyncService.ConnectionLost -= OnConnectionLost;
+    }
+}

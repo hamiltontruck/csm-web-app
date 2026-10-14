@@ -1,0 +1,346 @@
+@page "/daily-material-usage/create"
+@page "/daily-material-usage/create/{SiteId:guid?}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Sites
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+@using CSM.Web.Models.Projects
+
+@inject IProjectService ProjectService
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>New Daily Material Usage</PageTitle>
+
+<div class="container py-4">
+
+    <button class="btn btn-outline-secondary mb-3"
+            @onclick="GoBack">
+        <i class="bi bi-arrow-left"></i> Back
+    </button>
+
+    <h2 class="mb-4">New Daily Material Usage</h2>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <label class="form-label">Construction Site</label>
+
+                    <select class="form-select" @onchange="SiteChanged">
+                        <option value="">-- Select Site --</option>
+
+                        @foreach (var site in sites)
+                        {
+                            <option value="@site.Id">
+                                @site.SiteCode - @site.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Project</label>
+
+                    <select class="form-select" @onchange="ProjectChanged">
+                        <option value="">-- Select Project --</option>
+
+                        @foreach (var project in projects)
+                        {
+                            <option value="@project.Id">
+                                @project.ProjectCode - @project.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Daily Progress Log</label>
+
+                    <select class="form-select" @onchange="ProgressLogChanged">
+                        <option value="">-- Select Daily Log --</option>
+
+                        @foreach (var log in progressLogs)
+                        {
+                            <option value="@log.Id">
+                                @log.LogDate.ToString("dd MMM yyyy")
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Usage Date</label>
+
+                    <input type="date"
+                           class="form-control"
+                           @bind-value="model.UsageDate"
+                           @bind-value:format="yyyy-MM-dd"
+                           readonly />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Material</label>
+
+                    <select class="form-select" @onchange="MaterialChanged">
+                        <option value="">-- Select Material --</option>
+
+                        @foreach (var item in materials)
+                        {
+                            <option value="@item.MaterialId"
+                                    selected="@(model.MaterialId == item.MaterialId)">
+                                @item.MaterialCode - @item.MaterialName
+                                (@item.QuantityOnHand @item.UnitOfMeasure)
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Quantity Issued</label>
+                    <input type="number" step="0.01"
+                           class="form-control"
+                           @bind="model.QuantityIssued" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Quantity Used</label>
+                    <input type="number" step="0.01"
+                           class="form-control"
+                           @bind="model.QuantityUsed" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Quantity Returned</label>
+                    <input type="number" step="0.01"
+                           class="form-control"
+                           @bind="model.QuantityReturned" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Unit</label>
+                    <input class="form-control"
+                           @bind="model.Unit"
+                           readonly />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control"
+                              rows="3"
+                              @bind="model.Notes"></textarea>
+                </div>
+
+            </div>
+
+            <hr />
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger mb-3">
+                    @errorMessage
+                </div>
+            }
+
+            <div class="d-flex justify-content-end gap-2">
+
+                <button class="btn btn-outline-secondary"
+                        @onclick="GoBack">
+                    Cancel
+                </button>
+
+                <button class="btn btn-primary"
+                        @onclick="SaveUsage"
+                        disabled="@saving">
+                    @(saving ? "Saving..." : "Save Usage")
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+    [Parameter]
+        public Guid? SiteId { get; set; }
+
+    private UsageModel model = new();
+
+    private List<SiteResponse> sites = [];
+    private List<ProjectResponse> projects = [];
+    private List<DailyProgressLogResponse> progressLogs = [];
+    private List<StockBalanceResponse> materials = [];
+
+    private bool loaded;
+    private bool saving;
+    private string? errorMessage = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || loaded)
+            return;
+
+        loaded = true;
+
+        sites = await ProjectService.GetSitesAsync();
+
+        if (SiteId.HasValue)
+        {
+            model.SiteId = SiteId.Value;
+
+            materials = await InventoryService.GetStockBySiteAsync(
+                SiteId.Value);
+
+            projects = await ProjectService.GetProjectsBySiteAsync(
+                SiteId.Value);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SiteChanged(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var siteId))
+            return;
+
+        model.SiteId = siteId;
+        model.ProjectId = null;
+        model.ProgressLogId = null;
+
+        projects = await ProjectService.GetProjectsBySiteAsync(siteId);
+        progressLogs.Clear();
+
+        materials = await InventoryService.GetStockBySiteAsync(siteId);
+
+        StateHasChanged();
+    }
+
+private async Task ProjectChanged(ChangeEventArgs e)
+{
+    if (!Guid.TryParse(e.Value?.ToString(), out var projectId))
+        return;
+
+    model.ProjectId = projectId;
+
+    progressLogs = await ProjectService.GetDailyProgressLogsAsync(projectId);
+
+    StateHasChanged();
+}
+private void ProgressLogChanged(ChangeEventArgs e)
+{
+    if (!Guid.TryParse(e.Value?.ToString(), out var logId))
+        return;
+
+    model.ProgressLogId = logId;
+
+    var log = progressLogs.FirstOrDefault(x => x.Id == logId);
+
+    if (log != null)
+    {
+        // Keep the usage date identical to the selected log date
+        model.UsageDate = log.LogDate.Date;
+    }
+}
+
+    void GoBack()
+        => Navigation.NavigateTo("/daily-material-usage");
+
+    public class UsageModel
+    {
+        public Guid? SiteId { get; set; }
+        public Guid? ProjectId { get; set; }
+        public Guid? ProgressLogId { get; set; }
+        public Guid? MaterialId { get; set; }
+
+        public DateTime UsageDate { get; set; } = DateTime.Today;
+
+        public decimal QuantityIssued { get; set; }
+        public decimal QuantityUsed { get; set; }
+        public decimal QuantityReturned { get; set; }
+
+        public string Unit { get; set; } = "";
+        public string Notes { get; set; } = "";
+    }
+
+private void MaterialChanged(ChangeEventArgs e)
+{
+    if (!Guid.TryParse(e.Value?.ToString(), out var materialId))
+        return;
+
+    model.MaterialId = materialId;
+
+    var material = materials.FirstOrDefault(x => x.MaterialId == materialId);
+
+    if (material != null)
+        model.Unit = material.UnitOfMeasure;
+}
+
+private async Task SaveUsage()
+{
+    errorMessage = string.Empty;
+
+    if (model.SiteId == null)
+    {
+        errorMessage = "Please select a construction site.";
+        return;
+    }
+
+    if (model.MaterialId == null)
+    {
+        errorMessage = "Please select a material.";
+        return;
+    }
+
+    if (model.ProgressLogId == null)
+    {
+        errorMessage = "Please select a Daily Progress Log.";
+        return;
+    }
+
+    if (model.QuantityIssued <= 0)
+    {
+        errorMessage = "Quantity issued must be greater than zero.";
+        return;
+    }
+
+    if (model.QuantityUsed < 0)
+    {
+        errorMessage = "Quantity used cannot be negative.";
+        return;
+    }
+
+    if (model.QuantityReturned < 0)
+    {
+        errorMessage = "Quantity returned cannot be negative.";
+        return;
+    }
+
+    saving = true;
+
+    var success = await InventoryService.CreateDailyMaterialUsageAsync(
+                      new CreateDailyMaterialUsageRequest
+                      {
+                          ConstructionSiteId = model.SiteId!.Value,
+                          MaterialId = model.MaterialId!.Value,
+                          DailyProgressLogId = model.ProgressLogId!.Value,
+                          Date = DateOnly.FromDateTime(model.UsageDate),
+                          QuantityIssued = model.QuantityIssued,
+                          QuantityUsed = model.QuantityUsed,
+                          QuantityReturned = model.QuantityReturned,
+                          Unit = model.Unit,
+                          Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes
+                      });
+
+    saving = false;
+
+    if (success)
+        Navigation.NavigateTo("/daily-material-usage");
+    else
+        errorMessage = "Unable to create daily material usage.";
+}
+}

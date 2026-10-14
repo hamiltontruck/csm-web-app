@@ -1,0 +1,38 @@
+using CSM.Domain.Enums;
+
+namespace CSM.Application.HRM.Attendances.Dtos;
+
+public sealed record AttendanceResponse(
+    Guid Id,
+    Guid CompanyId,
+    Guid EmployeeId,
+    string EmployeeNumber,
+    string EmployeeName,
+    Guid ConstructionSiteId,
+    string SiteName,
+    Guid? ShiftId,
+    string? ShiftCode,
+    string? ShiftName,
+    DateOnly AttendanceDate,
+    DateTime? CheckInAtUtc,
+    DateTime? CheckOutAtUtc,
+    decimal? CheckInLatitude,
+    decimal? CheckInLongitude,
+    decimal? CheckOutLatitude,
+    decimal? CheckOutLongitude,
+    decimal? CheckInAccuracyMeters,
+    decimal? CheckOutAccuracyMeters,
+    bool IsCheckInWithinGeofence,
+    bool IsCheckOutWithinGeofence,
+    AttendanceStatus Status,
+    AttendanceSource Source,
+    decimal RegularHours,
+    decimal OvertimeHours,
+    string? BiometricReference,
+    bool RequiresApproval,
+    bool IsApproved,
+    Guid? ApprovedBy,
+    DateTime? ApprovedAtUtc,
+    string? ManualOverrideReason,
+    string? Remarks,
+    DateTime CreatedAtUtc);

@@ -1,0 +1,291 @@
+@page "/finance/summary"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Financial Summary</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Financial Summary</h2>
+            <div class="text-muted">
+                Company-wide financial position and site breakdown
+            </div>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="BackToFinance">
+            ← Finance
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status"></div>
+            <div class="mt-2">Loading financial summary...</div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else if (_summary is null)
+    {
+        <div class="alert alert-warning">
+            Financial summary is unavailable.
+        </div>
+    }
+    else
+    {
+        <!-- Company Summary -->
+
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-4 col-xl-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">
+                            Total Budget
+                        </div>
+                        <h4 class="mb-0">
+                            @_summary.TotalBudget.ToString("N2")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 col-xl-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">
+                            Total Expenses
+                        </div>
+                        <h4 class="mb-0">
+                            @_summary.TotalExpenses.ToString("N2")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 col-xl-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">
+                            Total Invoices
+                        </div>
+                        <h4 class="mb-0">
+                            @_summary.TotalInvoiceAmount.ToString("N2")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 col-xl-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">
+                            Total Payments
+                        </div>
+                        <h4 class="mb-0">
+                            @_summary.TotalPayments.ToString("N2")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 col-xl-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">
+                            Petty Cash Balance
+                        </div>
+                        <h4 class="mb-0">
+                            @_summary.TotalPettyCashBalance.ToString("N2")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 col-xl-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">
+                            Outstanding Receivables
+                        </div>
+                        <h4 class="mb-0">
+                            @_summary.OutstandingReceivables.ToString("N2")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 col-xl-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">
+                            Outstanding Payables
+                        </div>
+                        <h4 class="mb-0">
+                            @_summary.OutstandingPayables.ToString("N2")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 col-xl-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">
+                            Net Cash Flow
+                        </div>
+                        <h4 class="mb-0">
+                            @_summary.NetCashFlow.ToString("N2")
+                        </h4>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Site Breakdown -->
+
+        <div class="card shadow-sm">
+
+            <div class="card-header fw-bold">
+                Site Financial Breakdown
+            </div>
+
+            <div class="card-body">
+
+                @if (_summary.Sites.Count == 0)
+                {
+                    <div class="text-muted">
+                        No construction sites found.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+
+                        <table class="table table-hover align-middle mb-0">
+
+                            <thead>
+                                <tr>
+                                    <th>Construction Site</th>
+                                    <th class="text-end">Budget</th>
+                                    <th class="text-end">Expenses</th>
+                                    <th class="text-end">Invoices</th>
+                                    <th class="text-end">Payments</th>
+                                    <th class="text-end">Petty Cash</th>
+                                    <th class="text-end">Receivables</th>
+                                    <th class="text-end">Payables</th>
+                                    <th class="text-end">Net Cash Flow</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                @foreach (var site in _summary.Sites)
+                                {
+                                    <tr>
+                                        <td>
+                                            <button class="btn btn-link p-0 text-start"
+                                                    @onclick="() => OpenSite(site.ConstructionSiteId)">
+                                                @site.ConstructionSiteName
+                                            </button>
+                                        </td>
+
+                                        <td class="text-end">
+                                            @site.BudgetAmount.ToString("N2")
+                                        </td>
+
+                                        <td class="text-end">
+                                            @site.ExpenseAmount.ToString("N2")
+                                        </td>
+
+                                        <td class="text-end">
+                                            @site.InvoiceAmount.ToString("N2")
+                                        </td>
+
+                                        <td class="text-end">
+                                            @site.PaymentAmount.ToString("N2")
+                                        </td>
+
+                                        <td class="text-end">
+                                            @site.PettyCashBalance.ToString("N2")
+                                        </td>
+
+                                        <td class="text-end">
+                                            @site.OutstandingReceivables.ToString("N2")
+                                        </td>
+
+                                        <td class="text-end">
+                                            @site.OutstandingPayables.ToString("N2")
+                                        </td>
+
+                                        <td class="text-end">
+                                            @site.NetCashFlow.ToString("N2")
+                                        </td>
+                                    </tr>
+                                }
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+                }
+
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private CompanyFinancialSummaryResponse? _summary;
+
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            _summary =
+                await FinanceService.GetCompanyFinancialSummaryAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void OpenSite(Guid siteId)
+    {
+        Navigation.NavigateTo(
+            $"/finance/summary/site/{siteId}");
+    }
+
+    private void BackToFinance()
+    {
+        Navigation.NavigateTo("/finance/sites");
+    }
+}.

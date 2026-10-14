@@ -1,0 +1,120 @@
+@page "/vendors/{Id:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IVendorService VendorService
+@inject NavigationManager Navigation
+
+<PageTitle>Vendor Details</PageTitle>
+
+<div class="container py-4">
+
+    <button class="btn btn-outline-secondary mb-3"
+            @onclick="GoBack">
+        <i class="bi bi-arrow-left"></i> Back
+    </button>
+
+    @if (loading)
+    {
+        <p>Loading vendor...</p>
+    }
+    else if (vendor is null)
+    {
+        <div class="alert alert-danger">
+            Vendor not found.
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <div class="text-muted">@vendor.VendorCode</div>
+                <h2>@vendor.Name</h2>
+            </div>
+
+            <span class="badge @(vendor.IsActive ? "bg-success" : "bg-secondary")">
+                @(vendor.IsActive ? "Active" : "Inactive")
+            </span>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header fw-bold">
+                Contact Information
+            </div>
+
+            <div class="card-body">
+
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-semibold">Contact Person</div>
+                    <div class="col-md-8">@vendor.ContactPerson</div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-semibold">Phone</div>
+                    <div class="col-md-8">@vendor.PhoneNumber</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 fw-semibold">Email</div>
+                    <div class="col-md-8">@vendor.Email</div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header fw-bold">
+                Banking & Tax
+            </div>
+
+            <div class="card-body">
+
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-semibold">Tax Number</div>
+                    <div class="col-md-8">@vendor.TaxNumber</div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-md-4 fw-semibold">Bank</div>
+                    <div class="col-md-8">@vendor.BankName</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 fw-semibold">Account</div>
+                    <div class="col-md-8">@vendor.BankAccountNumber</div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header fw-bold">
+                Address
+            </div>
+
+            <div class="card-body">
+                @vendor.Address
+            </div>
+        </div>
+    }
+
+</div>
+
+@code{
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private VendorResponse? vendor;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        vendor = await VendorService.GetVendorAsync(Id);
+        loading = false;
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo("/vendors");
+}

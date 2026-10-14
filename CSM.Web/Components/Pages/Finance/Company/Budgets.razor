@@ -1,0 +1,105 @@
+@page "/finance/company/budgets"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Company Budgets</PageTitle>
+
+<button class="btn btn-outline-secondary mb-3"
+        @onclick="Back">
+    <i class="bi bi-arrow-left"></i> Back
+</button>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Company Budgets</h3>
+
+    <button class="btn btn-primary"
+            @onclick="Create">
+        <i class="bi bi-plus-lg"></i> New Budget
+    </button>
+</div>
+
+@if (_loading)
+{
+    <p>Loading budgets...</p>
+}
+else if (_items.Count == 0)
+{
+    <div class="alert alert-info">
+        No budgets found.
+    </div>
+}
+else
+{
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Budget No</th>
+                <th>Name</th>
+                <th>Site</th>
+                <th>Project</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th width="90"></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in _items)
+        {
+            <tr>
+                <td>@item.BudgetNumber</td>
+                <td>@item.Name</td>
+                <td>@item.ConstructionSiteName</td>
+                <td>@item.ProjectName</td>
+                <td>@($"{item.CurrencyCode} {item.TotalAmount:N2}")</td>
+                <td>
+                    <span class="badge bg-secondary">@item.Status</span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary"
+                            @onclick="() => Open(item)">
+                        Open
+                    </button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool _loading = true;
+    private List<BudgetResponse> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var budgets = await FinanceService.GetBudgetsAsync();
+
+        _items = budgets
+            .Where(x => x.ConstructionSiteId == null)
+            .ToList();
+
+        _loading = false;
+    }
+
+    private void Open(BudgetResponse budget)
+    {
+        Navigation.NavigateTo(
+            $"/finance/company/budgets/{budget.Id}");
+    }
+
+    private void Create()
+    {
+        Navigation.NavigateTo(
+            "/finance/company/budgets/create");
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/finance/sites");
+    }
+}

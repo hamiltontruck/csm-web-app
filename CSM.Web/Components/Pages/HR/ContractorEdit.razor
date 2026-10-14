@@ -1,0 +1,282 @@
+@page "/hr/contractors/edit/{contractorId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IContractorService ContractorService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Contractor</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Edit Contractor</h2>
+            <p class="text-muted mb-0">
+                Update contractor information.
+            </p>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="BackToDetails">
+            <i class="bi bi-arrow-left"></i>
+            Back to Details
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center p-5">
+                <div class="spinner-border" role="status"></div>
+
+                <div class="mt-2 text-muted">
+                    Loading contractor...
+                </div>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Contractor Code
+                        </label>
+
+                        <input class="form-control"
+                               @bind="_request.ContractorCode" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Name
+                        </label>
+
+                        <input class="form-control"
+                               @bind="_request.Name" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Contact Person
+                        </label>
+
+                        <input class="form-control"
+                               @bind="_request.ContactPerson" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Phone Number
+                        </label>
+
+                        <input class="form-control"
+                               @bind="_request.PhoneNumber" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Email
+                        </label>
+
+                        <input type="email"
+                               class="form-control"
+                               @bind="_request.Email" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Tax Identification Number
+                        </label>
+
+                        <input class="form-control"
+                               @bind="_request.TaxIdentificationNumber" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Registration Number
+                        </label>
+
+                        <input class="form-control"
+                               @bind="_request.RegistrationNumber" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Status
+                        </label>
+
+                        <select class="form-select"
+                                @bind="_status">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">
+                            Address
+                        </label>
+
+                        <textarea class="form-control"
+                                  rows="3"
+                                  @bind="_request.Address">
+                        </textarea>
+                    </div>
+
+                </div>
+
+                <hr class="my-4" />
+
+                <div class="d-flex justify-content-end gap-2">
+
+                    <button class="btn btn-outline-secondary"
+                            @onclick="BackToDetails"
+                            disabled="@_saving">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-primary"
+                            @onclick="SaveAsync"
+                            disabled="@(_saving || _loading)">
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save me-1"></i>
+                            <span>Save Changes</span>
+                        }
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter]
+    public Guid contractorId { get; set; }
+
+    private UpdateContractorRequest _request = new();
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _errorMessage;
+    private string _status = "true";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var contractor =
+                await ContractorService.GetContractorAsync(contractorId);
+
+            _request = new UpdateContractorRequest
+            {
+                ContractorCode = contractor.ContractorCode,
+                Name = contractor.Name,
+                ContactPerson = contractor.ContactPerson,
+                PhoneNumber = contractor.PhoneNumber,
+                Email = contractor.Email,
+                TaxIdentificationNumber =
+                    contractor.TaxIdentificationNumber,
+                RegistrationNumber =
+                    contractor.RegistrationNumber,
+                Address = contractor.Address,
+                IsActive = contractor.IsActive
+            };
+            _status = contractor.IsActive
+                ? "true"
+                : "false";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_request.ContractorCode))
+        {
+            _errorMessage = "Contractor Code is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.Name))
+        {
+            _errorMessage = "Contractor Name is required.";
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            _request.IsActive =
+                string.Equals(
+                    _status,
+                    "true",
+                    StringComparison.OrdinalIgnoreCase);
+
+            await ContractorService.UpdateContractorAsync(
+                contractorId,
+                _request);
+
+            Navigation.NavigateTo(
+                $"/hr/contractors/details/{contractorId}");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void OnStatusChanged(ChangeEventArgs e)
+    {
+        _request.IsActive =
+            string.Equals(
+                e.Value?.ToString(),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void BackToDetails()
+    {
+        Navigation.NavigateTo(
+            $"/hr/contractors/details/{contractorId}");
+    }
+}

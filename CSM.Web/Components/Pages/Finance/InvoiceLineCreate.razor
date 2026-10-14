@@ -1,0 +1,188 @@
+@page "/finance/invoices/{Id:guid}/lines/create"
+@page "/finance/sites/{SiteId:guid}/invoices/{Id:guid}/lines/create"
+@namespace CSM.Web.Components.Pages.Finance
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Add Invoice Line</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-start mb-4">
+
+        <div>
+            <button class="btn btn-outline-secondary mb-3"
+                    @onclick="Back">
+                ← Invoice Details
+            </button>
+
+            <h2 class="mb-1">Add Invoice Line</h2>
+
+            <div class="text-muted">
+                Invoice Item
+            </div>
+        </div>
+
+    </div>
+
+    <EditForm Model="_line" OnValidSubmit="Save">
+
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-12">
+                        <label class="form-label">Description *</label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="_line.Description" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Quantity</label>
+
+                        <InputNumber TValue="decimal"
+                                     class="form-control"
+                                     @bind-Value="_line.Quantity"
+                                     @bind-Value:after="Recalculate" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Unit</label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="_line.UnitOfMeasure">
+
+                            <optgroup label="Pieces">
+                                <option value="Pcs">Pcs</option>
+                                <option value="Box">Box</option>
+                                <option value="Set">Set</option>
+                                <option value="Roll">Roll</option>
+                            </optgroup>
+
+                            <optgroup label="Materials">
+                                <option value="Bag">Bag</option>
+                                <option value="Kg">Kg</option>
+                                <option value="Ton">Ton</option>
+                                <option value="m">m</option>
+                                <option value="m²">m²</option>
+                                <option value="m³">m³</option>
+                            </optgroup>
+
+                            <optgroup label="Liquids">
+                                <option value="Litre">Litre</option>
+                                <option value="Gallon">Gallon</option>
+                            </optgroup>
+
+                            <optgroup label="Equipment & Labour">
+                                <option value="Hour">Hour</option>
+                                <option value="Day">Day</option>
+                                <option value="Month">Month</option>
+                                <option value="Trip">Trip</option>
+                            </optgroup>
+
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Unit Price</label>
+
+                        <InputNumber TValue="decimal"
+                                     class="form-control"
+                                     @bind-Value="_line.UnitPrice"
+                                     @bind-Value:after="Recalculate" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Line Total</label>
+
+                        <input class="form-control"
+                               value="@_lineTotal.ToString("N2")"
+                               readonly />
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <div class="mt-4 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">
+                Save Line
+            </button>
+
+            <button class="btn btn-outline-secondary"
+                    type="button"
+                    @onclick="Back">
+                Cancel
+            </button>
+        </div>
+
+    </EditForm>
+
+</div>
+
+@code {
+
+    [Parameter] public Guid? SiteId { get; set; }
+
+    [Parameter] public Guid Id { get; set; }
+
+    private readonly CreateInvoiceLineRequest _line = new();
+
+    private decimal _lineTotal;
+
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        _line.InvoiceId = Id;
+        _line.Quantity = 1;
+        _line.UnitPrice = 0;
+        _line.UnitOfMeasure = "Pcs";
+    }
+
+    private string InvoiceBase =>
+        SiteId.HasValue
+            ? $"/finance/sites/{SiteId.Value}/invoices/{Id}"
+            : $"/finance/invoices/{Id}";
+
+    private void Recalculate()
+    {
+        _lineTotal = _line.Quantity * _line.UnitPrice;
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            await FinanceService.CreateInvoiceLineAsync(Id, _line);
+
+            Navigation.NavigateTo(InvoiceBase);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(InvoiceBase);
+    }
+
+}

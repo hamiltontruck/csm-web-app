@@ -1,0 +1,195 @@
+@page "/finance/petty-cash/edit/{Id:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Petty Cash Account</PageTitle>
+
+<div class="container-fluid py-4">
+
+    @if (_loading)
+    {
+        <p>Loading petty cash account...</p>
+    }
+    else if (_account is null)
+    {
+        <div class="alert alert-danger">
+            Petty cash account not found.
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            Back
+        </button>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <button class="btn btn-outline-secondary mb-2"
+                        @onclick="Back">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+
+                <h3>Edit Petty Cash Account</h3>
+            </div>
+        </div>
+
+        <EditForm Model="_form"
+                  OnValidSubmit="Save">
+
+            <DataAnnotationsValidator />
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <label class="form-label">Construction Site</label>
+
+                    <input class="form-control"
+                           value="@SiteDisplay"
+                           readonly />
+
+                    <div class="form-text">
+                        Construction site cannot be changed after account creation.
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Account Code</label>
+
+                    <input class="form-control"
+                           value="@_account.AccountCode"
+                           readonly />
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Opening Balance</label>
+
+                    <input class="form-control"
+                           value="@_account.OpeningBalance.ToString("N2")"
+                           readonly />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Current Balance</label>
+
+                    <input class="form-control"
+                           value="@_account.CurrentBalance.ToString("N2")"
+                           readonly />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Account Name</label>
+
+                    <InputText class="form-control"
+                               @bind-Value="_form.AccountName" />
+                </div>
+
+                <div class="col-md-6">
+                    <div class="form-check mt-4">
+                        <InputCheckbox class="form-check-input"
+                                       @bind-Value="_form.IsActive" />
+
+                        <label class="form-check-label">
+                            Active
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-4 d-flex gap-2">
+
+                <button class="btn btn-primary"
+                        type="submit">
+                    Save Changes
+                </button>
+
+                <button class="btn btn-outline-secondary"
+                        type="button"
+                        @onclick="Back">
+                    Cancel
+                </button>
+
+            </div>
+
+        </EditForm>
+    }
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private PettyCashAccountResponse? _account;
+
+    private bool _loading = true;
+
+    private readonly PettyCashAccountEditForm _form =
+        new();
+
+    private string SiteDisplay =>
+        string.IsNullOrWhiteSpace(_account?.SiteName)
+            ? "Company"
+            : _account.SiteName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _account =
+                await FinanceService.GetPettyCashAccountAsync(Id);
+
+            _form.AccountName =
+                _account.AccountName;
+
+            _form.IsActive =
+                _account.IsActive;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        var request =
+            new UpdatePettyCashAccountRequest(
+                _form.AccountName.Trim(),
+                _form.IsActive);
+
+        await FinanceService.UpdatePettyCashAccountAsync(
+            Id,
+            request);
+
+        Navigation.NavigateTo("/finance/petty-cash");
+    }
+
+    private void Back()
+    {
+        var siteId = _account?.ConstructionSiteId;
+
+        if (siteId.HasValue)
+        {
+            Navigation.NavigateTo(
+                $"/finance/petty-cash/site/{siteId.Value}");
+            return;
+        }
+
+        Navigation.NavigateTo("/finance/petty-cash");
+    }
+
+    private sealed class PettyCashAccountEditForm
+    {
+        public string AccountName { get; set; } =
+            string.Empty;
+
+        public bool IsActive { get; set; }
+    }
+}

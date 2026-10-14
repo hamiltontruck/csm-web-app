@@ -1,0 +1,324 @@
+@page "/equipment/assignments/site/{SiteId:guid}"
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject NavigationManager Navigation
+
+<PageTitle>Equipment Assignments</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+
+        <div class="d-flex align-items-center">
+
+            <button class="btn btn-outline-secondary me-3"
+                    @onclick="GoBack">
+                ← Back
+            </button>
+
+            <h3 class="mb-0">
+                Equipment Assignments
+            </h3>
+
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="NewAssignment">
+            + New Assignment
+        </button>
+
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (assignments.Count == 0)
+    {
+        <div class="alert alert-info">
+            No equipment assignments found.
+        </div>
+    }
+    else
+    {
+        @foreach (var item in assignments.OrderByDescending(x => x.AssignedAtUtc))
+        {
+            <div class="card shadow-sm mb-3">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between">
+
+                        <div>
+                            <h5 class="mb-1">
+                                @item.EquipmentCode — @item.EquipmentName
+                            </h5>
+
+                            <div class="text-muted">
+                                @item.ConstructionSiteName
+                            </div>
+
+                            <small class="text-muted">
+                                @item.AssignmentNumber
+                            </small>
+                        </div>
+
+                        <div>
+                            @if (item.IsActive)
+                            {
+                                <div class="d-flex align-items-center gap-2">
+
+                                    <span class="badge bg-success">
+                                        Active
+                                    </span>
+
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => ReleaseAssignment(item)">
+                                        Release
+                                    </button>
+
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">
+                                    Closed
+                                </span>
+                            }
+                        </div>
+
+                    </div>
+
+                    <hr />
+
+                    <div class="row">
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Assignment Date
+                            </small>
+
+                            @item.AssignedAtUtc.ToString("dd/MM/yyyy")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Release Date
+                            </small>
+
+                            @(item.ReleasedAtUtc?.ToString("dd/MM/yyyy") ?? "-")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Meter at Assignment
+                            </small>
+
+                            @(item.MeterReadingAtAssignment?.ToString("N0") ?? "-")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Meter at Release
+                            </small>
+
+                            @(item.MeterReadingAtRelease?.ToString("N0") ?? "-")
+                        </div>
+
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(item.Remarks))
+                    {
+                        <div class="mt-3">
+
+                            <small class="text-muted d-block">
+                                Remarks
+                            </small>
+
+                            @item.Remarks
+
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+        }
+    }
+
+    @if (releasingAssignment is not null)
+    {
+        <div class="modal d-block"
+             tabindex="-1"
+             style="background-color: rgba(0,0,0,0.5);">
+
+            <div class="modal-dialog">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+
+                        <h5 class="modal-title">
+                            Release Equipment
+                        </h5>
+
+                        <button type="button"
+                                class="btn-close"
+                                @onclick="CancelRelease">
+                        </button>
+
+                    </div>
+
+                    <div class="modal-body">
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Equipment
+                            </label>
+
+                            <input class="form-control"
+                                   value="@($"{releasingAssignment.EquipmentCode} - {releasingAssignment.EquipmentName}")"
+                                   disabled />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Release Date
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="releaseDate" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Meter Reading at Release
+                            </label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="releaseModel.MeterReadingAtRelease" />
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button type="button"
+                                class="btn btn-secondary"
+                                @onclick="CancelRelease">
+                            Cancel
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-danger"
+                                @onclick="ConfirmRelease">
+                            Release Equipment
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private List<EquipmentAssignmentResponse> assignments = [];
+
+    private bool loading = true;
+
+    private EquipmentAssignmentResponse? releasingAssignment;
+
+    private DateTime releaseDate = DateTime.Now;
+
+    private ReleaseEquipmentAssignmentRequest releaseModel = new()
+    {
+        ReleasedAtUtc = DateTime.Now
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var allAssignments =
+            await EquipmentService.GetAssignmentsAsync();
+
+        assignments = allAssignments
+            .Where(x => x.ConstructionSiteId == SiteId)
+            .OrderByDescending(x => x.AssignedAtUtc)
+            .ToList();
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ReleaseAssignment(
+        EquipmentAssignmentResponse assignment)
+    {
+        releasingAssignment = assignment;
+
+        releaseDate = DateTime.Now;
+
+        releaseModel = new ReleaseEquipmentAssignmentRequest
+        {
+            ReleasedAtUtc = releaseDate,
+
+            MeterReadingAtRelease =
+                assignment.MeterReadingAtAssignment
+        };
+    }
+
+    private void CancelRelease()
+    {
+        releasingAssignment = null;
+    }
+
+    private async Task ConfirmRelease()
+    {
+        if (releasingAssignment is null)
+            return;
+
+        releaseModel.ReleasedAtUtc = releaseDate;
+
+        await EquipmentService.ReleaseAssignmentAsync(
+            releasingAssignment.Id,
+            releaseModel);
+
+        releasingAssignment = null;
+
+        var allAssignments =
+            await EquipmentService.GetAssignmentsAsync();
+
+        assignments = allAssignments
+            .Where(x => x.ConstructionSiteId == SiteId)
+            .OrderByDescending(x => x.AssignedAtUtc)
+            .ToList();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void NewAssignment()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/assignments/create/{SiteId}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/equipment/sites");
+    }
+}

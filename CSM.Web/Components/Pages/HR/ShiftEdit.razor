@@ -1,0 +1,259 @@
+@page "/hr/shifts/edit/{ShiftId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IShiftService ShiftService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Shift</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1">Edit Shift</h3>
+            <p class="text-muted mb-0">
+                Update shift working hours and settings.
+            </p>
+        </div>
+
+        <button class="btn btn-outline-secondary" @onclick="Cancel">
+            <i class="bi bi-arrow-left me-1"></i>
+            Back
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else if (_model is not null)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <EditForm Model="_model" OnValidSubmit="SaveAsync">
+                    <DataAnnotationsValidator />
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">Shift Code</label>
+                            <input class="form-control"
+                                   value="@_shiftCode"
+                                   readonly />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Shift Name</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_model.Name" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Start Time</label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="_startTime"
+                                       placeholder="08:00" />
+
+                            <div class="form-text">
+                                Enter time as HH:mm
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">End Time</label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="_endTime"
+                                       placeholder="17:00" />
+
+                            <div class="form-text">
+                                Enter time as HH:mm
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Grace Period (Minutes)
+                            </label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="_model.GracePeriodMinutes" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Standard Hours
+                            </label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="_model.StandardHours" />
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input"
+                                               @bind-Value="_model.IsNightShift" />
+
+                                <label class="form-check-label">
+                                    Night Shift
+                                </label>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_saveError))
+                    {
+                        <div class="alert alert-danger mt-3">
+                            @_saveError
+                        </div>
+                    }
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <button type="button"
+                                class="btn btn-outline-secondary"
+                                @onclick="Cancel"
+                                disabled="@_saving">
+                            Cancel
+                        </button>
+
+                        <button type="submit"
+                                class="btn btn-primary"
+                                disabled="@_saving">
+                            @if (_saving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check-lg me-1"></i>
+                                <span>Save Changes</span>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid ShiftId { get; set; }
+
+    private string _shiftCode = string.Empty;
+    private string _startTime = string.Empty;
+    private string _endTime = string.Empty;
+
+    private UpdateShiftRequest? _model;
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _saveError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShiftAsync();
+    }
+
+    private async Task LoadShiftAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var shift = await ShiftService.GetByIdAsync(ShiftId);
+
+            if (shift is null)
+            {
+                _error = "Shift not found.";
+                return;
+            }
+
+            _shiftCode = shift.Code;
+
+            _startTime = shift.StartTime.ToString("HH:mm");
+            _endTime = shift.EndTime.ToString("HH:mm");
+
+            _model = new UpdateShiftRequest
+            {
+                Name = shift.Name,
+                StartTime = shift.StartTime,
+                EndTime = shift.EndTime,
+                GracePeriodMinutes = shift.GracePeriodMinutes,
+                StandardHours = shift.StandardHours,
+                IsNightShift = shift.IsNightShift
+            };
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load shift: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_model is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        _saveError = null;
+
+        try
+        {
+            if (!TimeOnly.TryParse(_startTime, out var startTime))
+            {
+                _saveError = "Please enter a valid start time.";
+                return;
+            }
+
+            if (!TimeOnly.TryParse(_endTime, out var endTime))
+            {
+                _saveError = "Please enter a valid end time.";
+                return;
+            }
+
+            _model.StartTime = startTime;
+            _model.EndTime = endTime;
+
+            await ShiftService.UpdateAsync(ShiftId, _model);
+
+            Navigation.NavigateTo("/hr/shifts");
+        }
+        catch (Exception ex)
+        {
+            _saveError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/hr/shifts");
+    }
+}

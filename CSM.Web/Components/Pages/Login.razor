@@ -1,0 +1,107 @@
+@page "/login"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Auth
+@using CSM.Web.Services
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+
+@inject IAuthService AuthService
+@inject ProtectedSessionStorage SessionStorage
+@inject NavigationManager Navigation
+@inject ILogger<Login> Logger
+
+
+<PageTitle>CSM Login</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+
+            <div class="card shadow">
+                <div class="card-body p-4">
+
+                    <h3 class="text-center mb-1">
+                        Hamilton Business Group
+                    </h3>
+
+                    <p class="text-center text-muted mb-4">
+                        Construction Site Management
+                    </p>
+
+                    <EditForm Model="_model" OnValidSubmit="LoginAsync">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_model.Email" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <InputText class="form-control"
+                                       type="password"
+                                       @bind-Value="_model.Password" />
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_error))
+                        {
+                            <div class="alert alert-danger">
+                                @_error
+                            </div>
+                        }
+
+                        <button class="btn btn-primary w-100"
+                                disabled="@_loading">
+                            @(_loading ? "Signing in..." : "Sign In")
+                        </button>
+                    </EditForm>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly LoginRequest _model = new();
+
+    private bool _loading;
+    private string? _error;
+
+    private async Task LoginAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var result = await AuthService.LoginAsync(_model);
+
+            if (result is null)
+            {
+                _error = "Invalid email or password.";
+                return;
+            }
+
+            await SessionStorage.SetAsync("jwt", result.AccessToken);
+            await SessionStorage.SetAsync("refreshToken", result.RefreshToken);
+            await SessionStorage.SetAsync("userName", result.FullName);
+            await SessionStorage.SetAsync("email", result.Email);
+            await SessionStorage.SetAsync("roles", result.Roles);
+
+            Navigation.NavigateTo("/dashboard", true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Login failed");
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

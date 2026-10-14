@@ -1,0 +1,104 @@
+@page "/equipment/maintenance-sites"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Equipment Maintenance Sites</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center mb-4">
+
+        <button class="btn btn-outline-secondary me-3"
+                @onclick="GoBack">
+            ← Back
+        </button>
+
+        <div>
+            <h2 class="mb-0">Maintenance</h2>
+            <small class="text-muted">Select Construction Site</small>
+        </div>
+
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (sites.Count == 0)
+    {
+        <div class="alert alert-info">
+            No construction sites found.
+        </div>
+    }
+    else
+    {
+        @foreach (var site in sites.OrderBy(x => x.Name))
+        {
+            <div class="card shadow-sm mb-3"
+                 style="cursor:pointer"
+                 @onclick="() => OpenSite(site.Id)">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-center">
+
+                        <div>
+                            <h5 class="mb-1">@site.Name</h5>
+
+                            <div class="text-muted">
+                                @site.SiteCode
+                            </div>
+
+                            <small>
+                                @site.City, @site.Region
+                            </small>
+                        </div>
+
+                        <i class="bi bi-chevron-right fs-4"></i>
+
+                    </div>
+
+                </div>
+
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+
+    private List<SiteResponse> sites = [];
+    private bool loading = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        sites = await ProjectService.GetSitesAsync();
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenSite(Guid siteId)
+    {
+        Navigation.NavigateTo(
+            $"/equipment/maintenance/site/{siteId}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/equipment");
+    }
+
+}

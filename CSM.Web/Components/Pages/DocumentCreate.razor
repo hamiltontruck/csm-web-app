@@ -1,0 +1,302 @@
+@page "/compliance/documents/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Services
+
+@inject IComplianceService ComplianceService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Document</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2>Create Document</h2>
+            <p class="text-muted mb-0">
+                Create the document metadata record.
+            </p>
+        </div>
+
+        <button class="btn btn-secondary"
+                @onclick="Back"
+                disabled="@_saving">
+            Back
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <label class="form-label">Document Number</label>
+                    <input class="form-control"
+                           maxlength="50"
+                           @bind="_request.DocumentNumber"
+                           placeholder="e.g. DOC-001" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Name</label>
+                    <input class="form-control"
+                           maxlength="250"
+                           @bind="_request.Name"
+                           placeholder="Document name" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Document Type</label>
+
+                    <InputSelect class="form-select"
+                                 @bind-Value="_request.DocumentType">
+
+                        <option value="0">-- Select Document Type --</option>
+                        <option value="1">General</option>
+                        <option value="2">Contract</option>
+                        <option value="3">Employee ID</option>
+                        <option value="4">Certification</option>
+                        <option value="5">Safety Training</option>
+                        <option value="6">Permit</option>
+                        <option value="7">Inspection</option>
+                        <option value="8">Invoice</option>
+                        <option value="9">Receipt</option>
+                        <option value="10">Drawing</option>
+                        <option value="11">Specification</option>
+                        <option value="12">Progress Photo</option>
+
+                    </InputSelect>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">File Name</label>
+                    <input class="form-control"
+                           maxlength="255"
+                           @bind="_request.FileName"
+                           placeholder="e.g. safety-plan.pdf" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Storage Path</label>
+                    <input class="form-control"
+                           maxlength="1000"
+                           @bind="_request.StoragePath"
+                           placeholder="/uploads/documents/file.pdf" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Content Type</label>
+                    <input class="form-control"
+                           @bind="_request.ContentType"
+                           placeholder="e.g. application/pdf" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">File Size (Bytes)</label>
+                    <input class="form-control"
+                           type="number"
+                           min="0"
+                           @bind="_request.FileSizeBytes" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Drawing Number</label>
+                    <input class="form-control"
+                           @bind="_request.DrawingNumber" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Sheet Number</label>
+                    <input class="form-control"
+                           @bind="_request.SheetNumber" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Discipline</label>
+                    <input class="form-control"
+                           @bind="_request.Discipline"
+                           placeholder="e.g. Architectural" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Drawing Status</label>
+                    <input class="form-control"
+                           @bind="_request.DrawingStatus"
+                           placeholder="e.g. For Construction" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Current Revision</label>
+                    <input class="form-control"
+                           @bind="_request.CurrentRevision"
+                           placeholder="e.g. Rev 01" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Issue Date</label>
+                    <input class="form-control"
+                           type="date"
+                           @bind="_request.IssueDate" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Expiry Date</label>
+                    <input class="form-control"
+                           type="date"
+                           @bind="_request.ExpiryDate" />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Related Entity Type</label>
+                    <input class="form-control"
+                           @bind="_request.RelatedEntityType"
+                           placeholder="Optional related entity type" />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control"
+                              rows="4"
+                              @bind="_request.Description"></textarea>
+                </div>
+
+                <div class="col-12">
+                    <div class="form-check">
+
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="isConfidential"
+                               @bind="_request.IsConfidential" />
+
+                        <label class="form-check-label"
+                               for="isConfidential">
+                            Confidential
+                        </label>
+
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="alert alert-info mt-4">
+                <strong>File upload:</strong>
+                The document record is created separately from the actual
+                document-version upload. File upload will be implemented
+                through the document version workflow.
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+
+                <button class="btn btn-primary"
+                        @onclick="Save"
+                        disabled="@_saving">
+
+                    @if (_saving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save</span>
+                    }
+
+                </button>
+
+                <button class="btn btn-secondary"
+                        @onclick="Back"
+                        disabled="@_saving">
+                    Cancel
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private readonly CreateDocumentRequest _request = new();
+
+    private bool _saving;
+    private string? _errorMessage;
+
+    private async Task Save()
+    {
+        _errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_request.DocumentNumber))
+        {
+            _errorMessage = "Document Number is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.Name))
+        {
+            _errorMessage = "Name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.FileName))
+        {
+            _errorMessage = "File Name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.StoragePath))
+        {
+            _errorMessage = "Storage Path is required.";
+            return;
+        }
+
+        if (_request.FileSizeBytes < 0)
+        {
+            _errorMessage = "File Size cannot be negative.";
+            return;
+        }
+
+        if (_request.IssueDate.HasValue &&
+            _request.ExpiryDate.HasValue &&
+            _request.ExpiryDate.Value < _request.IssueDate.Value)
+        {
+            _errorMessage =
+                "Expiry Date cannot be earlier than Issue Date.";
+            return;
+        }
+
+        try
+        {
+            _saving = true;
+
+            await ComplianceService.CreateDocumentAsync(
+                _request);
+
+            Navigation.NavigateTo(
+                "/compliance/documents");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(
+            "/compliance/documents");
+    }
+}

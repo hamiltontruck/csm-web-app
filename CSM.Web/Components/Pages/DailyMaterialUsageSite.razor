@@ -1,0 +1,157 @@
+@page "/daily-material-usage/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>Site Daily Material Usage</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+
+            <div>
+                <h2>@siteName</h2>
+                <div class="text-muted">
+                    Daily Material Usage
+                </div>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="NewUsage">
+                <i class="bi bi-plus-lg"></i>
+                New Usage
+            </button>
+
+        </div>
+
+        @if (records.Count == 0)
+        {
+            <div class="alert alert-info">
+                No daily usage records for this site.
+            </div>
+        }
+        else
+        {
+            @foreach (var item in records)
+            {
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between">
+
+                            <div>
+                                <div class="fw-bold">
+                                    @item.MaterialCode - @item.MaterialName
+                                </div>
+
+                                <small class="text-muted">
+                                    @item.Date.ToString("dd MMM yyyy")
+                                </small>
+                            </div>
+
+                            <div class="text-end">
+                                <div class="fw-bold">
+                                    @item.QuantityUsed @item.Unit
+                                </div>
+
+                                @if (item.RequiresSupervisorReview)
+                                {
+                                    <span class="badge bg-danger">
+                                        Review
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">
+                                        OK
+                                    </span>
+                                }
+                            </div>
+
+                        </div>
+
+                        <hr />
+
+                        <div class="row text-center">
+
+                            <div class="col">
+                                <small class="text-muted">Issued</small>
+                                <div>@item.QuantityIssued</div>
+                            </div>
+
+                            <div class="col">
+                                <small class="text-muted">Used</small>
+                                <div>@item.QuantityUsed</div>
+                            </div>
+
+                            <div class="col">
+                                <small class="text-muted">Returned</small>
+                                <div>@item.QuantityReturned</div>
+                            </div>
+
+                            <div class="col">
+                                <small class="text-muted">Variance</small>
+                                <div>@item.QuantityVariance</div>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+            }
+        }
+
+    </div>
+}
+
+@code{
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private List<DailyMaterialUsageResponse> records = [];
+
+    private bool loading = true;
+
+    private string siteName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var all =
+            await InventoryService.GetDailyMaterialUsageAsync();
+
+        records = all
+            .Where(x => x.ConstructionSiteId == SiteId)
+            .OrderByDescending(x => x.Date)
+            .ToList();
+
+        siteName =
+            records.FirstOrDefault()?.ConstructionSiteName
+            ?? "Construction Site";
+
+        loading = false;
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo("/daily-material-usage");
+
+    void NewUsage()
+        => Navigation.NavigateTo(
+            $"/daily-material-usage/create/{SiteId}");
+}

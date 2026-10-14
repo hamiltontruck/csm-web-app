@@ -1,0 +1,309 @@
+@page "/users/edit/{Id:guid}"
+
+
+@using Microsoft.AspNetCore.Authorization
+@using CSM.Web.Models.Users
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject UserWebService UserService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit User</PageTitle>
+
+<h3 class="mb-4">Edit User</h3>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <div class="mt-2">Loading user...</div>
+    </div>
+}
+else
+{
+    <EditForm Model="model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <strong>Basic Information</strong>
+            </div>
+
+            <div class="card-body">
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">First Name</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.FirstName" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Last Name</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.LastName" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Phone Number</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.PhoneNumber" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Job Title</label>
+                        <InputText class="form-control"
+                                   @bind-Value="model.JobTitle" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="form-check mt-4">
+                            <InputCheckbox class="form-check-input"
+                                           @bind-Value="model.IsActive" />
+                            <label class="form-check-label">
+                                Active User
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <strong>Roles</strong>
+            </div>
+
+            <div class="card-body">
+                <div class="row">
+
+                    @foreach (var role in Roles)
+                    {
+                        <div class="col-md-4 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       checked="@selectedRoles.Contains(role)"
+                                       @onchange="e => ToggleRole(role, e.Value)" />
+
+                                <label class="form-check-label">
+                                    @role
+                                </label>
+                            </div>
+                        </div>
+                    }
+
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <strong>Construction Site Access</strong>
+            </div>
+
+            <div class="card-body">
+
+                @foreach (var site in Sites)
+                {
+                    <div class="form-check mb-2">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               checked="@model.SiteIds.Contains(site.Id)"
+                               @onchange="e => ToggleSite(site.Id, e.Value)" />
+
+                        <label class="form-check-label">
+                            @site.Name
+                        </label>
+                    </div>
+                }
+
+                <hr />
+
+                <label class="form-label">Default Site</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="model.DefaultSiteId">
+
+                    <option value="">-- Select Default Site --</option>
+
+                    @foreach (var site in SelectedSites)
+                    {
+                        <option value="@site.Id">
+                            @site.Name
+                        </option>
+                    }
+
+                </InputSelect>
+
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary"
+                    type="submit"
+                    disabled="@saving">
+
+                @if (saving)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save Changes</span>
+                }
+
+            </button>
+
+            <button type="button"
+                    class="btn btn-secondary"
+                    @onclick="Back"
+                    disabled="@saving">
+                Cancel
+            </button>
+        </div>
+
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private UpdateUserModel model = new();
+
+    private List<SiteResponse> Sites = [];
+
+    private bool loading = true;
+
+    private bool saving;
+
+    private string? errorMessage;
+
+    private readonly string[] Roles =
+    {
+        "Administrator",
+        "ProjectManager",
+        "SiteEngineer",
+        "StoreKeeper",
+        "HROfficer",
+        "FinanceOfficer",
+        "EquipmentOfficer",
+        "SafetyOfficer",
+        "Viewer"
+    };
+
+    private List<string> selectedRoles = [];
+
+    private IEnumerable<SiteResponse> SelectedSites =>
+        Sites.Where(x => model.SiteIds.Contains(x.Id));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Sites = await ProjectService.GetSitesAsync();
+
+            var user = await UserService.GetByIdAsync(Id);
+
+            if (user is not null)
+            {
+                model.EmployeeId = user.EmployeeId;
+                model.FirstName = user.FirstName;
+                model.LastName = user.LastName;
+                model.PhoneNumber = user.PhoneNumber;
+                model.JobTitle = user.JobTitle;
+                model.IsActive = user.IsActive;
+                model.DefaultSiteId = user.DefaultSiteId;
+
+                model.SiteIds = user.SiteAccesses.ToList();
+
+                selectedRoles = user.Roles.ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ToggleRole(string role, object? value)
+    {
+        var isChecked = value as bool? ?? false;
+
+        if (isChecked)
+        {
+            if (!selectedRoles.Contains(role))
+                selectedRoles.Add(role);
+        }
+        else
+        {
+            selectedRoles.Remove(role);
+        }
+    }
+
+    private void ToggleSite(Guid siteId, object? value)
+    {
+        var isChecked = value as bool? ?? false;
+
+        if (isChecked)
+        {
+            if (!model.SiteIds.Contains(siteId))
+                model.SiteIds.Add(siteId);
+        }
+        else
+        {
+            model.SiteIds.Remove(siteId);
+
+            if (model.DefaultSiteId == siteId)
+                model.DefaultSiteId = null;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        saving = true;
+        errorMessage = null;
+
+        try
+        {
+            await UserService.UpdateAsync(Id, model);
+
+            await UserService.SetRolesAsync(Id, selectedRoles);
+
+            await UserService.SetSitesAsync(
+                Id,
+                model.DefaultSiteId,
+                model.SiteIds.Distinct().ToList());
+
+            Navigation.NavigateTo("/users");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/users");
+    }
+}

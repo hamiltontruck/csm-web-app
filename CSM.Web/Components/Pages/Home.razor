@@ -1,0 +1,31 @@
+﻿@page "/"
+@rendermode InteractiveServer
+
+@inject ProtectedSessionStorage SessionStorage
+@inject NavigationManager Navigation
+
+@if (!_checked)
+{
+    <p class="m-4">Loading...</p>
+}
+
+@code {
+    private bool _checked;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var token = await SessionStorage.GetAsync<string>("jwt");
+
+        _checked = true;
+
+        Navigation.NavigateTo(
+            token.Success && !string.IsNullOrWhiteSpace(token.Value)
+                ? "/dashboard"
+                : "/login",
+            true);
+
+        StateHasChanged();
+    }
+}

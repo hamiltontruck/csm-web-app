@@ -1,0 +1,244 @@
+@page "/projects/{ProjectId:guid}/phases/{PhaseId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Projects
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Phase Details</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading phase...</p>
+    </div>
+}
+else if (_phase is null)
+{
+    <div class="container py-4">
+        <div class="alert alert-danger">
+            Phase not found.
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+
+            <div>
+                <button class="btn btn-outline-secondary mb-3"
+                        @onclick="Back">
+                    ← WBS
+                </button>
+
+                <h2 class="mb-1">@_phase.Name</h2>
+
+                <div class="text-muted">
+                    @_phase.PhaseNumber · Sequence @_phase.Sequence
+                </div>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="NewTask">
+                + New Task
+            </button>
+
+        </div>
+
+        <!-- KPI -->
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="text-muted">Status</div>
+                        <h4>@_phase.Status</h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="text-muted">Progress</div>
+                        <h3>@_phase.ProgressPercentage.ToString("0")%</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="text-muted">Start</div>
+                        <strong>
+                            @(_phase.PlannedStartDate?.ToString("dd MMM yyyy") ?? "-")
+                        </strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="text-muted">Finish</div>
+                        <strong>
+                            @(_phase.PlannedEndDate?.ToString("dd MMM yyyy") ?? "-")
+                        </strong>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Description -->
+        <div class="card shadow-sm border-0 mb-4">
+
+            <div class="card-header bg-white">
+                <strong>Description</strong>
+            </div>
+
+            <div class="card-body">
+                @if (string.IsNullOrWhiteSpace(_phase.Description))
+                {
+                    <span class="text-muted">No description.</span>
+                }
+                else
+                {
+                    @_phase.Description
+                }
+            </div>
+
+        </div>
+
+        <!-- Tasks -->
+        <div class="card shadow-sm border-0">
+
+            <div class="card-header bg-white d-flex justify-content-between">
+
+                <strong>Work Tasks</strong>
+
+                <span class="badge bg-primary">
+                    @_tasks.Count
+                </span>
+
+            </div>
+
+            @if (_tasks.Count == 0)
+            {
+                <div class="card-body text-center py-5">
+
+                    <h5>No Tasks</h5>
+
+                    <p class="text-muted">
+                        Create the first executable work task.
+                    </p>
+
+                    <button class="btn btn-primary"
+                            @onclick="NewTask">
+                        Create Task
+                    </button>
+
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+
+                    <table class="table table-hover mb-0">
+
+                        <thead class="table-light">
+                            <tr>
+                                <th>No</th>
+                                <th>Task</th>
+                                <th>Status</th>
+                                <th class="text-end">Progress</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            @foreach (var task in _tasks)
+                            {
+                                <tr style="cursor:pointer"
+                                    @onclick='() => OpenTask(task.Id)'>
+
+                                    <td>@task.TaskNumber</td>
+                                    <td>@task.Title</td>
+                                    <td>
+                                        <span class="badge bg-secondary">
+                                            @task.Status
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        @task.ProgressPercentage%
+                                    </td>
+
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+            }
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    [Parameter] public Guid ProjectId { get; set; }
+
+    [Parameter] public Guid PhaseId { get; set; }
+
+    private ProjectPhase? _phase;
+
+    private List<WorkTask> _tasks = new();
+
+    private bool _loading = true;
+    private bool _loaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        var phases = await ProjectService.GetProjectPhasesAsync(ProjectId);
+
+        _phase = phases.FirstOrDefault(x => x.Id == PhaseId);
+
+        _tasks = await ProjectService.GetWorkTasksAsync(ProjectId);
+
+        _loading = false;
+
+        StateHasChanged();
+    }
+
+    void OpenTask(Guid taskId)
+    {
+        Navigation.NavigateTo($"/projects/{ProjectId}/tasks/{taskId}");
+    }
+
+    void Back()
+    {
+        Navigation.NavigateTo($"/projects/{ProjectId}/phases", true);
+    }
+
+    void NewTask()
+    {
+        Navigation.NavigateTo(
+            $"/projects/{ProjectId}/phases/{PhaseId}/tasks/create");
+    }
+
+}

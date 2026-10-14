@@ -1,0 +1,284 @@
+@page "/compliance/safety-incidents/{Id:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IEmployeeService EmployeeService
+
+@inject IComplianceService ComplianceService
+@inject NavigationManager Navigation
+
+<PageTitle>Safety Incident Details</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2>Safety Incident Details</h2>
+
+            @if (_incident is not null)
+            {
+                <div class="text-muted">
+                    @_incident.IncidentNumber
+                </div>
+            }
+        </div>
+
+        <div class="d-flex gap-2">
+            @if (_incident is not null)
+            {
+                <button class="btn btn-outline-primary"
+                        @onclick="EditIncident">
+                    Edit
+                </button>
+            }
+
+            <button class="btn btn-outline-secondary"
+                    @onclick="GoBack">
+                Back
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="alert alert-info">
+            Loading incident...
+        </div>
+    }
+    else if (_incident is null)
+    {
+        <div class="alert alert-danger">
+            Safety incident was not found.
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">
+                        <strong>Incident Information</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <dl class="row mb-0">
+
+                            <dt class="col-sm-5">Incident Number</dt>
+                            <dd class="col-sm-7">
+                                @_incident.IncidentNumber
+                            </dd>
+
+                            <dt class="col-sm-5">Construction Site</dt>
+                            <dd class="col-sm-7">
+                                @_incident.ConstructionSiteName
+                            </dd>
+
+                            <dt class="col-sm-5">Occurred</dt>
+                            <dd class="col-sm-7">
+                                @_incident.OccurredAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                            </dd>
+
+                            <dt class="col-sm-5">Reported</dt>
+                            <dd class="col-sm-7">
+                                @_incident.ReportedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                            </dd>
+
+                            <dt class="col-sm-5">Severity</dt>
+                            <dd class="col-sm-7">
+                                <span class="badge bg-secondary">
+                                    @_incident.Severity
+                                </span>
+                            </dd>
+
+                            <dt class="col-sm-5">Status</dt>
+                            <dd class="col-sm-7">
+                                <span class="badge bg-secondary">
+                                    @_incident.Status
+                                </span>
+                            </dd>
+
+                            <dt class="col-sm-5">Location</dt>
+                            <dd class="col-sm-7">
+                                @_incident.LocationDescription
+                            </dd>
+
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">
+                        <strong>Impact</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <dl class="row mb-0">
+
+                            <dt class="col-sm-6">Injury Occurred</dt>
+                            <dd class="col-sm-6">
+                                @(_incident.InjuryOccurred ? "Yes" : "No")
+                            </dd>
+
+                            <dt class="col-sm-6">Medical Treatment</dt>
+                            <dd class="col-sm-6">
+                                @(_incident.MedicalTreatmentRequired ? "Yes" : "No")
+                            </dd>
+
+                            <dt class="col-sm-6">Lost Time Incident</dt>
+                            <dd class="col-sm-6">
+                                @(_incident.LostTimeIncident ? "Yes" : "No")
+                            </dd>
+
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <strong>Incident Description</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="mb-0">
+                            @(_incident.Description)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">
+                        <strong>Immediate Action</strong>
+                    </div>
+
+                    <div class="card-body">
+                        @(_incident.ImmediateActionTaken ?? "—")
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">
+                        <strong>Root Cause</strong>
+                    </div>
+
+                    <div class="card-body">
+                        @(_incident.RootCause ?? "—")
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">
+                        <strong>Corrective Action</strong>
+                    </div>
+
+                    <div class="card-body">
+                        @(_incident.CorrectiveAction ?? "—")
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <strong>Investigation</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <dl class="row mb-0">
+
+                            <dt class="col-sm-6">Investigation Completed</dt>
+                            <dd class="col-sm-6">
+                                @(_incident.InvestigationCompletedAtUtc?
+                                    .ToLocalTime()
+                                    .ToString("yyyy-MM-dd HH:mm") ?? "—")
+                            </dd>
+
+                            <dt class="col-sm-6">Investigated By</dt>
+                            <dd class="col-sm-6">
+                                @_investigatedByName
+                            </dd>
+
+                            <dt class="col-sm-6">Closed At</dt>
+                            <dd class="col-sm-6">
+                                @(_incident.ClosedAtUtc?
+                                    .ToLocalTime()
+                                    .ToString("yyyy-MM-dd HH:mm") ?? "—")
+                            </dd>
+
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private SafetyIncidentResponse? _incident;
+    private bool _loading = true;
+    private string _investigatedByName = "—";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _incident =
+                await ComplianceService.GetSafetyIncidentAsync(Id);
+
+            if (_incident?.InvestigatedBy is Guid investigatedById)
+            {
+                try
+                {
+                    var employee =
+                        await EmployeeService.GetEmployeeAsync(
+                            investigatedById);
+
+                    _investigatedByName =
+                        $"{employee.EmployeeNumber} - " +
+                        $"{employee.FirstName} {employee.LastName}";
+                }
+                catch
+                {
+                    _investigatedByName = "Unknown employee";
+                }
+            }
+        }
+        catch
+        {
+            _incident = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void EditIncident()
+    {
+        Navigation.NavigateTo(
+            $"/compliance/safety-incidents/{Id}/edit");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(
+            "/compliance/safety-incidents");
+    }
+}

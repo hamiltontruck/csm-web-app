@@ -1,0 +1,70 @@
+@page "/equipment/hourmeter-sites"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Hour Meter Assignments</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center mb-4">
+        <button class="btn btn-outline-secondary me-3"
+                @onclick="GoBack">
+            ← Back
+        </button>
+
+        <div>
+            <h2 class="mb-0">Assignments</h2>
+            <small class="text-muted">Select Construction Site</small>
+        </div>
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else
+    {
+        @foreach (var site in sites.OrderBy(x => x.Name))
+        {
+            <div class="card shadow-sm mb-3"
+                 style="cursor:pointer"
+                 @onclick="() => OpenSite(site.Id)">
+
+                <div class="card-body">
+                    <h5 class="mb-1">@site.Name</h5>
+                    <div class="text-muted">@site.SiteCode</div>
+                </div>
+
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private List<SiteResponse> sites = [];
+    private bool loading = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        sites = await ProjectService.GetSitesAsync();
+
+        loading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenSite(Guid id)
+        => Navigation.NavigateTo($"/equipment/hourmeter/site/{id}");
+
+    private void GoBack()
+        => Navigation.NavigateTo("/equipment");
+}

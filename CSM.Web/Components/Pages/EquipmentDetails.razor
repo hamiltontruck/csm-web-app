@@ -1,0 +1,181 @@
+@page "/equipment/{Id:guid}"
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Services
+@inject IEquipmentService EquipmentService
+@inject NavigationManager Navigation
+
+<PageTitle>Equipment Details</PageTitle>
+
+<div class="container py-4">
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (equipment is null)
+    {
+        <div class="alert alert-warning">
+            Equipment not found.
+        </div>
+
+        <button class="btn btn-secondary" @onclick="GoBack">
+            Back
+        </button>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="mb-1">@equipment.Name</h3>
+                <div class="text-muted">@equipment.EquipmentCode</div>
+            </div>
+
+            <button class="btn btn-outline-primary"
+                    @onclick="EditEquipment">
+                Edit
+            </button>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">
+                <strong>Equipment Information</strong>
+            </div>
+
+            <div class="card-body">
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Category</label>
+                        <div>@equipment.Category</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Status</label>
+                        <div>
+                            <span class="@StatusClass(equipment.Status)">
+                                @equipment.Status
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Make</label>
+                        <div>@equipment.Make</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Model</label>
+                        <div>@equipment.Model</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Serial No.</label>
+                        <div>@equipment.SerialNumber</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Registration</label>
+                        <div>@equipment.RegistrationNumber</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Ownership</label>
+                        <div>@equipment.OwnershipType</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Meter Reading</label>
+                        <div>
+                            <strong>@equipment.CurrentMeterReading</strong>
+                            @equipment.MeterUnit
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <strong>Cost Information</strong>
+            </div>
+
+            <div class="card-body">
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Purchase Cost</label>
+                        <div>@(equipment.PurchaseCost.HasValue
+                                 ? $"ETB {equipment.PurchaseCost.Value:N2}"
+                                 : "-")</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Rental Rate</label>
+                        <div>
+                            @equipment.RentalRate?.ToString("N2")
+                            @equipment.RentalRateUnit
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Rental Start</label>
+                        <div>@equipment.RentalStartDate</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="text-muted small">Rental End</label>
+                        <div>@equipment.RentalEndDate</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="GoBack">
+            Back to Equipment
+        </button>
+    }
+
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private EquipmentResponse? equipment;
+    private bool loading = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        equipment = await EquipmentService.GetEquipmentByIdAsync(Id);
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/equipment");
+    }
+
+    private void EditEquipment()
+    {
+        Navigation.NavigateTo($"/equipment/edit/{Id}");
+    }
+
+   private static string StatusClass(string status) => status switch
+   {
+       "Available"   => "badge bg-success",
+       "Assigned"    => "badge bg-primary",
+       "Maintenance" => "badge bg-warning text-dark",
+       "Down"        => "badge bg-danger",
+       _             => "badge bg-secondary"
+   };
+}

@@ -1,0 +1,73 @@
+@page "/procurement"
+@rendermode InteractiveServer
+
+@inject NavigationManager Navigation
+
+<PageTitle>Procurement</PageTitle>
+
+<div class="container py-4">
+
+    <h2 class="mb-1">Procurement</h2>
+    <p class="text-muted mb-4">
+        Procurement & Inventory Management
+    </p>
+
+    <div class="row g-3">
+
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100" style="cursor:pointer"
+                 @onclick='() => Navigation.NavigateTo("/materials")'>
+                <div class="card-body">
+                    <h5>📦 Materials</h5>
+                    <div class="text-muted">Material master list</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100" style="cursor:pointer"
+                 @onclick='() => Navigation.NavigateTo("/vendors")'>
+                <div class="card-body">
+                    <h5>🏢 Vendors</h5>
+                    <div class="text-muted">Supplier management</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100" style="cursor:pointer"
+                 @onclick='() => Navigation.NavigateTo("/material-requests")'>
+                <div class="card-body">
+                    <h5>📝 Material Requests</h5>
+                    <div class="text-muted">Request & approval workflow</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100" style="cursor:pointer"
+                 @onclick='() => Navigation.NavigateTo("/purchase-orders")'>
+                <div class="card-body">
+                    <h5>🧾 Purchase Orders</h5>
+                    <div class="text-muted">Purchase order management</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100" style="cursor:pointer"
+                 @onclick='() => Navigation.NavigateTo("/goods-receipts")'>
+                <div class="card-body">
+                    <h5>📥 Goods Receipts</h5>
+                    <div class="text-muted">Receive purchased materials</div>
+                </div>
+            </div>
+        </div>
+
+
+
+
+
+    </div>
+
+</div>

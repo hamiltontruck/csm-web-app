@@ -1,0 +1,144 @@
+@page "/finance/sites/{SiteId:guid}/cost-codes"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Cost Codes</PageTitle>
+
+<h3 class="mb-3">Cost Codes</h3>
+
+<div class="d-flex justify-content-between mb-3">
+    <div></div>
+
+    <button class="btn btn-primary"
+            @onclick="Create">
+        <i class="bi bi-plus-lg"></i>
+        New Cost Code
+    </button>
+</div>
+
+@if (_loading)
+{
+    <p>Loading...</p>
+}
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Parent</th>
+                <th>Status</th>
+                <th width="170"></th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var item in _items)
+            {
+                <tr>
+                    <td>@item.Code</td>
+                    <td>@item.Name</td>
+                    <td>@item.ParentCode</td>
+
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Inactive</span>
+                        }
+                    </td>
+
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-1"
+                                @onclick="() => Edit(item.Id)">
+                            Edit
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-warning me-1"
+                                @onclick="() => Toggle(item)">
+                            @(item.IsActive ? "Deactivate" : "Activate")
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => Delete(item.Id)">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private bool _loading = true;
+
+    private List<CostCodeResponse> _items = new();
+
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = (await FinanceService.GetSiteCostCodesAsync(SiteId)).ToList();
+        _loading = false;
+    }
+
+    private void Create()
+        => Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/cost-codes/create");
+
+    private void Edit(Guid id)
+        => Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/cost-codes/{id}/edit");
+
+    private async Task Toggle(CostCodeResponse item)
+    {
+        await FinanceService.ChangeCostCodeStatusAsync(
+            item.Id,
+            !item.IsActive);
+
+        item.IsActive = !item.IsActive;
+    }
+
+    private async Task Delete(Guid id)
+    {
+        _error = null;
+
+        var confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Delete this cost code?");
+
+        if (!confirmed)
+            return;
+
+        try
+        {
+            await FinanceService.DeleteCostCodeAsync(id);
+
+            _items = (await FinanceService.GetCostCodesAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

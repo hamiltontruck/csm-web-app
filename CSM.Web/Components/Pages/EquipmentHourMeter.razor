@@ -1,0 +1,214 @@
+@page "/equipment/hourmeter/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Hour Meter</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+
+        <div class="d-flex align-items-center">
+
+            <button class="btn btn-outline-secondary me-3"
+                    @onclick="GoBack">
+                ← Back
+            </button>
+
+            <div>
+                <h2 class="mb-0">Hour Meter</h2>
+
+                @if (!string.IsNullOrWhiteSpace(siteName))
+                {
+                    <small class="text-muted">@siteName</small>
+                }
+            </div>
+
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="NewHourLog">
+            + New Hour Entry
+        </button>
+
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (logs.Count == 0)
+    {
+        <div class="alert alert-info">
+            No hour meter records found for this site.
+        </div>
+    }
+    else
+    {
+        @foreach (var item in logs.OrderByDescending(x => x.LoggedAtUtc))
+        {
+            <div class="card shadow-sm mb-3">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between">
+
+                        <div>
+                            <h5 class="mb-1">
+                                @item.EquipmentCode — @item.EquipmentName
+                            </h5>
+
+                            <div class="text-muted">
+                                @item.Activity
+                            </div>
+                        </div>
+
+                        <div class="text-end">
+                            <div class="fw-bold">
+                                @item.HoursWorked.ToString("N2") hrs
+                            </div>
+
+                            <small class="text-muted">
+                                Hours Worked
+                            </small>
+                        </div>
+
+                    </div>
+
+                    <hr />
+
+                    <div class="row">
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Date
+                            </small>
+
+                            @item.LoggedAtUtc.ToString("dd/MM/yyyy")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Previous
+                            </small>
+
+                            @item.PreviousMeterReading.ToString("N0")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Current
+                            </small>
+
+                            @item.CurrentMeterReading.ToString("N0")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Operator
+                            </small>
+
+                            @item.OperatorName
+                        </div>
+
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(item.Remarks))
+                    {
+                        <div class="mt-3">
+                            <small class="text-muted d-block">
+                                Remarks
+                            </small>
+
+                            @item.Remarks
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private string siteName = "";
+
+    private List<EquipmentHourLogResponse> logs = [];
+
+    private bool loading = true;
+
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            var sites = await ProjectService.GetSitesAsync();
+
+            var site = sites.FirstOrDefault(x => x.Id == SiteId);
+
+            if (site != null)
+                siteName = site.Name;
+
+            var assignments = await EquipmentService.GetAssignmentsAsync();
+
+            var equipmentIds = assignments
+                .Where(x =>
+                    x.ConstructionSiteId == SiteId &&
+                    x.ReleasedAtUtc == null)
+                .Select(x => x.EquipmentId)
+                .Distinct()
+                .ToHashSet();
+
+            var hourLogs = await EquipmentService.GetHourLogsAsync();
+
+            logs = hourLogs
+                .Where(x => equipmentIds.Contains(x.EquipmentId))
+                .OrderByDescending(x => x.LoggedAtUtc)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void NewHourLog()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/hourmeter/create/{SiteId}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/equipment/hourmeter-sites");
+    }
+
+}

@@ -1,0 +1,127 @@
+@page "/equipment/list"
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject NavigationManager Navigation
+
+<PageTitle>Equipment</PageTitle>
+
+<div class="d-flex align-items-center mb-4">
+    <button class="btn btn-outline-secondary me-3"
+            @onclick="GoBack">
+        ← Back
+    </button>
+
+    <h2 class="mb-0">Equipment</h2>
+</div>
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">Equipment</h3>
+
+        <button class="btn btn-primary"
+                @onclick="CreateEquipment">
+            + New Equipment
+        </button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (equipment.Count == 0)
+    {
+        <div class="alert alert-info">
+            No equipment found.
+        </div>
+    }
+    else
+    {
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th>Meter</th>
+                    <th width="90"></th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @foreach (var item in equipment)
+                {
+                    <tr style="cursor:pointer"
+                        @onclick="() => Open(item.Id)">
+                        <td>
+                            <strong>@item.EquipmentCode</strong>
+                        </td>
+                        <td>@item.Name</td>
+                        <td>@item.Category</td>
+                        <td>
+                            <span class="@StatusClass(item.Status)">
+                                @item.Status
+                            </span>
+                        </td>
+                        <td>
+                            @item.CurrentMeterReading @item.MeterUnit
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary"
+                                    @onclick:stopPropagation
+                                    @onclick="() => Open(item.Id)">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+</div>
+
+@code {
+    private List<EquipmentResponse> equipment = [];
+    private bool loading = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        equipment = await EquipmentService.GetEquipmentAsync();
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void Open(Guid id)
+    {
+        Navigation.NavigateTo($"/equipment/{id}");
+    }
+
+    private void CreateEquipment()
+    {
+        Navigation.NavigateTo("/equipment/create");
+    }
+
+    private static string StatusClass(string status) => status switch
+    {
+        "Available"   => "badge bg-success",
+        "Assigned"    => "badge bg-primary",
+        "Maintenance" => "badge bg-warning text-dark",
+        "Down"        => "badge bg-danger",
+        _             => "badge bg-secondary"
+    };
+
+   private void GoBack()
+   {
+       Navigation.NavigateTo("/equipment");
+   }
+}

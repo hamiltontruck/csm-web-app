@@ -1,0 +1,290 @@
+@page "/stock-transfers/create"
+@page "/stock-transfers/create/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Services
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Models.Sites
+
+@inject IProjectService ProjectService
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>New Stock Transfer</PageTitle>
+
+<div class="container py-4">
+
+    <button class="btn btn-outline-secondary mb-3"
+            @onclick="GoBack">
+        <i class="bi bi-arrow-left"></i> Back
+    </button>
+
+    <div class="mb-4">
+        <h2>New Stock Transfer</h2>
+        <p class="text-muted mb-0">
+            Transfer materials from one construction site to another.
+        </p>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <label class="form-label">Transfer From Site</label>
+                    <select class="form-select" @onchange="FromSiteChanged">
+                        <option value="">-- Select Source Site --</option>
+
+                        @foreach (var site in sites)
+                        {
+                            <option value="@site.Id">
+                                @site.SiteCode - @site.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Transfer To Site</label>
+                    <select class="form-select" @bind="model.ToSiteId">
+                        <option value="">-- Select Destination Site --</option>
+
+                        @foreach (var site in sites)
+                        {
+                            <option value="@site.Id">
+                                @site.SiteCode - @site.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+
+
+                <div class="col-md-6">
+                    <label class="form-label">Transfer Date</label>
+                    <input type="date"
+                           class="form-control"
+                           @bind="model.TransferDate" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Transfer Number</label>
+                    <input class="form-control"
+                           @bind="model.TransferNumber" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Requested By</label>
+                    <input class="form-control"
+                           @bind="model.RequestedBy" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Approved By</label>
+                    <input class="form-control"
+                           @bind="model.ApprovedBy" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Material</label>
+
+                    <select class="form-select" @onchange="MaterialChanged">
+                        <option value="">-- Select Material --</option>
+
+                        @foreach (var item in materials)
+                        {
+                            <option value="@item.MaterialId">
+                                @item.MaterialCode - @item.MaterialName
+                                (@item.QuantityOnHand @item.UnitOfMeasure)
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Quantity</label>
+                    <input type="number"
+                           step="0.01"
+                           class="form-control"
+                           @bind="model.Quantity" />
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Unit</label>
+                    <input class="form-control"
+                           @bind="model.UnitOfMeasure"
+                           disabled />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Remarks</label>
+                    <textarea class="form-control"
+                              rows="3"
+                              @bind="model.Remarks"></textarea>
+                </div>
+
+            </div>
+
+            <hr />
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger mt-3">
+                    @errorMessage
+                </div>
+            }
+
+            <div class="d-flex justify-content-end gap-2">
+                <button class="btn btn-light" @onclick="GoBack">
+                    Cancel
+                </button>
+
+                <button class="btn btn-primary"
+                        @onclick="SaveTransfer"
+                        disabled="@saving">
+                    @(saving ? "Saving..." : "Save Transfer")
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+    [Parameter]
+    public Guid? SiteId { get; set; }
+    private StockTransferCreateModel model = new();
+
+    private List<SiteResponse> sites = [];
+    private List<StockBalanceResponse> materials = [];
+    private bool loaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || loaded)
+            return;
+
+        loaded = true;
+
+        sites = await ProjectService.GetSitesAsync();
+
+        if (SiteId.HasValue)
+        {
+            model.FromSiteId = SiteId.Value;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task FromSiteChanged(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var siteId))
+        {
+            model.FromSiteId = null;
+            model.MaterialId = null;
+            materials.Clear();
+            StateHasChanged();
+            return;
+        }
+
+        model.FromSiteId = siteId;
+        model.MaterialId = null;
+
+        materials = await InventoryService.GetStockBySiteAsync(siteId);
+
+        StateHasChanged();
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo("/stock-transfers");
+
+    public class StockTransferCreateModel
+    {
+        public Guid? FromSiteId { get; set; }
+        public Guid? ToSiteId { get; set; }
+        public Guid? MaterialId { get; set; }
+
+        public decimal Quantity { get; set; }
+
+        public DateTime TransferDate { get; set; } = DateTime.Today;
+
+        public string TransferNumber { get; set; } = "";
+        public string RequestedBy { get; set; } = "";
+        public string ApprovedBy { get; set; } = "";
+
+        public string UnitOfMeasure { get; set; } = "";
+        public string Remarks { get; set; } = "";
+    }
+
+private void MaterialChanged(ChangeEventArgs e)
+{
+    if (!Guid.TryParse(e.Value?.ToString(), out var materialId))
+    {
+        model.MaterialId = null;
+        model.UnitOfMeasure = "";
+        return;
+    }
+
+    model.MaterialId = materialId;
+
+    var selected = materials.FirstOrDefault(x => x.MaterialId == materialId);
+
+    model.UnitOfMeasure = selected?.UnitOfMeasure ?? "";
+}
+
+private string? errorMessage;
+private bool saving;
+
+private async Task SaveTransfer()
+{
+    errorMessage = null;
+
+    if (model.FromSiteId == null ||
+        model.ToSiteId == null ||
+        model.MaterialId == null)
+    {
+        errorMessage = "Please complete all required fields.";
+        return;
+    }
+
+    if (model.FromSiteId == model.ToSiteId)
+    {
+        errorMessage = "Transfer From and Transfer To must be different sites.";
+        return;
+    }
+
+    if (model.Quantity <= 0)
+    {
+        errorMessage = "Quantity must be greater than zero.";
+        return;
+    }
+
+    saving = true;
+
+    var success = await InventoryService.CreateStockTransferAsync(
+        new StockTransferCreateRequest
+        {
+            SourceConstructionSiteId = model.FromSiteId!.Value,
+            DestinationConstructionSiteId = model.ToSiteId!.Value,
+            MaterialId = model.MaterialId!.Value,
+            Quantity = model.Quantity,
+            TransferDateUtc = model.TransferDate.ToUniversalTime(),
+            TransferNumber = model.TransferNumber,
+            RequestedBy = string.IsNullOrWhiteSpace(model.RequestedBy) ? null : model.RequestedBy,
+            ApprovedBy = string.IsNullOrWhiteSpace(model.ApprovedBy) ? null : model.ApprovedBy,
+            Remarks = string.IsNullOrWhiteSpace(model.Remarks) ? null : model.Remarks
+        });
+
+    saving = false;
+
+    if (success)
+    {
+       Navigation.NavigateTo($"/stock-transfers/site/{model.FromSiteId}");
+    }
+    else
+    {
+        errorMessage = "Unable to create stock transfer.";
+    }
+}
+}

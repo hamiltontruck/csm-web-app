@@ -1,0 +1,158 @@
+@page "/compliance/document-categories/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Services
+
+@inject IComplianceService ComplianceService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Document Category</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2>Create Document Category</h2>
+            <p class="text-muted mb-0">
+                Create a document category for the compliance and document management system.
+            </p>
+        </div>
+
+        <button class="btn btn-secondary"
+                @onclick="Back">
+            Back
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <label class="form-label">Category Code</label>
+                    <input class="form-control"
+                           @bind="_request.CategoryCode"
+                           maxlength="30"
+                           placeholder="e.g. SAFETY" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Name</label>
+                    <input class="form-control"
+                           @bind="_request.Name"
+                           maxlength="200"
+                           placeholder="e.g. Safety Documents" />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control"
+                              @bind="_request.Description"
+                              maxlength="1000"
+                              rows="4"
+                              placeholder="Enter category description"></textarea>
+                </div>
+
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="isActive"
+                               @bind="_request.IsActive" />
+
+                        <label class="form-check-label" for="isActive">
+                            Active
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+
+                <button class="btn btn-primary"
+                        @onclick="Save"
+                        disabled="@_saving">
+                    @if (_saving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save</span>
+                    }
+                </button>
+
+                <button class="btn btn-secondary"
+                        @onclick="Back"
+                        disabled="@_saving">
+                    Cancel
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private readonly CreateDocumentCategoryRequest _request = new()
+    {
+        IsActive = true
+    };
+
+    private bool _saving;
+    private string? _errorMessage;
+
+    private async Task Save()
+    {
+        _errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_request.CategoryCode))
+        {
+            _errorMessage = "Category Code is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.Name))
+        {
+            _errorMessage = "Name is required.";
+            return;
+        }
+
+        try
+        {
+            _saving = true;
+
+            await ComplianceService.CreateDocumentCategoryAsync(_request);
+
+            Navigation.NavigateTo(
+                "/compliance/document-categories");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(
+            "/compliance/document-categories");
+    }
+}

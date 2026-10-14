@@ -1,0 +1,243 @@
+﻿@inject CSM.Web.Services.INotificationApiService NotificationService
+@inject CSM.Web.Services.IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="sidebar">
+
+    <!-- Header -->
+    <div class="top-row ps-3 navbar navbar-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand fw-bold">HBG CSM</span>
+        </div>
+    </div>
+
+    <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+    <!-- Scrollable Menu -->
+    <div class="nav-scrollable"
+         onclick="document.querySelector('.navbar-toggler').click()">
+
+        <nav>
+
+            <div class="section-title">
+                Construction Management
+            </div>
+
+            <!-- Dashboard -->
+            <div class="nav-item">
+                <NavLink class="nav-link"
+                         href="/dashboard"
+                         Match="NavLinkMatch.All">
+                    <span class="bi bi-speedometer2-nav-menu"></span>
+                    <span>Dashboard</span>
+                </NavLink>
+            </div>
+
+
+
+            <!-- Project Tracking -->
+            @if (HasPermission("Projects_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link"
+                             href="/project-tracking"
+                             Match="NavLinkMatch.All">
+                        <span class="bi bi-kanban-nav-menu"></span>
+                        <span>Project Tracking</span>
+                    </NavLink>
+                </div>
+            }
+
+            <!-- Procurement -->
+            @if (HasPermission("Procurement_MaterialRequest_View") ||
+                 HasPermission("Procurement_PurchaseOrder_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/procurement">
+                        <span class="bi bi-box-seam-nav-menu"></span>
+                        <span>Procurement</span>
+                    </NavLink>
+                </div>
+            }
+
+            <!-- Inventory -->
+            @if (HasPermission("Procurement_Inventory_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/inventory">
+                        <span class="bi bi-box-seam-nav-menu"></span>
+                        <span>Inventory</span>
+                    </NavLink>
+                </div>
+            }
+
+            <!-- Equipment -->
+            @if (HasPermission("Procurement_Inventory_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/equipment">
+                        <span class="bi bi-truck-nav-menu"></span>
+                        <span>Equipment</span>
+                    </NavLink>
+                </div>
+            }
+
+            <!-- Administration -->
+            <hr class="my-2" />
+
+            <div class="section-title">
+                Administration
+            </div>
+
+            @if (HasPermission("Users_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/users">
+                        <span class="bi bi-people-nav-menu"></span>
+                        <span>Users</span>
+                    </NavLink>
+                </div>
+            }
+
+            @if (HasPermission("Users_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/roles">
+                        <span class="bi bi-shield-lock-nav-menu"></span>
+                        <span>Role Permissions</span>
+                    </NavLink>
+                </div>
+            }
+
+            @if (HasPermission("Users_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/users/audit">
+                        <span class="bi bi-clock-history-nav-menu"></span>
+                        <span>User Audit</span>
+                    </NavLink>
+                </div>
+            }
+
+            @if (HasPermission("HRM_Employee_View") ||
+                 HasPermission("HRM_Payroll_View") ||
+                 HasPermission("HRM_Attendance_View") ||
+                 HasPermission("HRM_Leave_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/hr">
+                        <span class="bi bi-person-badge-nav-menu"></span>
+                        <span>HR Management</span>
+                    </NavLink>
+                </div>
+            }
+
+            @if (HasPermission("Finance_Budget_View") ||
+                 HasPermission("Finance_Expense_View") ||
+                 HasPermission("Finance_Invoice_View") ||
+                 HasPermission("Finance_Payment_View") ||
+                 HasPermission("Finance_PettyCash_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link"
+                             href="/finance/sites"
+                             Match="NavLinkMatch.Prefix">
+                        <span class="bi bi-wallet2-nav-menu"></span>
+                        <span>Finance</span>
+                    </NavLink>
+                </div>
+            }
+
+            @if (HasPermission("Compliance_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/compliance">
+                        <span class="bi bi-shield-check-nav-menu"></span>
+                        <span>Compliance</span>
+                    </NavLink>
+                </div>
+            }
+
+            @if (HasPermission("Reports_View") ||
+                 HasPermission("Reports_FinancialSummary_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/reports">
+                        <span class="bi bi-bar-chart-nav-menu"></span>
+                        <span>Reports</span>
+                    </NavLink>
+                </div>
+            }
+
+            @if (HasPermission("Notifications_View"))
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/notifications">
+                        <span class="bi bi-bell-nav-menu"></span>
+                        <span>Notifications</span>
+
+                        @if (_unreadNotificationCount > 0)
+                        {
+                            <span class="badge bg-danger ms-2">
+                                @_unreadNotificationCount
+                            </span>
+                        }
+                    </NavLink>
+                </div>
+            }
+
+            <div class="nav-item">
+                <NavLink class="nav-link" href="/settings">
+                    <span class="bi bi-gear-nav-menu"></span>
+                    <span>Settings & Privacy</span>
+                </NavLink>
+            </div>
+
+        </nav>
+
+    </div>
+
+    <!-- Sign Out -->
+    <div class="signout">
+        <button class="nav-link btn btn-link w-100 text-start"
+                type="button"
+                @onclick="SignOutAsync">
+            <span class="bi bi-box-arrow-right-nav-menu"></span>
+            <span>Sign Out</span>
+        </button>
+    </div>
+
+</div>
+
+@code
+{
+    private int _unreadNotificationCount;
+
+    private IReadOnlyCollection<string> _permissions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _unreadNotificationCount =
+                await NotificationService.GetUnreadCountAsync();
+        }
+        catch
+        {
+            _unreadNotificationCount = 0;
+        }
+
+        _permissions = await AuthService.GetPermissionsAsync();
+    }
+
+    private bool HasPermission(string permission)
+    {
+        return _permissions.Contains(permission);
+    }
+
+    private async Task SignOutAsync()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", true);
+    }
+}

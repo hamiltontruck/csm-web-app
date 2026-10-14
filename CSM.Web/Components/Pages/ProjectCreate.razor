@@ -1,0 +1,165 @@
+@page "/projects/create"
+@page "/projects/create/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Projects
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Project</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-4">
+        <h4>Loading...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <h2 class="mb-4">Create Project</h2>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        <EditForm Model="_project" OnValidSubmit="Save">
+
+            <div class="mb-3">
+                <label class="form-label">Project Code</label>
+                <input class="form-control" @bind="_project.ProjectCode" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Project Name</label>
+                <input class="form-control" @bind="_project.Name" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Construction Site</label>
+
+                @if (SiteId.HasValue)
+                {
+                    <input class="form-control" value="@SelectedSiteName" disabled />
+                    <input type="hidden" @bind="_project.ConstructionSiteId" />
+                }
+                else
+                {
+                    <select class="form-select" @bind="_project.ConstructionSiteId">
+                        <option value="">Select Site</option>
+                        @foreach (var site in _sites)
+                        {
+                            <option value="@site.Id">@site.Name</option>
+                        }
+                    </select>
+                }
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Planned Start</label>
+                    <input class="form-control"
+                           type="date"
+                           @bind="_project.PlannedStartDate" />
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Planned End</label>
+                    <input class="form-control"
+                           type="date"
+                           @bind="_project.PlannedEndDate" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Contract Value</label>
+                <input class="form-control"
+                       type="number"
+                       step="0.01"
+                       @bind="_project.ContractValue" />
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">Description</label>
+                <textarea class="form-control"
+                          rows="4"
+                          @bind="_project.Description">
+                </textarea>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary" type="submit">
+                    Create Project
+                </button>
+
+                <button class="btn btn-secondary"
+                        type="button"
+                        @onclick="Cancel">
+                    Cancel
+                </button>
+            </div>
+
+        </EditForm>
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid? SiteId { get; set; }
+
+    private CreateProjectRequest _project = new();
+    private List<SiteResponse> _sites = [];
+
+    private bool _loading = true;
+    private bool _loaded;
+    private string? _error;
+
+    private string SelectedSiteName =>
+        _sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _sites = await ProjectService.GetSitesAsync();
+
+        if (SiteId.HasValue)
+            _project.ConstructionSiteId = SiteId.Value;
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    async Task Save()
+    {
+        _error = null;
+
+        var project = await ProjectService.CreateProjectAsync(_project);
+
+        if (SiteId.HasValue)
+        {
+            Navigation.NavigateTo($"/sites/{SiteId}/projects", true);
+        }
+        else
+        {
+            Navigation.NavigateTo("/projects", true);
+        }
+    }
+
+    void Cancel()
+    {
+        if (SiteId.HasValue)
+            Navigation.NavigateTo($"/sites/{SiteId}/projects");
+        else
+            Navigation.NavigateTo("/projects");
+    }
+}

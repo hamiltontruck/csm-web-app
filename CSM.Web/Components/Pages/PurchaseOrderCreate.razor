@@ -1,0 +1,240 @@
+@page "/purchase-orders/create/{SiteId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+@using Microsoft.AspNetCore.Components.Web
+
+@inject IProcurementService ProcurementService
+@inject NavigationManager Navigation
+
+<PageTitle>New Purchase Order</PageTitle>
+
+@if (!_loaded)
+{
+    <div class="container py-4">
+        <h4>Loading...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="Cancel">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <h2 class="mb-4">New Purchase Order</h2>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <EditForm Model="@request"
+                  OnValidSubmit="@Save"
+                  FormName="PurchaseOrderCreateForm">
+            <DataAnnotationsValidator />
+
+
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">PO Number</label>
+                            <InputText class="form-control"
+                                       @bind-Value="request.PurchaseOrderNumber"/>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Order Date</label>
+                            <InputDate class="form-control"
+                                       @bind-Value="request.OrderDate"/>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label">Supplier</label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="request.VendorId">
+                                <option value="@Guid.Empty">-- Select Supplier --</option>
+
+                                @foreach (var s in suppliers)
+                                {
+                                    <option value="@s.Id">@s.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Remarks</label>
+
+                            <InputTextArea class="form-control"
+                                           rows="3"
+                                           @bind-Value="request.Remarks"/>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Materials</h5>
+
+                    <button type="button"
+                            class="btn btn-sm btn-primary"
+                            @onclick="AddLine">
+                        + Add Item
+                    </button>
+                </div>
+
+                <div class="card-body">
+
+                    @foreach (var line in request.Lines)
+                    {
+                        <div class="border rounded p-3 mb-3">
+
+                            <div class="row g-3">
+
+                                <div class="col-md-4">
+                                    <label class="form-label">Material</label>
+
+                                    <InputSelect class="form-select"
+                                                 @bind-Value="line.MaterialId">
+                                        <option value="">Select Material</option>
+
+                                        @foreach (var m in materials)
+                                        {
+                                            <option value="@m.Id">@m.Name</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+
+                                <div class="col-md-2">
+                                    <label class="form-label">Quantity</label>
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="line.OrderedQuantity" />
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label">Unit Price (ETB)</label>
+
+                                    <InputNumber class="form-control"
+                                                 @bind-Value="line.UnitPrice"
+                                                 @onkeydown:preventDefault />
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label">Remarks</label>
+
+                                    <InputText class="form-control"
+                                               @bind-Value="line.Remarks" />
+                                </div>
+
+                                <div class="col-12 text-end">
+                                    <button type="button"
+                                            class="btn btn-outline-danger"
+                                            @onclick="() => RemoveLine(line)">
+                                        Remove
+                                    </button>
+                                </div>
+
+                            </div>
+
+                        </div>
+                    }
+
+                </div>
+
+                <div class="card-footer text-end">
+
+                    <button type="submit"
+                            class="btn btn-success"
+                            disabled="@saving">
+                        @(saving ? "Saving..." : "Save Purchase Order")
+                    </button>
+
+                </div>
+
+            </div>
+
+        </EditForm>
+
+    </div>
+}
+
+@code {
+    [Parameter] public Guid SiteId { get; set; }
+
+    private bool _loaded;
+    private bool saving;
+    private string? errorMessage;
+
+
+    private List<MaterialResponse> materials = [];
+    private List<SupplierResponse> suppliers = [];
+
+    private CreatePurchaseOrderRequest request = new()
+    {
+        OrderDate = DateOnly.FromDateTime(DateTime.Today)
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        try
+        {
+            request.ConstructionSiteId = SiteId;
+
+            materials = await ProcurementService.GetMaterialsAsync();
+            suppliers = await ProcurementService.GetVendorsAsync();
+
+            if (request.Lines.Count == 0)
+                request.Lines.Add(new PurchaseOrderLineRequest());
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            Console.WriteLine(ex);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    void AddLine() => request.Lines.Add(new PurchaseOrderLineRequest());
+
+    void RemoveLine(PurchaseOrderLineRequest line) => request.Lines.Remove(line);
+
+    async Task Save()
+    {
+        saving = true;
+
+        try
+        {
+            await ProcurementService.CreatePurchaseOrderAsync(request);
+            Navigation.NavigateTo($"/purchase-orders/site/{SiteId}", true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    void Cancel() => Navigation.NavigateTo($"/purchase-orders/site/{SiteId}");
+}

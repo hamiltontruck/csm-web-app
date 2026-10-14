@@ -1,0 +1,264 @@
+@page "/finance/payments/{Id:guid}/edit"
+@page "/finance/sites/{SiteId:guid}/payments/{Id:guid}/edit"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+@using CSM.Web.Models.HRM
+
+@inject IPayrollService PayrollService
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Payment</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="Back">
+            ← Payment Details
+        </button>
+
+        <h2 class="mb-4">Edit Payment</h2>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        @if (_isPayrollPayment && _payroll is not null)
+        {
+            <div class="alert alert-info mb-4">
+                <strong>Payroll Payment</strong>
+                <div class="mt-2">
+                    <div>
+                        <strong>Employee:</strong>
+                        @_payroll.EmployeeName
+                        (@_payroll.EmployeeNumber)
+                    </div>
+
+                    <div>
+                        <strong>Payroll Period:</strong>
+                        @_payroll.PeriodStart.ToString("dd/MM/yyyy")
+                        -
+                        @_payroll.PeriodEnd.ToString("dd/MM/yyyy")
+                    </div>
+
+                    <div>
+                        <strong>Net Pay:</strong>
+                        @_payroll.CurrencyCode
+                        @String.Format("{0:N2}", _payroll.NetPay)
+                    </div>
+
+                    <div>
+                        <strong>Payroll Status:</strong>
+                        @_payroll.Status
+                    </div>
+                </div>
+            </div>
+        }
+
+        <EditForm Model="_payment" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <label class="form-label">Payment Number</label>
+                    <InputText class="form-control"
+                               @bind-Value="_payment.PaymentNumber" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Payment Date</label>
+                    <InputDate class="form-control"
+                               @bind-Value="_payment.PaymentDate" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Currency</label>
+                    <input class="form-control"
+                           value="@_payment.CurrencyCode"
+                           readonly />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Direction</label>
+                    <input class="form-control"
+                           value="@(_payment.Direction == 1 ? "Incoming" : "Outgoing")"
+                           readonly />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Exchange Rate</label>
+                    <input class="form-control"
+                           value="@_payment.ExchangeRate"
+                           readonly />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Amount</label>
+                    <InputNumber class="form-control"
+                                 @bind-Value="_payment.Amount" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Method</label>
+                    <InputSelect class="form-select"
+                                 @bind-Value="_payment.PaymentMethod">
+                        <option>Cash</option>
+                        <option>Bank Transfer</option>
+                        <option>Cheque</option>
+                        <option>Mobile Money</option>
+                    </InputSelect>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Reference</label>
+                    <InputText class="form-control"
+                               @bind-Value="_payment.ReferenceNumber" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Status</label>
+                    <InputSelect class="form-select"
+                                 @bind-Value="_payment.Status">
+                        <option value="Pending">Pending</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="Failed">Failed</option>
+                    </InputSelect>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Notes</label>
+                    <InputTextArea class="form-control"
+                                   @bind-Value="_payment.Notes" />
+                </div>
+
+            </div>
+
+            <div class="mt-4 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">
+                    Save Changes
+                </button>
+
+                <button class="btn btn-secondary"
+                        type="button"
+                        @onclick="Back">
+                    Cancel
+                </button>
+            </div>
+
+        </EditForm>
+
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    [Parameter] public Guid? SiteId { get; set; }
+
+    private UpdatePaymentRequest _payment = new();
+    private PayrollResponse? _payroll;
+
+    private bool _isPayrollPayment;
+
+    private bool _loading = true;
+    private bool _loaded;
+
+    private string? _error;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        try
+        {
+            var data = await FinanceService.GetPaymentAsync(Id);
+
+            _payment.PaymentNumber = data.PaymentNumber;
+            _payment.PaymentDate = data.PaymentDate;
+            _payment.Amount = data.Amount;
+            _payment.PaymentMethod = data.PaymentMethod ?? "Cash";
+            _payment.ReferenceNumber = data.ReferenceNumber ?? string.Empty;
+            _payment.Status = data.Status;
+            _payment.Notes = data.Notes ?? string.Empty;
+            _payment.ExchangeRate = data.ExchangeRate;
+            _payment.CurrencyCode = data.CurrencyCode;
+            _payment.Direction = data.Direction == "Outgoing" ? 2 : 1;
+            _payment.CompanyId = data.CompanyId;
+            _payment.ConstructionSiteId = data.ConstructionSiteId;
+            _payment.ProjectId = data.ProjectId;
+            _payment.InvoiceId = data.InvoiceId;
+            _payment.VendorId = data.VendorId;
+            _payment.PayrollRecordId = data.PayrollRecordId;
+
+            _isPayrollPayment =
+                data.PayrollRecordId.HasValue;
+
+            if (_payment.PayrollRecordId is Guid payrollId)
+            {
+                _payroll = await PayrollService.GetByIdAsync(payrollId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            // Company payment: no site or project
+            if (!SiteId.HasValue)
+            {
+                _payment.ConstructionSiteId = null;
+                _payment.ProjectId = null;
+            }
+            else
+            {
+                _payment.ConstructionSiteId = SiteId;
+            }
+
+            await FinanceService.UpdatePaymentAsync(Id, _payment);
+
+            if (SiteId.HasValue)
+                Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/payments/{Id}");
+            else
+                Navigation.NavigateTo($"/finance/payments/{Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Back()
+    {
+        if (SiteId.HasValue)
+            Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/payments/{Id}");
+        else
+            Navigation.NavigateTo($"/finance/payments/{Id}");
+    }
+}

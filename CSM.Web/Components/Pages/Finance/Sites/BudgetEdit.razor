@@ -1,0 +1,131 @@
+@page "/finance/sites/{SiteId:guid}/budgets/{Id:guid}/edit"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Budget</PageTitle>
+
+<h3 class="mb-4">Edit Budget</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_loading)
+{
+    <p>Loading budget...</p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="Save">
+        <DataAnnotationsValidator/>
+
+        <div class="row g-3">
+
+            <div class="col-md-8">
+                <label class="form-label">Budget Name</label>
+                <InputText class="form-control"
+                           @bind-Value="_model.Name"/>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Currency</label>
+                <InputText class="form-control"
+                           @bind-Value="_model.CurrencyCode"/>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Total Amount</label>
+                <InputNumber class="form-control"
+                             @bind-Value="_model.TotalAmount"/>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Effective From</label>
+                <InputDate class="form-control"
+                           @bind-Value="_model.EffectiveFrom"/>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Effective To</label>
+                <InputDate class="form-control"
+                           @bind-Value="_model.EffectiveTo"/>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Description</label>
+                <InputTextArea class="form-control"
+                               @bind-Value="_model.Description"/>
+            </div>
+
+        </div>
+
+        <div class="mt-4 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">
+                Save Changes
+            </button>
+
+            <button class="btn btn-outline-secondary"
+                    type="button"
+                    @onclick="Back">
+                Cancel
+            </button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public Guid SiteId { get; set; }
+    [Parameter] public Guid Id { get; set; }
+
+    private readonly UpdateBudgetModel _model = new();
+
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var budget = await FinanceService.GetBudgetAsync(Id);
+
+            _model.Name = budget.Name;
+            _model.Description = budget.Description;
+            _model.TotalAmount = budget.TotalAmount;
+            _model.CurrencyCode = budget.CurrencyCode;
+            _model.EffectiveFrom = budget.EffectiveFrom;
+            _model.EffectiveTo = budget.EffectiveTo;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            await FinanceService.UpdateBudgetAsync(Id, _model);
+
+            Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets/{Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets/{Id}");
+    }
+}

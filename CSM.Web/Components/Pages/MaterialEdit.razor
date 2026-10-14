@@ -1,0 +1,181 @@
+@page "/materials/{Id:guid}/edit"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IProcurementService ProcurementService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Material</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-4">
+        <h4>Loading material...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4" style="max-width:700px">
+
+        <button class="btn btn-outline-secondary mb-3" @onclick="Cancel">
+            ← Materials
+        </button>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+
+                <h4 class="mb-4">Edit Material</h4>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger">@_error</div>
+                }
+
+                <EditForm Model="_model" OnValidSubmit="Save">
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-3">
+                        <label class="form-label">Material Code</label>
+                        <InputText class="form-control" @bind-Value="_model.MaterialCode" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <InputText class="form-control" @bind-Value="_model.Name" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <InputTextArea class="form-control" rows="3" @bind-Value="_model.Description" />
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Category</label>
+                            <InputSelect class="form-select" @bind-Value="_model.Category">
+                                @foreach (var item in _categories)
+                                {
+                                    <option value="@item.Value">@item.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Unit</label>
+                            <InputSelect class="form-select" @bind-Value="_model.UnitOfMeasure">
+                                @foreach (var item in _units)
+                                {
+                                    <option value="@item.Value">@item.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Material Type</label>
+                        <InputSelect class="form-select" @bind-Value="_selectedMaterialType">
+                            @foreach (var item in _types)
+                            {
+                                <option value="@item.Value">@item.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Standard Unit Cost</label>
+                        <InputNumber class="form-control" @bind-Value="_model.StandardUnitCost" />
+                    </div>
+
+                    <div class="form-check form-switch mb-4">
+                        <InputCheckbox class="form-check-input" @bind-Value="_model.IsActive" />
+                        <label class="form-check-label ms-2">Active</label>
+                    </div>
+
+                    <button class="btn btn-primary me-2" type="submit">
+                        Update Material
+                    </button>
+
+                    <button class="btn btn-secondary" type="button" @onclick="Cancel">
+                        Cancel
+                    </button>
+                </EditForm>
+
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private UpdateMaterialRequest _model = new();
+
+    private string _selectedMaterialType = "Bulk";
+
+    private List<MaterialLookupDto> _categories = [];
+    private List<MaterialLookupDto> _units = [];
+    private List<MaterialLookupDto> _types = [];
+
+    private bool _loading = true;
+    private bool _loaded;
+    private string? _error;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _categories = await ProcurementService.GetCategoriesAsync();
+        _units = await ProcurementService.GetUnitsAsync();
+        _types = await ProcurementService.GetMaterialTypesAsync();
+
+        var material = await ProcurementService.GetMaterialAsync(Id);
+
+        if (material != null)
+        {
+            _model.MaterialCode = material.MaterialCode;
+            _model.Name = material.Name;
+            _model.Description = material.Description;
+            _model.Category = material.Category;
+            _model.UnitOfMeasure = material.UnitOfMeasure;
+            _model.StandardUnitCost = material.StandardUnitCost;
+            _model.IsActive = material.IsActive;
+
+            _selectedMaterialType = material.MaterialType.ToString();
+        }
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task Save()
+    {
+        _model.MaterialType = Enum.TryParse<MaterialType>(
+            _selectedMaterialType,
+            true,
+            out var type)
+            ? type
+            : MaterialType.Bulk;
+
+        var ok = await ProcurementService.UpdateMaterialAsync(Id, _model);
+
+        if (!ok)
+        {
+            _error = "Unable to update material.";
+            return;
+        }
+
+        Navigation.NavigateTo("/materials", true);
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/materials");
+    }
+}

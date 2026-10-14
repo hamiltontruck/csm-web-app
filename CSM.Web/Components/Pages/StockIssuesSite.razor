@@ -1,0 +1,143 @@
+@page "/stock-issues/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>Site Stock Issues</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+
+            <div>
+                <h2>@siteName</h2>
+                <div class="text-muted">Stock Issues</div>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="NewIssue">
+                <i class="bi bi-plus-lg"></i>
+                New Issue
+            </button>
+
+        </div>
+
+        @if (issues.Count == 0)
+        {
+            <div class="alert alert-info">
+                No stock issues for this site.
+            </div>
+        }
+        else
+        {
+            @foreach (var item in issues)
+            {
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between">
+
+                            <div>
+                                <div class="fw-bold">
+                                    @item.MaterialCode - @item.MaterialName
+                                </div>
+
+                                <small class="text-muted">
+                                    @item.IssueDateUtc.ToString("dd MMM yyyy")
+                                </small>
+                            </div>
+
+                            <div class="text-end">
+                                <div class="fw-bold">
+                                    @item.QuantityIssued @item.UnitOfMeasure
+                                </div>
+
+                                <small class="text-muted">
+                                    @item.ReferenceNumber
+                                </small>
+                            </div>
+
+                        </div>
+
+                        <hr />
+
+                        <div class="row text-center">
+
+                            <div class="col">
+                                <small class="text-muted">Before</small>
+                                <div>@item.QuantityOnHandBefore</div>
+                            </div>
+
+                            <div class="col">
+                                <small class="text-muted">Issued</small>
+                                <div>@item.QuantityIssued</div>
+                            </div>
+
+                            <div class="col">
+                                <small class="text-muted">After</small>
+                                <div>@item.QuantityOnHandAfter</div>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+            }
+        }
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private List<StockIssueResponse> issues = [];
+    private bool loading = true;
+    private bool loaded;
+    private string siteName = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || loaded)
+            return;
+
+        loaded = true;
+
+        var all = await InventoryService.GetStockIssuesAsync();
+
+        issues = all
+            .Where(x => x.ConstructionSiteId == SiteId)
+            .OrderByDescending(x => x.IssueDateUtc)
+            .ToList();
+
+        siteName = issues.FirstOrDefault()?.SiteName ?? "Construction Site";
+
+        loading = false;
+
+        StateHasChanged();
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo("/stock-issues");
+
+    void NewIssue()
+        => Navigation.NavigateTo($"/stock-issues/create/{SiteId}");
+}

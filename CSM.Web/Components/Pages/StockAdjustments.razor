@@ -1,0 +1,62 @@
+@page "/stock-adjustments"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Stock Adjustments</PageTitle>
+
+<div class="container py-4">
+
+    <button class="btn btn-outline-secondary mb-3"
+            @onclick="GoBack">
+        <i class="bi bi-arrow-left"></i> Back
+    </button>
+
+    <h2>Construction Sites</h2>
+    <div class="text-muted mb-4">
+        Select a site to view stock adjustments.
+    </div>
+
+    @if (loading)
+    {
+        <p>Loading sites...</p>
+    }
+    else
+    {
+        @foreach (var site in sites)
+        {
+            <div class="card shadow-sm mb-3"
+                 style="cursor:pointer"
+                 @onclick="() => OpenSite(site.Id)">
+
+                <div class="card-body">
+                    <h5 class="mb-1">@site.Name</h5>
+                    <div class="text-muted">@site.Name</div>
+                </div>
+
+            </div>
+        }
+    }
+
+</div>
+
+@code{
+    private List<SiteResponse> sites = [];
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        sites = await ProjectService.GetSitesAsync();
+        loading = false;
+    }
+
+    void OpenSite(Guid siteId)
+        => Navigation.NavigateTo($"/stock-adjustments/site/{siteId}");
+
+    void GoBack()
+        => Navigation.NavigateTo("/stock-items");
+}

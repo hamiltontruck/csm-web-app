@@ -1,0 +1,229 @@
+@page "/equipment/hourmeter/create/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>New Hour Meter Entry</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center mb-4">
+        <button class="btn btn-outline-secondary me-3"
+                @onclick="GoBack">
+            ← Back
+        </button>
+
+        <div>
+            <h2 class="mb-0">New Hour Meter Entry</h2>
+            @if (!string.IsNullOrWhiteSpace(siteName))
+            {
+                <small class="text-muted">@siteName</small>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <EditForm Model="request" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">Equipment</label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="request.EquipmentId">
+
+                            <option value="">Select equipment</option>
+
+                            @foreach (var item in equipment)
+                            {
+                                <option value="@item.Id">
+                                    @item.EquipmentCode - @item.Name
+                                </option>
+                            }
+
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Log Date</label>
+
+                        <InputDate class="form-control"
+                                   @bind-Value="logDate" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Previous Meter</label>
+
+                        <InputNumber class="form-control"
+                                     @bind-Value="request.PreviousMeter" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Current Meter</label>
+
+                        <InputNumber class="form-control"
+                                     @bind-Value="request.CurrentMeter" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Operator</label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="request.OperatorName" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Hours Worked</label>
+
+                        <input class="form-control"
+                               value="@HoursWorked"
+                               readonly />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Activity</label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="request.Activity" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Remarks</label>
+
+                        <InputTextArea class="form-control"
+                                       rows="3"
+                                       @bind-Value="request.Remarks" />
+                    </div>
+
+                </div>
+
+                <hr />
+
+                <div class="d-flex justify-content-end gap-2">
+
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            @onclick="GoBack">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-primary"
+                            type="submit"
+                            disabled="@saving">
+
+                        @(saving ? "Saving..." : "Save Hour Entry")
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </EditForm>
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private string siteName = "";
+
+    private bool saving;
+
+    private string? errorMessage;
+
+    private DateTime logDate = DateTime.Today;
+
+    private List<EquipmentResponse> equipment = [];
+
+    private CreateEquipmentHourLogRequest request = new()
+    {
+        OperatorName = "",
+        Activity = ""
+    };
+
+    private decimal HoursWorked =>
+        request.CurrentMeter - request.PreviousMeter;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var sites = await ProjectService.GetSitesAsync();
+
+        var site = sites.FirstOrDefault(x => x.Id == SiteId);
+
+        if (site != null)
+            siteName = site.Name;
+
+        var assignments = await EquipmentService.GetAssignmentsAsync();
+
+        var equipmentIds = assignments
+            .Where(x =>
+                x.ConstructionSiteId == SiteId &&
+                x.ReleasedAtUtc == null)
+            .Select(x => x.EquipmentId)
+            .Distinct()
+            .ToHashSet();
+
+        equipment = (await EquipmentService.GetEquipmentAsync())
+            .Where(x => equipmentIds.Contains(x.Id))
+            .OrderBy(x => x.EquipmentCode)
+            .ToList();
+
+        request.SiteId = SiteId;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        saving = true;
+        errorMessage = null;
+
+        try
+        {
+            request.LogDateUtc = logDate;
+
+            await EquipmentService.CreateHourLogAsync(request);
+
+            Navigation.NavigateTo(
+                $"/equipment/hourmeter/site/{SiteId}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/hourmeter/site/{SiteId}");
+    }
+
+}

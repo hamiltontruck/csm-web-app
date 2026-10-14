@@ -1,0 +1,249 @@
+@page "/equipment/fuel/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Fuel Consumption</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+
+        <div class="d-flex align-items-center">
+
+            <button class="btn btn-outline-secondary me-3"
+                    @onclick="GoBack">
+                ← Back
+            </button>
+
+            <div>
+                <h2 class="mb-0">Fuel Consumption</h2>
+
+                @if (!string.IsNullOrWhiteSpace(siteName))
+                {
+                    <small class="text-muted">@siteName</small>
+                }
+            </div>
+
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="NewFuelLog">
+            + New Fuel Entry
+        </button>
+
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (logs.Count == 0)
+    {
+        <div class="alert alert-info">
+            No fuel consumption records found for this site.
+        </div>
+    }
+    else
+    {
+        @foreach (var item in logs.OrderByDescending(x => x.RefueledAtUtc))
+        {
+            <div class="card shadow-sm mb-3">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between">
+
+                        <div>
+                            <h5 class="mb-1">
+                                @item.EquipmentCode — @item.EquipmentName
+                            </h5>
+
+                            <div class="text-muted">
+                                @item.FuelType
+                            </div>
+                        </div>
+
+                        <div class="text-end">
+
+                            <div class="fw-bold">
+                                ETB @item.TotalCost.ToString("N2")
+                            </div>
+
+                            <small class="text-muted d-block mb-2">
+                                Total Cost
+                            </small>
+
+                            <button class="btn btn-sm btn-outline-primary"
+                                    @onclick="() => EditFuelLog(item.Id)">
+                                Edit
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                    <hr />
+
+                    <div class="row">
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Date
+                            </small>
+
+                            @item.RefueledAtUtc.ToString("dd/MM/yyyy")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Liters
+                            </small>
+
+                            @item.Liters.ToString("N2")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Unit Price
+                            </small>
+
+                            @item.UnitPrice.ToString("N2")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Meter
+                            </small>
+
+                            @item.MeterReading.ToString("N0")
+                        </div>
+
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(item.SupplierName))
+                    {
+                        <div class="mt-3">
+                            <small class="text-muted d-block">
+                                Supplier
+                            </small>
+
+                            @item.SupplierName
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(item.InvoiceNumber))
+                    {
+                        <div class="mt-2">
+                            <small class="text-muted d-block">
+                                Invoice
+                            </small>
+
+                            @item.InvoiceNumber
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(item.Remarks))
+                    {
+                        <div class="mt-2">
+                            <small class="text-muted d-block">
+                                Remarks
+                            </small>
+
+                            @item.Remarks
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private string siteName = string.Empty;
+
+    private List<EquipmentFuelLogResponse> logs = [];
+
+    private bool loading = true;
+
+    private string? errorMessage;
+
+   protected override async Task OnAfterRenderAsync(bool firstRender)
+   {
+       if (!firstRender)
+           return;
+
+       try
+       {
+           var sites = await ProjectService.GetSitesAsync();
+
+           var site = sites.FirstOrDefault(x => x.Id == SiteId);
+
+           if (site != null)
+               siteName = site.Name;
+
+           var assignments = await EquipmentService.GetAssignmentsAsync();
+
+           var equipmentIds = assignments
+               .Where(x =>
+                   x.ConstructionSiteId == SiteId &&
+                   x.ReleasedAtUtc == null)
+               .Select(x => x.EquipmentId)
+               .Distinct()
+               .ToHashSet();
+
+           var fuel = await EquipmentService.GetFuelLogsAsync();
+
+           logs = fuel
+               .Where(x => equipmentIds.Contains(x.EquipmentId))
+               .OrderByDescending(x => x.RefueledAtUtc)
+               .ToList();
+       }
+       catch (Exception ex)
+       {
+           errorMessage = ex.Message;
+       }
+       finally
+       {
+           loading = false;
+           await InvokeAsync(StateHasChanged);
+       }
+   }
+
+    private void NewFuelLog()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/fuel/create/{SiteId}");
+    }
+
+    private void EditFuelLog(Guid fuelLogId)
+    {
+        Navigation.NavigateTo(
+            $"/equipment/fuel/edit/{SiteId}/{fuelLogId}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/equipment/fuel-sites");
+    }
+
+}

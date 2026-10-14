@@ -1,0 +1,450 @@
+@page "/finance/payments/create"
+@page "/finance/sites/{SiteId:guid}/invoices/{InvoiceId:guid}/payments/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+@using Microsoft.AspNetCore.Components
+
+@inject IFinanceService FinanceService
+@inject IVendorService VendorService
+@inject IPayrollService PayrollService
+@inject NavigationManager Navigation
+
+<PageTitle>Record Payment</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading payment information...</p>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="Back">
+            ← Invoice Details
+        </button>
+
+        <h2>Record Payment</h2>
+        <p class="text-muted mb-4">@_invoiceNumber</p>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        <EditForm Model="_payment" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-bold">
+                    Payment Information
+                </div>
+
+                <div class="card-body">
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <label class="form-label">Payment Source</label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="_paymentSource"
+                                         @bind-Value:after="PaymentSourceChanged">
+                                <option value="Invoice">Invoice</option>
+                                <option value="Payroll">Payroll</option>
+                            </InputSelect>
+                        </div>
+
+                        @if (_paymentSource == "Payroll")
+                        {
+                            <div class="col-md-8">
+                                <label class="form-label">Approved Payroll</label>
+
+                                <InputSelect class="form-select"
+                                             @bind-Value="_selectedPayrollId"
+                                             @bind-Value:after="PayrollChanged">
+
+                                    <option value="">-- Select approved payroll --</option>
+
+                                    @foreach (var payroll in _approvedPayrolls)
+                                    {
+                                        <option value="@payroll.Id">
+                                            @payroll.EmployeeNumber -
+                                            @payroll.EmployeeName -
+                                            @payroll.PeriodStart.ToString("yyyy-MM-dd") to
+                                            @payroll.PeriodEnd.ToString("yyyy-MM-dd") -
+                                            @payroll.CurrencyCode
+                                            @payroll.NetPay.ToString("N2")
+                                        </option>
+                                    }
+                                </InputSelect>
+                            </div>
+
+                            @if (_selectedPayroll is not null)
+                            {
+                                <div class="col-12">
+                                    <div class="alert alert-info mb-0">
+                                        <strong>@_selectedPayroll.EmployeeName</strong>
+                                        (@_selectedPayroll.EmployeeNumber)
+
+                                        <br />
+
+                                        Payroll Period:
+                                        @_selectedPayroll.PeriodStart.ToString("yyyy-MM-dd")
+                                        –
+                                        @_selectedPayroll.PeriodEnd.ToString("yyyy-MM-dd")
+
+                                        <br />
+
+                                        Gross Pay:
+                                        @_selectedPayroll.CurrencyCode
+                                        @_selectedPayroll.GrossPay.ToString("N2")
+
+                                        <br />
+
+                                        Net Pay:
+                                        @_selectedPayroll.CurrencyCode
+                                        @_selectedPayroll.NetPay.ToString("N2")
+
+                                        <br />
+
+                                        Status: @_selectedPayroll.Status
+                                    </div>
+                                </div>
+                            }
+                        }
+
+                        @if (_paymentSource == "Invoice")
+                        {
+                            <div class="col-md-6">
+                                <label class="form-label">Vendor</label>
+                                <InputText class="form-control"
+                                           @bind-Value="_vendorName"
+                                           disabled />
+                            </div>
+                        }
+
+                        <div class="col-md-3">
+                            <label class="form-label">Direction</label>
+
+                            <InputSelect TValue="int"
+                                         class="form-select"
+                                         @bind-Value="_payment.Direction">
+
+                                <option value="1">Incoming</option>
+                                <option value="2">Outgoing</option>
+
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Currency</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_payment.CurrencyCode"
+                                       disabled />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Payment Number *</label>
+                            <InputText class="form-control"
+                                       placeholder="Enter payment number"
+                                       @bind-Value="_paymentNumber" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Payment Date</label>
+                            <InputDate class="form-control"
+                                       @bind-Value="_payment.PaymentDate" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Amount</label>
+                            <InputNumber class="form-control"
+                                         @bind-Value="_payment.Amount" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Method</label>
+                            <InputSelect class="form-select"
+                                         @bind-Value="_payment.PaymentMethod">
+                                <option>Cash</option>
+                                <option>Bank Transfer</option>
+                                <option>Cheque</option>
+                                <option>Mobile Money</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Reference Number</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_payment.ReferenceNumber" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Exchange Rate</label>
+                            <InputNumber class="form-control"
+                                         @bind-Value="_payment.ExchangeRate" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Notes</label>
+                            <InputTextArea class="form-control"
+                                           rows="3"
+                                           @bind-Value="_payment.Notes" />
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-success" type="submit">
+                    Save Payment
+                </button>
+
+                <button class="btn btn-secondary"
+                        type="button"
+                        @onclick="Back">
+                    Cancel
+                </button>
+            </div>
+
+        </EditForm>
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid? SiteId { get; set; }
+
+    // Company: /finance/payments/create?invoiceId=...
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public Guid? InvoiceId { get; set; }
+
+    private CreatePaymentRequest _payment = new();
+
+    private string _invoiceNumber = "";
+    private string _vendorName = "";
+    private string _paymentNumber = "";
+    private string _paymentSource = "Invoice";
+
+    private IReadOnlyCollection<PayrollResponse> _approvedPayrolls = [];
+
+    private Guid? _selectedPayrollId;
+
+    private PayrollResponse? _selectedPayroll;
+
+    private string? _error;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            // Read invoiceId from query string
+            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+            if (query.TryGetValue("invoiceId", out var value) &&
+                Guid.TryParse(value.ToString(), out var id))
+            {
+                InvoiceId = id;
+            }
+
+            if (!InvoiceId.HasValue)
+            {
+                _paymentSource = "Payroll";
+
+                await LoadApprovedPayrolls();
+
+                _payment.PaymentDate =
+                    DateOnly.FromDateTime(DateTime.Today);
+
+                _payment.ExchangeRate = 1;
+                _payment.Direction = 2;
+                _payment.ConstructionSiteId = SiteId;
+
+                return;
+            }
+
+            var invoice = await FinanceService.GetInvoiceAsync(InvoiceId.Value);
+
+            if (invoice is null)
+            {
+                _error = "Invoice not found.";
+                return;
+            }
+
+            _invoiceNumber = invoice.InvoiceNumber ?? "";
+
+            _payment.PaymentDate = DateOnly.FromDateTime(DateTime.Today);
+            _payment.ExchangeRate = 1;
+            _payment.Direction = 2;
+
+            _payment.InvoiceId = invoice.Id;
+            _payment.ProjectId = invoice.ProjectId;
+            _payment.VendorId = invoice.VendorId;
+            _payment.CurrencyCode = invoice.CurrencyCode;
+            _payment.Amount = invoice.TotalAmount - invoice.PaidAmount;
+            _payment.ConstructionSiteId = SiteId;
+
+            // Manual payment number
+            _paymentNumber = "";
+
+            if (invoice.VendorId.HasValue)
+            {
+                var vendors = await VendorService.GetVendorsAsync();
+                var vendor = vendors.FirstOrDefault(v => v.Id == invoice.VendorId.Value);
+                _vendorName = vendor?.Name ?? "";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadApprovedPayrolls()
+    {
+        var payrolls = await PayrollService.GetAllAsync();
+
+        _approvedPayrolls = payrolls
+            .Where(x =>
+                string.Equals(
+                    x.Status,
+                    "Approved",
+                    StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.PeriodStart)
+            .ThenBy(x => x.EmployeeNumber)
+            .ToArray();
+    }
+
+    private async Task PaymentSourceChanged()
+    {
+        _error = null;
+
+        if (_paymentSource == "Payroll")
+        {
+            await LoadApprovedPayrolls();
+
+            _payment.InvoiceId = null;
+            _payment.VendorId = null;
+            _payment.ProjectId = null;
+            _payment.ConstructionSiteId = SiteId;
+            _payment.Direction = 2;
+
+            _vendorName = string.Empty;
+            _invoiceNumber = string.Empty;
+
+            _selectedPayrollId = null;
+            _selectedPayroll = null;
+        }
+    }
+
+    private Task PayrollChanged()
+    {
+        _selectedPayroll =
+            _selectedPayrollId.HasValue
+                ? _approvedPayrolls.FirstOrDefault(
+                    x => x.Id == _selectedPayrollId.Value)
+                : null;
+
+        if (_selectedPayroll is null)
+            return Task.CompletedTask;
+
+        _payment.PayrollRecordId = _selectedPayroll.Id;
+
+        _payment.InvoiceId = null;
+        _payment.VendorId = null;
+        _payment.ProjectId = null;
+        _payment.Direction = 2;
+
+        _payment.CurrencyCode =
+            _selectedPayroll.CurrencyCode;
+
+        _payment.Amount =
+            _selectedPayroll.NetPay;
+
+        return Task.CompletedTask;
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            _error = null;
+
+            if (_paymentSource == "Payroll")
+            {
+                if (!_payment.PayrollRecordId.HasValue)
+                {
+                    _error = "Approved payroll must be selected.";
+                    return;
+                }
+
+                _payment.InvoiceId = null;
+                _payment.VendorId = null;
+                _payment.ProjectId = null;
+                _payment.Direction = 2;
+            }
+
+            if (string.IsNullOrWhiteSpace(_paymentNumber))
+            {
+                _error = "Payment Number is required.";
+                return;
+            }
+
+            if (_payment.Amount <= 0)
+            {
+                _error = "Amount must be greater than zero.";
+                return;
+            }
+
+            _payment.PaymentNumber = _paymentNumber.Trim();
+
+            var paymentId = await FinanceService.CreatePaymentAsync(_payment);
+
+            if (SiteId.HasValue)
+                Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/payments/{paymentId}");
+            else
+                Navigation.NavigateTo($"/finance/payments/{paymentId}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Back()
+    {
+        if (InvoiceId.HasValue)
+        {
+            if (SiteId.HasValue)
+                Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/invoices/{InvoiceId.Value}");
+            else
+                Navigation.NavigateTo($"/finance/company/invoices/{InvoiceId.Value}");
+
+            return;
+        }
+
+        if (SiteId.HasValue)
+            Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/payments");
+        else
+            Navigation.NavigateTo("/finance/company/payments");
+    }
+}

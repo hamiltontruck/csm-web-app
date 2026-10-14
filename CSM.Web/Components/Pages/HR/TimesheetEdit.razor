@@ -1,0 +1,414 @@
+@page "/hr/timesheets/edit/{TimesheetId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+@inject ITimesheetService TimesheetService
+@inject NavigationManager Navigation
+
+<PageTitle>Timesheet</PageTitle>
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3>Timesheet</h3>
+            <p class="text-muted mb-0">
+                Review employee timesheet details and workflow status.
+            </p>
+        </div>
+
+        <button class="btn btn-secondary"
+                @onclick="GoBack">
+            Back
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted">
+            Loading timesheet...
+        </div>
+    }
+    else if (_timesheet is null)
+    {
+        <div class="alert alert-warning">
+            Timesheet was not found.
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+
+            <div class="col-lg-8">
+
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <strong>Timesheet Details</strong>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row g-3">
+
+                            <div class="col-md-6">
+                                <label class="form-label">
+                                    Employee
+                                </label>
+
+                                <input class="form-control"
+                                       value="@($"{_timesheet.EmployeeNumber} - {_timesheet.EmployeeName}")"
+                                       readonly />
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">
+                                    Period Start
+                                </label>
+
+                                <input class="form-control"
+                                       value="@_timesheet.PeriodStartDate.ToString("yyyy-MM-dd")"
+                                       readonly />
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">
+                                    Period End
+                                </label>
+
+                                <input class="form-control"
+                                       value="@_timesheet.PeriodEndDate.ToString("yyyy-MM-dd")"
+                                       readonly />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">
+                                    Regular Hours
+                                </label>
+
+                                <input class="form-control"
+                                       value="@_timesheet.RegularHours.ToString("0.##")"
+                                       readonly />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">
+                                    Overtime Hours
+                                </label>
+
+                                <input class="form-control"
+                                       value="@_timesheet.OvertimeHours.ToString("0.##")"
+                                       readonly />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">
+                                    Total Hours
+                                </label>
+
+                                <input class="form-control"
+                                       value="@_timesheet.TotalHours.ToString("0.##")"
+                                       readonly />
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">
+                                    Remarks
+                                </label>
+
+                                <textarea class="form-control"
+                                          rows="3"
+                                          readonly>@_timesheet.Remarks</textarea>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="col-lg-4">
+
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <strong>Workflow</strong>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Status
+                            </label>
+
+                            <div>
+                                <span class="badge @GetStatusClass(_timesheet.Status)">
+                                    @_timesheet.Status
+                                </span>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_timesheet.ApprovalRemarks))
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Approval Remarks
+                                </label>
+
+                                <div class="border rounded p-2">
+                                    @_timesheet.ApprovalRemarks
+                                </div>
+                            </div>
+                        }
+
+                        @if (_timesheet.Status is "Draft" or "Rejected")
+                        {
+                            <EditForm Model="_submitModel"
+                                      OnValidSubmit="SubmitAsync">
+
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        Submission Remarks
+                                    </label>
+
+                                    <InputTextArea class="form-control"
+                                                   rows="3"
+                                                   @bind-Value="_submitModel.Remarks" />
+                                </div>
+
+                                <button type="submit"
+                                        class="btn btn-primary w-100"
+                                        disabled="@_processing">
+                                    Submit Timesheet
+                                </button>
+
+                            </EditForm>
+                        }
+
+                        @if (_timesheet.Status == "Submitted")
+                        {
+                            <EditForm Model="_reviewModel">
+
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        Review Remarks
+                                    </label>
+
+                                    <InputTextArea class="form-control"
+                                                   rows="3"
+                                                   @bind-Value="_reviewModel.Remarks" />
+                                </div>
+
+                                <div class="d-grid gap-2">
+
+                                    <button type="button"
+                                            class="btn btn-success"
+                                            @onclick="ApproveAsync"
+                                            disabled="@_processing">
+                                        Approve
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn btn-danger"
+                                            @onclick="RejectAsync"
+                                            disabled="@_processing">
+                                        Reject
+                                    </button>
+
+                                </div>
+
+                            </EditForm>
+                        }
+
+                        @if (_timesheet.Status is not "Cancelled"
+                            && _timesheet.Status is not "Rejected")
+                        {
+                            <div class="mt-3">
+                                <EditForm Model="_cancelModel">
+
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            Cancellation Remarks
+                                        </label>
+
+                                        <InputTextArea class="form-control"
+                                                       rows="3"
+                                                       @bind-Value="_cancelModel.Remarks" />
+                                    </div>
+
+                                    <button type="button"
+                                            class="btn btn-outline-danger w-100"
+                                            @onclick="CancelAsync"
+                                            disabled="@_processing">
+                                        Cancel Timesheet
+                                    </button>
+
+                                </EditForm>
+                            </div>
+                        }
+
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter]
+    public Guid TimesheetId { get; set; }
+
+    private TimesheetResponse? _timesheet;
+
+    private SubmitTimesheetRequest _submitModel = new();
+
+    private ReviewTimesheetRequest _reviewModel = new();
+
+    private CancelTimesheetRequest _cancelModel = new();
+
+    private bool _loading = true;
+    private bool _processing;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            _timesheet =
+                await TimesheetService.GetByIdAsync(TimesheetId);
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to load timesheet: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            _timesheet =
+                await TimesheetService.SubmitAsync(
+                    TimesheetId,
+                    _submitModel);
+
+            _submitModel = new();
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to submit timesheet: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task ApproveAsync()
+    {
+        await ReviewAsync("Approved");
+    }
+
+    private async Task RejectAsync()
+    {
+        await ReviewAsync("Rejected");
+    }
+
+    private async Task ReviewAsync(string status)
+    {
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            _reviewModel.Status = status;
+
+            _timesheet =
+                await TimesheetService.ReviewAsync(
+                    TimesheetId,
+                    _reviewModel);
+
+            _reviewModel = new();
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to review timesheet: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            _timesheet =
+                await TimesheetService.CancelAsync(
+                    TimesheetId,
+                    _cancelModel);
+
+            _cancelModel = new();
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to cancel timesheet: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/hr/timesheets");
+    }
+
+    private static string GetStatusClass(string status)
+    {
+        return status switch
+        {
+            "Draft" => "bg-secondary",
+            "Submitted" => "bg-warning text-dark",
+            "Approved" => "bg-success",
+            "Rejected" => "bg-danger",
+            "Cancelled" => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
+}

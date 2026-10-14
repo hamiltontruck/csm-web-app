@@ -1,0 +1,593 @@
+@page "/hr/payroll/edit/{PayrollId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+@using Microsoft.JSInterop
+
+@inject IPayrollService PayrollService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Payroll Details</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1">Payroll Details</h3>
+            <p class="text-muted mb-0">
+                Review and process the employee payroll record.
+            </p>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            <i class="bi bi-arrow-left me-1"></i>
+            Back
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else if (_payroll is null)
+    {
+        <div class="alert alert-warning">
+            Payroll record was not found.
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <strong>Payroll Information</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <div class="row g-3">
+
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">
+                                    Employee
+                                </label>
+
+                                <div>
+                                    <strong>
+                                        @_payroll.EmployeeNumber
+                                    </strong>
+                                    <div>
+                                        @_payroll.EmployeeName
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">
+                                    Status
+                                </label>
+
+                                <div>
+                                    <span class="@GetStatusClass(_payroll.Status)">
+                                        @_payroll.Status
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">
+                                    Period Start
+                                </label>
+
+                                <div>
+                                    @_payroll.PeriodStart.ToString("yyyy-MM-dd")
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label text-muted">
+                                    Period End
+                                </label>
+
+                                <div>
+                                    @_payroll.PeriodEnd.ToString("yyyy-MM-dd")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">
+                                    Base Pay
+                                </label>
+
+                                <div>
+                                    @_payroll.BasePay.ToString("N2")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">
+                                    Regular Hours
+                                </label>
+
+                                <div>
+                                    @_payroll.RegularHours.ToString("N2")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">
+                                    Overtime Hours
+                                </label>
+
+                                <div>
+                                    @_payroll.OvertimeHours.ToString("N2")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">
+                                    Overtime Pay
+                                </label>
+
+                                <div>
+                                    @_payroll.OvertimePay.ToString("N2")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">
+                                    Allowances
+                                </label>
+
+                                <div>
+                                    @_payroll.Allowances.ToString("N2")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">
+                                    Bonuses
+                                </label>
+
+                                <div>
+                                    @_payroll.Bonuses.ToString("N2")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">
+                                    Gross Pay
+                                </label>
+
+                                <div>
+                                    <strong>
+                                        @_payroll.GrossPay.ToString("N2")
+                                    </strong>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="text-muted">Tax Deduction</div>
+                                <div class="fs-5">
+                                    @_payroll.TaxDeduction.ToString("N2")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="text-muted">Pension Deduction</div>
+                                <div class="fs-5">
+                                    @_payroll.PensionDeduction.ToString("N2")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="text-muted">Other Deductions</div>
+                                <div class="fs-5">
+                                    @_payroll.OtherDeductions.ToString("N2")
+                                </div>
+                            </div>
+
+                            @if (_payroll.Adjustments.Any(x => x.IsDeduction))
+                            {
+                                <div class="col-12">
+                                    <div class="text-muted mb-2">
+                                        Payroll Adjustment Deductions
+                                    </div>
+
+                                    @foreach (var adjustment in
+                                        _payroll.Adjustments.Where(x => x.IsDeduction))
+                                    {
+                                        <div class="d-flex justify-content-between border-bottom py-2">
+                                            <span>@adjustment.Description</span>
+                                            <span>
+                                                @adjustment.Amount.ToString("N2")
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <div class="col-md-4">
+                                <div class="text-muted">Total Deductions</div>
+                                <div class="fs-5 fw-bold">
+                                    @_payroll.TotalDeductions.ToString("N2")
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">
+                                    Net Pay
+                                </label>
+
+                                <div>
+                                    <strong>
+                                        @_payroll.NetPay.ToString("N2")
+                                    </strong>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label text-muted">
+                                    Currency
+                                </label>
+
+                                <div>
+                                    @_payroll.CurrencyCode
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body">
+                @if (_payroll.Status == "Draft")
+                {
+                    <EditForm Model="_calculateModel"
+                              OnValidSubmit="CalculatePayrollAsync">
+
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label">Overtime Multiplier</label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="_calculateModel.OvertimeMultiplier" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Allowances</label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="_calculateModel.Allowances" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Bonuses</label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="_calculateModel.Bonuses" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Tax Deduction</label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="_calculateModel.TaxDeduction" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Pension Deduction</label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="_calculateModel.PensionDeduction" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Other Deductions</label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="_calculateModel.OtherDeductions" />
+                        </div>
+
+                        <button type="submit"
+                                class="btn btn-primary"
+                                disabled="@_processing">
+
+                            @if (_processing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"
+                                      role="status"></span>
+                                <span>Calculating...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-calculator me-1"></i>
+                                <span>Calculate Payroll</span>
+                            }
+                        </button>
+                    </EditForm>
+                }
+                else
+                {
+                    <div class="text-muted">
+                        Payroll calculation is not available for the current status.
+                    </div>
+                }
+                @if (_payroll.Status == "Calculated")
+                {
+                    <EditForm Model="_approveModel"
+                              OnValidSubmit="ApprovePayrollAsync">
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Approval Remarks
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="3"
+                                           @bind-Value="_approveModel.Remarks" />
+                        </div>
+
+                        <button type="submit"
+                                class="btn btn-success"
+                                disabled="@_processing">
+                            @if (_processing)
+                            {
+                                <span>Approving...</span>
+                            }
+                            else
+                            {
+                                <span>Approve Payroll</span>
+                            }
+                        </button>
+
+                    </EditForm>
+                }
+                @if (_payroll.Status == "Approved")
+                {
+                    <EditForm Model="_paidModel"
+                              OnValidSubmit="MarkPaidAsync">
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Payment Reference
+                            </label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="_paidModel.PaymentReference"
+                                       placeholder="Enter payment reference" />
+                        </div>
+
+                        <button type="submit"
+                                class="btn btn-success"
+                                disabled="@_processing">
+                            @if (_processing)
+                            {
+                                <span>Processing Payment...</span>
+                            }
+                            else
+                            {
+                                <span>Mark Payroll as Paid</span>
+                            }
+                        </button>
+
+                    </EditForm>
+                }
+
+                @if (_payroll.Status == "Paid")
+                {
+                    <button type="button"
+                            class="btn btn-outline-primary"
+                            @onclick="GeneratePayslipAsync"
+                            disabled="@_processing">
+                        @if (_processing)
+                        {
+                            <span>Generating Payslip...</span>
+                        }
+                        else
+                        {
+                            <span>View Payslip</span>
+                        }
+                    </button>
+                }
+
+            </div>
+
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid PayrollId { get; set; }
+
+    private PayrollResponse? _payroll;
+    private bool _loading;
+    private string? _error;
+
+    private CalculatePayrollRequest _calculateModel = new()
+    {
+        OvertimeMultiplier = 1.5m
+    };
+
+    private ApprovePayrollRequest _approveModel = new();
+
+    private MarkPayrollPaidRequest _paidModel = new();
+
+    private bool _processing;
+
+    private async Task CalculatePayrollAsync()
+    {
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            _payroll =
+                await PayrollService.CalculateAsync(
+                    PayrollId,
+                    _calculateModel);
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to calculate payroll: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task ApprovePayrollAsync()
+    {
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            _payroll =
+                await PayrollService.ApproveAsync(
+                    PayrollId,
+                    _approveModel);
+
+            _approveModel = new();
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to approve payroll: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task MarkPaidAsync()
+    {
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(
+                    _paidModel.PaymentReference))
+            {
+                _error = "Payment reference is required.";
+                return;
+            }
+
+            _payroll =
+                await PayrollService.MarkPaidAsync(
+                    PayrollId,
+                    _paidModel);
+
+            _paidModel = new();
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to mark payroll as paid: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private async Task GeneratePayslipAsync()
+    {
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            var pdf = await PayrollService.GeneratePayslipAsync(PayrollId);
+
+            var base64 = Convert.ToBase64String(pdf);
+
+            await JS.InvokeVoidAsync(
+                "csmPdf.openPdf",
+                base64);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to generate payslip: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPayroll();
+    }
+
+    private async Task LoadPayroll()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            _payroll =
+                await PayrollService.GetByIdAsync(PayrollId);
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to load payroll: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/hr/payroll");
+    }
+
+    private static string GetStatusClass(string status)
+    {
+        return status switch
+        {
+            "Draft" =>
+                "badge bg-secondary",
+
+            "Calculated" =>
+                "badge bg-info text-dark",
+
+            "Approved" =>
+                "badge bg-success",
+
+            "Paid" =>
+                "badge bg-primary",
+
+            "Cancelled" =>
+                "badge bg-danger",
+
+            _ =>
+                "badge bg-secondary"
+        };
+    }
+}

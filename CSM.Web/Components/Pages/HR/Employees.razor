@@ -1,0 +1,553 @@
+@page "/hr/employees"
+@page "/hr/employees/{Scope}"
+@page "/hr/employees/site/{SiteId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Services
+@using CSM.Web.Services.HRM
+@using CSM.Web.Models.HRM
+@using CSM.Web.Models.Sites
+
+
+@inject IProjectService ProjectService
+@inject ISiteAssignmentService SiteAssignmentService
+@inject IEmployeeService EmployeeService
+@inject NavigationManager Navigation
+
+<PageTitle>Employees</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Employees</h2>
+            <p class="text-muted mb-0">
+                Manage company employees and their employment status.
+            </p>
+        </div>
+
+        <div>
+            <button class="btn btn-outline-secondary me-2"
+                    @onclick="BackFromEmployees">
+                <i class="bi bi-arrow-left me-1"></i>
+                Back
+            </button>
+
+            <button class="btn btn-primary"
+                    @onclick="CreateEmployee">
+                <i class="bi bi-person-plus me-2"></i>
+                Add Employee
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status"></div>
+            <div class="mt-2">Loading employees...</div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else if (IsSiteScope && !SiteId.HasValue)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="mb-1">Site Employees</h5>
+                        <p class="text-muted mb-0">
+                            Select a construction site to view its employees.
+                        </p>
+                    </div>
+                </div>
+
+                @if (_sites.Count == 0)
+                {
+                    <div class="alert alert-info mb-0">
+                        No active construction sites found.
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-3">
+                        @foreach (var site in _sites)
+                        {
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card h-100 border shadow-sm">
+                                    <div class="card-body">
+
+                                        <h5 class="card-title">
+                                            @site.Name
+                                        </h5>
+
+                                        <div class="text-muted small mb-2">
+                                            Site Code: @site.SiteCode
+                                        </div>
+
+                                        <div class="small mb-3">
+                                            @site.City, @site.Region
+                                        </div>
+
+                                        <button class="btn btn-primary w-100"
+                                                @onclick="() => OpenSiteEmployees(site.Id)">
+                                            <i class="bi bi-people me-1"></i>
+                                            View Employees
+                                        </button>
+
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+            </div>
+        </div>
+    }
+    else if (IsSiteEmployeeScope)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="mb-1">Site Employees</h5>
+                        <p class="text-muted mb-0">
+                            Employees currently assigned to this construction site.
+                        </p>
+                    </div>
+
+                    <button class="btn btn-outline-secondary"
+                            @onclick="LoadSiteEmployees">
+                        <i class="bi bi-arrow-clockwise me-1"></i>
+                        Refresh
+                    </button>
+                </div>
+
+                @if (_siteAssignments.Count == 0)
+                {
+                    <div class="alert alert-info mb-0">
+                        No employees are currently assigned to this site.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Employee No.</th>
+                                    <th>Employee Name</th>
+                                    <th>Role at Site</th>
+                                    <th>Start Date</th>
+                                    <th>End Date</th>
+                                    <th>Primary</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var assignment in _siteAssignments)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@assignment.EmployeeNumber</strong>
+                                        </td>
+
+                                        <td>
+                                            @assignment.EmployeeName
+                                        </td>
+
+                                        <td>
+                                            @(assignment.RoleAtSite ?? "-")
+                                        </td>
+
+                                        <td>
+                                            @assignment.StartDate.ToString("dd/MM/yyyy")
+                                        </td>
+
+                                        <td>
+                                            @(assignment.EndDate.HasValue
+                                                ? assignment.EndDate.Value.ToString("dd/MM/yyyy")
+                                                : "-")
+                                        </td>
+
+                                        <td>
+                                            @if (assignment.IsPrimaryAssignment)
+                                            {
+                                                <span class="badge bg-primary">
+                                                    Primary
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">No</span>
+                                            }
+                                        </td>
+
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary me-1"
+                                                    @onclick="() => ViewSiteEmployee(assignment.EmployeeId)">
+                                                View
+                                            </button>
+
+                                            <button class="btn btn-sm btn-outline-secondary"
+                                                    @onclick="() => EditSiteEmployee(assignment.EmployeeId)">
+                                                Edit
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Status</label>
+
+                        <select class="form-select"
+                                @bind="_statusFilter">
+                            <option value="">All Employees</option>
+                            <option value="Active">Active</option>
+                            <option value="OnLeave">On Leave</option>
+                            <option value="Suspended">Suspended</option>
+                            <option value="Inactive">Inactive</option>
+                            <option value="Terminated">Terminated</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button class="btn btn-outline-secondary"
+                                @onclick="LoadEmployees">
+                            <i class="bi bi-arrow-clockwise me-1"></i>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+
+                @if (_employees.Count == 0)
+                {
+                    <div class="alert alert-info mb-0">
+                        No employees found.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Employee No.</th>
+                                    <th>Name</th>
+                                    <th>Job Title</th>
+                                    <th>Department</th>
+                                    <th>Employee Type</th>
+                                    <th>Scope</th>
+                                    <th>Status</th>
+                                    <th>Hire Date</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var employee in _employees)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>
+                                                @employee.EmployeeNumber
+                                            </strong>
+                                        </td>
+
+                                        <td>
+                                            @employee.FirstName
+                                            @if (!string.IsNullOrWhiteSpace(employee.MiddleName))
+                                            {
+                                                <span> @employee.MiddleName</span>
+                                            }
+                                            @employee.LastName
+                                        </td>
+
+                                        <td>
+                                            @(employee.JobTitle ?? "-")
+                                        </td>
+
+                                        <td>
+                                            @(employee.Department ?? "-")
+                                        </td>
+
+                                        <td>
+                                            @employee.EmployeeType
+                                        </td>
+
+                                        <td>
+                                            @employee.EmployeeScope
+                                        </td>
+
+                                        <td>
+                                            <span class="badge @GetStatusClass(employee.Status)">
+                                                @employee.Status
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            @employee.HireDate.ToString("dd/MM/yyyy")
+                                        </td>
+
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary me-1"
+                                                    @onclick="() => ViewEmployee(employee.Id)">
+                                                View
+                                            </button>
+
+                                            <button class="btn btn-sm btn-outline-secondary"
+                                                    @onclick="() => EditEmployee(employee.Id)">
+                                                Edit
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? Scope { get; set; }
+
+    [Parameter]
+    public Guid? SiteId { get; set; }
+    private List<EmployeeResponse> _employees = new();
+
+    private string _statusFilter = string.Empty;
+
+    private bool _loading = true;
+    private string? _error;
+    private List<SiteResponse> _sites = new();
+    private List<SiteAssignmentResponse> _siteAssignments = new();
+
+    private bool IsSiteScope =>
+        string.Equals(
+            Scope,
+            "site",
+            StringComparison.OrdinalIgnoreCase);
+
+    private bool IsSiteEmployeeScope =>
+        SiteId.HasValue;
+
+    private async Task LoadSites()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            _sites = await ProjectService.GetSitesAsync();
+
+            if (_sites.Count == 0)
+            {
+                _error = "GetSitesAsync returned 0 sites.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load sites: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task LoadSiteEmployees()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            if (!SiteId.HasValue)
+            {
+                _error = "Site ID is missing.";
+                return;
+            }
+
+            var assignments =
+                await SiteAssignmentService.GetAllAsync(
+                    constructionSiteId: SiteId.Value);
+
+            _siteAssignments = assignments
+                .Where(x => x.IsActive)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load site employees: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void OpenSiteEmployees(Guid siteId)
+    {
+        Navigation.NavigateTo(
+            $"/hr/employees/site/{siteId}");
+    }
+
+    private void ViewSiteEmployee(Guid employeeId)
+    {
+        Navigation.NavigateTo(
+            $"/hr/employees/details/{employeeId}?siteId={SiteId}");
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (SiteId.HasValue)
+        {
+            await LoadSiteEmployees();
+        }
+        else if (IsSiteScope)
+        {
+            await LoadSites();
+        }
+        else
+        {
+            await LoadEmployees();
+        }
+    }
+
+    private async Task LoadEmployees()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var status = string.IsNullOrWhiteSpace(_statusFilter)
+                ? null
+                : _statusFilter;
+
+            var employeeScope = string.IsNullOrWhiteSpace(Scope)
+                ? null
+                : Scope.Equals("company", StringComparison.OrdinalIgnoreCase)
+                    ? "Company"
+                    : Scope.Equals("site", StringComparison.OrdinalIgnoreCase)
+                        ? "Site"
+                        : null;
+
+            var employees =
+                await EmployeeService.GetEmployeesAsync(
+                    status,
+                    employeeScope);
+
+            _employees = employees.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void CreateEmployee()
+    {
+        if (SiteId.HasValue)
+        {
+            var returnUrl =
+                $"/hr/employees/site/{SiteId.Value}";
+
+            Navigation.NavigateTo(
+                $"/hr/employees/create?returnUrl={Uri.EscapeDataString(returnUrl)}");
+
+            return;
+        }
+
+        if (string.Equals(
+                Scope,
+                "company",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo(
+                "/hr/employees/create?returnUrl=%2Fhr%2Femployees%2Fcompany");
+
+            return;
+        }
+
+        Navigation.NavigateTo("/hr/employees/create");
+    }
+
+    private void ViewEmployee(Guid employeeId)
+    {
+        Navigation.NavigateTo(
+            $"/hr/employees/details/{employeeId}");
+    }
+
+    private void EditEmployee(Guid employeeId)
+    {
+        Navigation.NavigateTo(
+            $"/hr/employees/edit/{employeeId}");
+    }
+
+    private void EditSiteEmployee(Guid employeeId)
+    {
+        Navigation.NavigateTo(
+            $"/hr/employees/edit/{employeeId}?siteId={SiteId}");
+    }
+
+    private void BackFromEmployees()
+    {
+        if (SiteId.HasValue)
+        {
+            Navigation.NavigateTo($"/hr/employees/site");
+            return;
+        }
+
+        Navigation.NavigateTo("/hr");
+    }
+
+    private static string GetStatusClass(string status)
+    {
+        return status switch
+        {
+            "Active" => "bg-success",
+            "OnLeave" => "bg-warning text-dark",
+            "Suspended" => "bg-danger",
+            "Inactive" => "bg-secondary",
+            "Terminated" => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
+}

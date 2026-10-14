@@ -1,0 +1,186 @@
+@page "/materials/create"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IProcurementService ProcurementService
+@inject NavigationManager Navigation
+
+<PageTitle>New Material</PageTitle>
+
+<div class="container py-4" style="max-width:700px">
+
+    <button class="btn btn-outline-secondary mb-3" @onclick="Cancel">
+        ← Materials
+    </button>
+
+    <h3 class="mb-4">Create Material</h3>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    <EditForm Model="_model" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+
+                <h4 class="mb-4">Create Material</h4>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger">@_error</div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label">Material Code</label>
+                    <InputText class="form-control"
+                               @bind-Value="_model.MaterialCode" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Name</label>
+                    <InputText class="form-control"
+                               @bind-Value="_model.Name" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label">Description</label>
+                    <InputTextArea class="form-control"
+                                   rows="4"
+                                   @bind-Value="_model.Description" />
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Category</label>
+                       <InputSelect class="form-select" @bind-Value="_model.Category">
+                           <option value="">Select...</option>
+                           @foreach (var item in _categories)
+                           {
+                               <option value="@item.Value">@item.Name</option>
+                           }
+                       </InputSelect>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Unit</label>
+                        <InputSelect class="form-select" @bind-Value="_model.UnitOfMeasure">
+                            <option value="">Select...</option>
+                            @foreach (var item in _units)
+                            {
+                                <option value="@item.Value">@item.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Material Type</label>
+                    <InputSelect class="form-select" @bind-Value="_selectedMaterialType">
+                        @foreach (var item in _types)
+                        {
+                            <option value="@item.Value">@item.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Default Cost Code</label>
+                    <InputText class="form-control"
+                               @bind-Value="_costCode"
+                               placeholder="Optional" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label">Standard Unit Cost</label>
+                    <InputNumber class="form-control"
+                                 @bind-Value="_model.StandardUnitCost" />
+                </div>
+
+                <div class="form-check form-switch mb-4">
+                    <InputCheckbox class="form-check-input"
+                                   @bind-Value="_model.IsActive" />
+                    <label class="form-check-label ms-2">
+                        Active Material
+                    </label>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary px-4" type="submit">
+                        Save Material
+                    </button>
+
+                    <button class="btn btn-outline-secondary"
+                            type="button"
+                            @onclick="Cancel">
+                        Cancel
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </EditForm>
+
+</div>
+
+@code {
+    private CreateMaterialRequest _model = new()
+    {
+        IsActive = true
+    };
+
+   private List<MaterialLookupDto> _categories = [];
+   private List<MaterialLookupDto> _units = [];
+   private List<MaterialLookupDto> _types = [];
+
+    private bool _loaded;
+    private string? _error;
+    private string? _costCode;
+    private string _selectedMaterialType = "Bulk";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _categories = await ProcurementService.GetCategoriesAsync();
+
+        _units = await ProcurementService.GetUnitsAsync();
+        _types = await ProcurementService.GetMaterialTypesAsync();
+
+        StateHasChanged();
+    }
+
+    private async Task Save()
+    {
+        _model.MaterialType = Enum.TryParse<MaterialType>(
+            _selectedMaterialType,
+            true,
+            out var type)
+                ? type
+                : MaterialType.Bulk;
+        _error = null;
+
+        var ok = await ProcurementService.CreateMaterialAsync(_model);
+
+        if (!ok)
+        {
+            _error = "Unable to create material.";
+            return;
+        }
+
+        Navigation.NavigateTo("/materials", true);
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/materials");
+    }
+}

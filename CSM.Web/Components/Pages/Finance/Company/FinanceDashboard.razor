@@ -1,0 +1,159 @@
+@page "/finance"
+@rendermode InteractiveServer
+
+@inject NavigationManager Navigation
+
+<PageTitle>Finance</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <!-- Header -->
+    <div class="mb-4">
+        <h1 class="mb-1">Finance</h1>
+        <div class="text-muted fs-5">
+            Financial Management
+        </div>
+    </div>
+
+    <!-- Finance Modules -->
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 finance-card"
+                 @onclick='() => Open("/finance/invoices")'
+                 style="cursor:pointer">
+                <div class="card-body">
+                    <h4 class="mb-2">🧾 Invoices</h4>
+                    <div class="text-muted">
+                        Vendor bills & client invoice management
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 finance-card"
+                 @onclick='() => Open("/finance/payments")'
+                 style="cursor:pointer">
+                <div class="card-body">
+                    <h4 class="mb-2">💳 Payments</h4>
+                    <div class="text-muted">
+                        Supplier and client payment records
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 finance-card"
+                 @onclick='() => Open("/finance/petty-cash")'
+                 style="cursor:pointer">
+                <div class="card-body">
+                    <h4 class="mb-2">💵 Petty Cash</h4>
+                    <div class="text-muted">
+                        Site cash accounts & transactions
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 finance-card"
+                 @onclick='() => Open("/finance/budgets")'
+                 style="cursor:pointer">
+                <div class="card-body">
+                    <h4 class="mb-2">📊 Budgets</h4>
+                    <div class="text-muted">
+                        Budget planning & budget lines
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 finance-card"
+                 @onclick='() => Open("/finance/expenses")'
+                 style="cursor:pointer">
+                <div class="card-body">
+                    <h4 class="mb-2">📑 Expenses</h4>
+                    <div class="text-muted">
+                        Project expenditure & approvals
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 finance-card"
+                 @onclick='() => Open("/finance/cost-codes")'
+                 style="cursor:pointer">
+                <div class="card-body">
+                    <h4 class="mb-2">🏷 Cost Codes</h4>
+                    <div class="text-muted">
+                        Work breakdown cost code structure
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Overview -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+            <h4 class="mb-3">Finance Overview</h4>
+
+            <div class="row text-center g-3">
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3">
+                        <div class="text-muted small">Budgets</div>
+                        <h3>0</h3>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3">
+                        <div class="text-muted small">Invoices</div>
+                        <h3>0</h3>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3">
+                        <div class="text-muted small">Payments</div>
+                        <h3>0</h3>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="border rounded p-3">
+                        <div class="text-muted small">Expenses</div>
+                        <h3>0</h3>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<style>
+    .finance-card{
+        transition:all .2s ease;
+    }
+
+    .finance-card:hover{
+        transform:translateY(-3px);
+        box-shadow:0 .75rem 1.5rem rgba(0,0,0,.15)!important;
+    }
+</style>
+
+@code{
+    void Open(string url)
+    {
+        Navigation.NavigateTo(url);
+    }
+}

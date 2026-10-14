@@ -1,0 +1,781 @@
+@page "/compliance/documents/{Id:guid}"
+@page "/compliance/documents/{Id:guid}/edit"
+
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject IComplianceService ComplianceService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Document</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3>Edit Document</h3>
+            <p class="text-muted mb-0">
+                Update controlled document information.
+            </p>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            Back
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+            <div class="mt-2">Loading document...</div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_request" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">Document Number *</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.DocumentNumber" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Name *</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.Name" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Document Type *</label>
+                            <InputSelect class="form-select"
+                                         @bind-Value="_request.DocumentType">
+                                <option value="0">-- Select Document Type --</option>
+                                <option value="1">General</option>
+                                <option value="2">Contract</option>
+                                <option value="3">Employee ID</option>
+                                <option value="4">Certification</option>
+                                <option value="5">Safety Training</option>
+                                <option value="6">Permit</option>
+                                <option value="7">Inspection</option>
+                                <option value="8">Invoice</option>
+                                <option value="9">Receipt</option>
+                                <option value="10">Drawing</option>
+                                <option value="11">Specification</option>
+                                <option value="12">Progress Photo</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">File Name *</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.FileName" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Storage Path *</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.StoragePath" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Content Type</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.ContentType" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">File Size (Bytes)</label>
+                            <InputNumber class="form-control"
+                                         @bind-Value="_request.FileSizeBytes" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Drawing Number</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.DrawingNumber" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Sheet Number</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.SheetNumber" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Discipline</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.Discipline" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Drawing Status</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.DrawingStatus" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Current Revision</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.CurrentRevision" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Related Entity Type</label>
+                            <InputText class="form-control"
+                                       @bind-Value="_request.RelatedEntityType" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Issue Date</label>
+                            <InputDate class="form-control"
+                                       @bind-Value="_request.IssueDate" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Expiry Date</label>
+                            <InputDate class="form-control"
+                                       @bind-Value="_request.ExpiryDate" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <InputTextArea class="form-control"
+                                           rows="4"
+                                           @bind-Value="_request.Description" />
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input"
+                                               @bind-Value="_request.IsConfidential" />
+                                <label class="form-check-label">
+                                    Confidential Document
+                                </label>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3">
+                            @_errorMessage
+                        </div>
+                    }
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+
+                        <button type="button"
+                                class="btn btn-outline-secondary"
+                                @onclick="Back"
+                                disabled="@_saving">
+                            Cancel
+                        </button>
+
+                        <button type="submit"
+                                class="btn btn-primary"
+                                disabled="@_saving">
+
+                            @if (_saving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Save Changes</span>
+                            }
+
+                        </button>
+
+                    </div>
+
+                </div>
+            </div>
+        </EditForm>
+    }
+    @if (!_loading && string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="card shadow-sm mt-4">
+            <div class="card-body">
+                <h5 class="card-title">Upload New Version</h5>
+                <p class="text-muted">
+                    Upload a new file version for this document.
+                </p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">File</label>
+                        <InputFile OnChange="OnFileSelected"
+                                   class="form-control" />
+
+                        @if (_selectedFile is not null)
+                        {
+                            <div class="form-text">
+                                Selected: @_selectedFile.Name
+                                (@_selectedFile.Size bytes)
+                            </div>
+                        }
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Revision Notes</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_revisionNotes" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_uploadError))
+                {
+                    <div class="alert alert-danger mt-3">
+                        @_uploadError
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_uploadMessage))
+                {
+                    <div class="alert alert-success mt-3">
+                        @_uploadMessage
+                    </div>
+                }
+
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="button"
+                            class="btn btn-success"
+                            @onclick="UploadVersion"
+                            disabled="@(_uploading || _selectedFile is null)">
+                        @if (_uploading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Uploading...</span>
+                        }
+                        else
+                        {
+                            <span>Upload Version</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!_loading && string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="card shadow-sm mt-4">
+            <div class="card-body">
+                <h5 class="card-title">Version History</h5>
+
+                @if (_versionsLoading)
+                {
+                    <div class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm"></div>
+                        <span class="ms-2">Loading versions...</span>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_versionsError))
+                {
+                    <div class="alert alert-danger mb-0">
+                        @_versionsError
+                    </div>
+                }
+                else if (_versions.Count == 0)
+                {
+                    <div class="alert alert-info mb-0">
+                        No document versions found.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Version</th>
+                                    <th>File Name</th>
+                                    <th>Size</th>
+                                    <th>Revision Notes</th>
+                                    <th>Created</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var version in _versions)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@($"v{version.VersionNumber}")</strong>
+                                        </td>
+                                        <td>@version.FileName</td>
+                                        <td>@version.FileSizeBytes bytes</td>
+                                        <td>
+                                            @(string.IsNullOrWhiteSpace(version.RevisionNotes)
+                                                ? "-"
+                                                : version.RevisionNotes)
+                                        </td>
+                                        <td>
+                                            @version.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                        </td>
+                                        <td>
+                                            @if (version.IsCurrent)
+                                            {
+                                                <span class="badge bg-success">
+                                                    Current
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">
+                                                    Previous
+                                                </span>
+                                            }
+                                        </td>
+
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button"
+                                                        class="btn btn-outline-primary"
+                                                        @onclick="() => ShowVersionDetails(version)">
+                                                    Details
+                                                </button>
+
+                                                <button type="button"
+                                                        class="btn btn-outline-success"
+                                                        @onclick="() => DownloadVersion(version)"
+                                                        disabled="@(_downloadingVersionId == version.Id)">
+                                                    @if (_downloadingVersionId == version.Id)
+                                                    {
+                                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                                        <span>Downloading...</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-download me-1"></i>
+                                                        <span>Download</span>
+                                                    }
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (_selectedVersion is not null)
+{
+    <div class="modal fade show d-block"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,.5);">
+
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        Version Details — v@_selectedVersion.VersionNumber
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close"
+                            @onclick="CloseVersionDetails">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <div class="text-muted small">
+                                Version
+                            </div>
+                            <strong>
+                                v@_selectedVersion.VersionNumber
+                            </strong>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted small">
+                                Status
+                            </div>
+
+                            @if (_selectedVersion.IsCurrent)
+                            {
+                                <span class="badge bg-success">
+                                    Current
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">
+                                    Previous
+                                </span>
+                            }
+                        </div>
+
+                        <div class="col-md-12">
+                            <div class="text-muted small">
+                                File Name
+                            </div>
+                            <strong>
+                                @_selectedVersion.FileName
+                            </strong>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted small">
+                                Content Type
+                            </div>
+                            <span>
+                                @(_selectedVersion.ContentType ?? "-")
+                            </span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted small">
+                                File Size
+                            </div>
+                            <span>
+                                @_selectedVersion.FileSizeBytes.ToString("N0") bytes
+                            </span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted small">
+                                Created
+                            </div>
+                            <span>
+                                @(_selectedVersion.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"))
+                            </span>
+                        </div>
+
+                        <div class="col-md-12">
+                            <div class="text-muted small">
+                                Revision Notes
+                            </div>
+
+                            @if (string.IsNullOrWhiteSpace(
+                                _selectedVersion.RevisionNotes))
+                            {
+                                <span class="text-muted">
+                                    No revision notes.
+                                </span>
+                            }
+                            else
+                            {
+                                <div class="border rounded p-3 mt-1">
+                                    @_selectedVersion.RevisionNotes
+                                </div>
+                            }
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button type="button"
+                            class="btn btn-secondary"
+                            @onclick="CloseVersionDetails">
+                        Close
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-primary"
+                            @onclick="async () =>
+                                await DownloadVersion(_selectedVersion)">
+                        <i class="bi bi-download"></i>
+                        Download
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private readonly UpdateDocumentRequest _request = new();
+    private IReadOnlyList<DocumentVersionResponse> _versions = [];
+    private bool _versionsLoading;
+    private string? _versionsError;
+
+    private Guid? _downloadingVersionId;
+    private DocumentVersionResponse? _selectedVersion;
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _loaded;
+    private string? _errorMessage;
+    private IBrowserFile? _selectedFile;
+    private string? _revisionNotes;
+    private bool _uploading;
+    private string? _uploadError;
+    private string? _uploadMessage;
+
+    private async Task DownloadVersion(
+        DocumentVersionResponse version)
+    {
+        try
+        {
+            _downloadingVersionId = version.Id;
+            _uploadError = null;
+
+            var result =
+                await ComplianceService.DownloadDocumentVersionAsync(
+                    Id,
+                    version.Id);
+
+            await JS.InvokeVoidAsync(
+                "downloadPdf",
+                result.FileName,
+                Convert.ToBase64String(result.Content));
+        }
+        catch (Exception ex)
+        {
+            _uploadError = ex.Message;
+        }
+        finally
+        {
+            _downloadingVersionId = null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        try
+        {
+            var document =
+                await ComplianceService.GetDocumentAsync(Id);
+
+            if (document is null)
+            {
+                _errorMessage = "Document not found.";
+                return;
+            }
+
+            _request.DocumentNumber = document.DocumentNumber;
+            _request.Name = document.Name;
+
+            _request.DocumentType = document.DocumentType switch
+            {
+                "General" => 1,
+                "Contract" => 2,
+                "EmployeeId" => 3,
+                "Certification" => 4,
+                "SafetyTraining" => 5,
+                "Permit" => 6,
+                "Inspection" => 7,
+                "Invoice" => 8,
+                "Receipt" => 9,
+                "Drawing" => 10,
+                "Specification" => 11,
+                "ProgressPhoto" => 12,
+                _ => 0
+            };
+
+            _request.DrawingNumber = document.DrawingNumber;
+            _request.SheetNumber = document.SheetNumber;
+            _request.Discipline = document.Discipline;
+            _request.DrawingStatus = document.DrawingStatus;
+            _request.CurrentRevision = document.CurrentRevision;
+            _request.FileName = document.FileName;
+            _request.StoragePath = document.StoragePath;
+            _request.ContentType = document.ContentType;
+            _request.FileSizeBytes = document.FileSizeBytes;
+            _request.ConstructionSiteId = document.ConstructionSiteId;
+            _request.ProjectId = document.ProjectId;
+            _request.EmployeeId = document.EmployeeId;
+            _request.RelatedEntityId = document.RelatedEntityId;
+            _request.RelatedEntityType = document.RelatedEntityType;
+            _request.IssueDate = document.IssueDate;
+            _request.ExpiryDate = document.ExpiryDate;
+            _request.IsConfidential = document.IsConfidential;
+            _request.Description = document.Description;
+
+            _versionsLoading = true;
+
+            _versions =
+                await ComplianceService.GetDocumentVersionsAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+            _versionsError = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+            _versionsLoading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _uploadError = null;
+        _uploadMessage = null;
+        _selectedFile = e.File;
+    }
+
+    private async Task UploadVersion()
+    {
+        _uploadError = null;
+        _uploadMessage = null;
+
+        if (_selectedFile is null)
+        {
+            _uploadError = "Please select a file.";
+            return;
+        }
+
+        try
+        {
+            _uploading = true;
+
+            var version =
+                await ComplianceService.UploadDocumentVersionAsync(
+                    Id,
+                    _selectedFile,
+                    _revisionNotes);
+
+            _request.CurrentRevision =
+                version.VersionNumber.ToString();
+
+            _request.FileName = version.FileName;
+            _request.StoragePath = version.StoragePath;
+            _request.ContentType = version.ContentType;
+            _request.FileSizeBytes = version.FileSizeBytes;
+
+            _uploadMessage =
+                $"Version {version.VersionNumber} uploaded successfully.";
+
+            _selectedFile = null;
+            _revisionNotes = null;
+        }
+        catch (Exception ex)
+        {
+            _uploadError = ex.Message;
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        _errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_request.DocumentNumber))
+        {
+            _errorMessage = "Document Number is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.Name))
+        {
+            _errorMessage = "Name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.FileName))
+        {
+            _errorMessage = "File Name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_request.StoragePath))
+        {
+            _errorMessage = "Storage Path is required.";
+            return;
+        }
+
+        if (_request.FileSizeBytes < 0)
+        {
+            _errorMessage = "File Size cannot be negative.";
+            return;
+        }
+
+        if (_request.IssueDate.HasValue &&
+            _request.ExpiryDate.HasValue &&
+            _request.ExpiryDate.Value < _request.IssueDate.Value)
+        {
+            _errorMessage =
+                "Expiry Date cannot be earlier than Issue Date.";
+            return;
+        }
+
+        try
+        {
+            _saving = true;
+
+            await ComplianceService.UpdateDocumentAsync(
+                Id,
+                _request);
+
+            Navigation.NavigateTo(
+                "/compliance/documents");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void CloseVersionDetails()
+    {
+        _selectedVersion = null;
+    }
+
+    private void ShowVersionDetails(DocumentVersionResponse version)
+    {
+        _selectedVersion = version;
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(
+            "/compliance/documents");
+    }
+}

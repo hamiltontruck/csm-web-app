@@ -1,0 +1,168 @@
+@page "/stock-movements/{Id:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>Stock Movement Detail</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading movement...</h4>
+    </div>
+}
+else if (movement is null)
+{
+    <div class="container py-4">
+        <div class="alert alert-warning">
+            Stock movement not found.
+        </div>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3" @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h2>@movement.MaterialName</h2>
+                <div class="text-muted">@movement.MaterialCode</div>
+            </div>
+
+            <span class="badge bg-primary fs-6">
+                @movement.MovementType
+            </span>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <!-- Site & Date -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <small class="text-muted">Construction Site</small>
+                        <div class="fw-semibold">@movement.SiteName</div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <small class="text-muted">Movement Date</small>
+                        <div class="fw-semibold">
+                            @movement.MovementDateUtc.ToString("dd MMM yyyy HH:mm")
+                        </div>
+                    </div>
+                </div>
+
+                <hr />
+
+                <!-- Move From / Move To -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <small class="text-muted">Transfer From Site</small>
+                        <div class="fw-semibold">
+                            @(movement.MoveFrom ?? "-")
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <small class="text-muted">Transfer To Site</small>
+                        <div class="fw-semibold">
+                            @(movement.MoveTo ?? "-")
+                        </div>
+                    </div>
+                </div>
+
+                <hr />
+
+                <!-- Balance -->
+                <div class="row text-center mb-4">
+
+                    <div class="col-md-4">
+                        <small class="text-muted">Before</small>
+                        <h3>@(movement.StockBalanceBefore ?? 0)</h3>
+                    </div>
+
+                    <div class="col-md-4">
+                        <small class="text-muted">Quantity</small>
+                        <h3>@movement.Quantity</h3>
+                        <small>@movement.UnitOfMeasure</small>
+                    </div>
+
+                    <div class="col-md-4">
+                        <small class="text-muted">After</small>
+                        <h3>@(movement.StockBalanceAfter ?? 0)</h3>
+                    </div>
+
+                </div>
+
+                <hr />
+
+                <!-- Reference -->
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Reference No.</small>
+                        <div>@(movement.ReferenceNumber ?? "-")</div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Reference Type</small>
+                        <div>@(movement.ReferenceType ?? "-")</div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Unit Cost</small>
+                        <div>@(movement.UnitCost?.ToString("N2") ?? "-")</div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <small class="text-muted">Total Cost</small>
+                        <div>@(movement.TotalCost?.ToString("N2") ?? "-")</div>
+                    </div>
+
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(movement.Remarks))
+                {
+                    <hr />
+
+                    <small class="text-muted">Remarks</small>
+                    <div>@movement.Remarks</div>
+                }
+
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private StockMovementResponse? movement;
+    private bool loading = true;
+    private bool loaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || loaded)
+            return;
+
+        loaded = true;
+
+        movement = await InventoryService.GetStockMovementAsync(Id);
+
+        loading = false;
+        StateHasChanged();
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo("/stock-movements");
+}

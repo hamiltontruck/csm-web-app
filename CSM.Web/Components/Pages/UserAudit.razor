@@ -1,0 +1,107 @@
+@page "/users/audit"
+
+@using CSM.Web.Models.Users
+@using CSM.Web.Services
+
+@inject UserWebService UserService
+@inject NavigationManager Navigation
+
+<PageTitle>User Audit Trail</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">User Audit Trail</h3>
+
+    <button class="btn btn-outline-secondary"
+            @onclick="Back">
+        Back
+    </button>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <input class="form-control"
+               placeholder="Search..."
+               @bind="search" />
+    </div>
+</div>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <table class="table table-hover align-middle">
+
+        <thead class="table-light">
+            <tr>
+                <th>Time</th>
+                <th>Administrator</th>
+                <th>Action</th>
+                <th>Target User</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+        @foreach (var item in Filtered)
+        {
+            <tr>
+                <td>
+                    @(item.PerformedAtUtc
+                        .ToLocalTime()
+                        .ToString("dd MMM yyyy HH:mm"))
+                </td>
+
+                <td>@item.ActorName</td>
+
+                <td>
+                    <span class="badge bg-primary">
+                        @item.Action
+                    </span>
+                </td>
+
+                <td>@item.TargetName</td>
+
+                <td>@item.Details</td>
+            </tr>
+        }
+
+        </tbody>
+
+    </table>
+}
+
+@code {
+
+    private List<UserAuditModel> audits = [];
+
+    private bool loading = true;
+
+    private string search = "";
+
+    private IEnumerable<UserAuditModel> Filtered =>
+        audits.Where(x =>
+            string.IsNullOrWhiteSpace(search)
+            || x.ActorName.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || x.TargetName.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || x.Action.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        audits = await UserService.GetAuditAsync();
+
+        loading = false;
+
+        StateHasChanged();
+    }
+
+    private void Back()
+        => Navigation.NavigateTo("/users");
+}

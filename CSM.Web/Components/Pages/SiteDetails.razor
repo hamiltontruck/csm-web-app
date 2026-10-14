@@ -1,0 +1,514 @@
+@page "/sites/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Sites
+@using CSM.Web.Models.Projects
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Site Dashboard</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-4">
+        <h4>Loading site...</h4>
+    </div>
+}
+else if (_site is null)
+{
+    <div class="container py-4">
+        <div class="alert alert-danger">
+            Site not found.
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+
+            <div>
+                <button class="btn btn-outline-secondary mb-3"
+                        @onclick='() => Navigation.NavigateTo("/sites-management")'>
+                    ← Construction Sites
+                </button>
+
+                <h2 class="mb-1">@_site.Name</h2>
+
+                <div class="text-muted mb-2">
+                    @_site.SiteCode · @_site.City, @_site.Region
+                </div>
+
+                <div class="d-flex gap-2">
+                    <span class="@StatusBadge(_site.Status)">
+                        @_site.Status
+                    </span>
+                </div>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick='() => Navigation.NavigateTo($"/sites/edit/{SiteId}")'>
+                Edit Site
+            </button>
+
+        </div>
+
+        <!-- KPI -->
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="text-muted">Projects</div>
+                        <h2>@_projectCount</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="text-muted">Active</div>
+                        <h2>@_activeProjects</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="text-muted">Contract Value</div>
+                        <h5>ETB @_contractValue.ToString("N0")</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body text-center">
+                        <div class="text-muted">Average Progress</div>
+                        <h2>@_averageProgress%</h2>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Site Information -->
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header">
+                <h5 class="mb-0">Site Information</h5>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row">
+
+                    <div class="col-md-6">
+
+                        <p>
+                            <strong>Site Code:</strong> @_site.SiteCode
+                        </p>
+
+                        <p>
+                            <strong>Address:</strong> @_site.Address
+                        </p>
+
+                        <p>
+                            <strong>City:</strong> @_site.City
+                        </p>
+
+                        <p>
+                            <strong>Region:</strong> @_site.Region
+                        </p>
+
+                        <p>
+                            <strong>Country:</strong> @_site.Country
+                        </p>
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <p>
+                            <strong>Latitude:</strong> @_site.Latitude
+                        </p>
+
+                        <p>
+                            <strong>Longitude:</strong> @_site.Longitude
+                        </p>
+
+                        <p>
+                            <strong>Geofence:</strong> @_site.GeofenceRadiusMeters m
+                        </p>
+
+                        <p>
+                            <strong>Planned Start:</strong>
+                            @_site.PlannedStartDate?.ToString("dd MMM yyyy")
+                        </p>
+
+                        <p>
+                            <strong>Planned Finish:</strong>
+                            @_site.PlannedEndDate?.ToString("dd MMM yyyy")
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <strong>Site Status</strong>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row align-items-end">
+
+                    <div class="col-md-8">
+                        <label class="form-label">Current Status</label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="SelectedStatus">
+
+                            @foreach (var status in Enum.GetValues<SiteStatus>())
+                            {
+                                <option value="@status">@status</option>
+                            }
+
+                        </InputSelect>
+
+                        <div class="text-muted mt-2">
+                            Selected: @SelectedStatus
+                        </div>
+                    </div>
+
+                    <div class="col-md-4 d-grid">
+                        <button class="btn btn-primary"
+                                @onclick="UpdateStatus">
+                            Update Status
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Quick Modules -->
+        <div class="row g-4 mb-4">
+
+            <div class="col-lg-3 col-md-6">
+
+                <div class="card shadow-sm h-100 module-card"
+                     style="cursor:pointer"
+                     @onclick="OpenProjects">
+
+                    <div class="card-body text-center">
+                        <div class="display-5 text-primary">
+                            <span class="bi bi-folder"></span>
+                        </div>
+
+                        <h5 class="mt-3">Projects</h5>
+
+                        <p class="text-muted small">
+                            View all projects assigned to this site
+                        </p>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+
+                <div class="card shadow-sm h-100 module-card"
+                     style="cursor:pointer"
+                     @onclick='() => Navigation.NavigateTo($"/hr/employees/site/{SiteId}")'>
+
+                    <div class="card-body text-center">
+                        <div class="display-5 text-success">
+                            <span class="bi bi-people"></span>
+                        </div>
+
+                        <h5 class="mt-3">Workforce</h5>
+
+                        <p class="text-muted small">
+                            View site employees
+                        </p>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+
+                <div class="card shadow-sm h-100 module-card"
+                     style="cursor:pointer"
+                     @onclick='() => Navigation.NavigateTo($"/stock-balance/{SiteId}")'>
+
+                    <div class="card-body text-center">
+                        <div class="display-5 text-warning">
+                            <span class="bi bi-box-seam"></span>
+                        </div>
+
+                        <h5 class="mt-3">Inventory</h5>
+
+                        <p class="text-muted small">
+                            View site stock balance
+                        </p>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+
+                <div class="card shadow-sm h-100 module-card"
+                     style="cursor:pointer"
+                     @onclick='() => Navigation.NavigateTo("/compliance")'>
+
+                    <div class="card-body text-center">
+                        <div class="display-5 text-danger">
+                            <span class="bi bi-shield-check"></span>
+                        </div>
+
+                        <h5 class="mt-3">Compliance</h5>
+
+                        <p class="text-muted small">
+                            View compliance dashboard
+                        </p>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Projects -->
+        <div class="card shadow-sm">
+
+            <div class="card-header d-flex justify-content-between align-items-center">
+
+                <h5 class="mb-0">Site Projects</h5>
+
+                <button class="btn btn-sm btn-primary"
+                        @onclick='() => Navigation.NavigateTo($"/sites/{SiteId}/projects")'>
+                    View All
+                </button>
+
+            </div>
+
+            <div class="card-body p-0">
+
+                @if (_siteProjects.Count == 0)
+                {
+                    <div class="p-5 text-center text-muted">
+                        No projects assigned to this construction site.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+
+                        <table class="table table-hover align-middle mb-0">
+
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Project</th>
+                                    <th>Status</th>
+                                    <th width="220">Progress</th>
+                                    <th width="90"></th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                @foreach (var project in _siteProjects.Take(5))
+                                {
+                                    <tr>
+
+                                        <td>
+                                            <strong>@project.Code</strong>
+                                        </td>
+
+                                        <td>@project.Name</td>
+
+                                        <td>
+                                            <span class="@StatusBadge(project.Status)">
+                                                @project.Status
+                                            </span>
+                                        </td>
+
+                                        <td>
+
+                                            <div class="d-flex justify-content-between small mb-1">
+                                                <span>@project.ProgressPercentage%</span>
+                                            </div>
+
+                                            <div class="progress" style="height:8px;">
+                                                <div class="progress-bar bg-success"
+                                                     role="progressbar"
+                                                     style="width:@($"{project.ProgressPercentage}%")">
+                                                </div>
+                                            </div>
+
+                                        </td>
+
+                                        <td class="text-end">
+
+                                            <button class="btn btn-sm btn-outline-primary"
+                                                    @onclick="() => ViewProject(project.Id)">
+                                                Open
+                                            </button>
+
+                                        </td>
+
+                                    </tr>
+                                }
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+                }
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private SiteResponse? _site;
+
+    private SiteStatus SelectedStatus;
+
+    private bool _loading = true;
+    private bool _loaded;
+
+    private List<ProjectSummary> _siteProjects = [];
+
+    private int _projectCount;
+    private int _activeProjects;
+    private decimal _contractValue;
+    private int _averageProgress;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _site = await ProjectService.GetSiteAsync(SiteId);
+
+        if (_site is null)
+        {
+            Navigation.NavigateTo("/project-tracking");
+            return;
+        }
+
+        SelectedStatus = Enum.TryParse<SiteStatus>(
+            _site.Status,
+            out var status)
+                ? status
+                : SiteStatus.Planning;
+
+        var projects = await ProjectService.GetProjectsAsync();
+
+        _siteProjects = projects
+            .Where(x => x.ConstructionSiteId == SiteId)
+            .OrderBy(x => x.Name)
+            .ToList();
+
+        _projectCount = _siteProjects.Count;
+        _activeProjects = _siteProjects.Count(x => x.Status == "Active");
+        _contractValue = _siteProjects.Sum(x => x.ContractValue);
+
+        _averageProgress = _siteProjects.Count == 0
+            ? 0
+            : (int)Math.Round(_siteProjects.Average(x => x.ProgressPercentage));
+
+        _loading = false;
+
+        StateHasChanged();
+    }
+
+    private async Task UpdateStatus()
+    {
+        _site = await ProjectService.ChangeSiteStatusAsync(
+            SiteId,
+            SelectedStatus);
+
+        SelectedStatus = Enum.TryParse<SiteStatus>(
+            _site.Status,
+            out var status)
+                ? status
+                : SiteStatus.Planning;
+
+        StateHasChanged();
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/sites-management");
+    }
+
+    private void EditSite()
+    {
+        Navigation.NavigateTo($"/sites/edit/{SiteId}");
+    }
+
+    private void OpenProjects()
+    {
+        Navigation.NavigateTo($"/sites/{SiteId}/projects");
+    }
+
+    private void ViewProject(Guid id)
+    {
+        Navigation.NavigateTo($"/projects/{id}");
+    }
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Active" => "badge bg-success",
+        "Planning" => "badge bg-dark",
+        "Completed" => "badge bg-secondary",
+        _ => "badge bg-primary"
+    };
+}
+
+<style>
+    .module-card {
+        transition: .2s ease;
+        border-radius: 14px;
+    }
+
+    .module-card:hover {
+        transform: translateY(-3px);
+    }
+
+    .module-card.disabled {
+        opacity: .75;
+    }
+</style>

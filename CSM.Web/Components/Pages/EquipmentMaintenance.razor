@@ -1,0 +1,233 @@
+@page "/equipment/maintenance/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Equipment Maintenance</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+
+        <div class="d-flex align-items-center">
+
+            <button class="btn btn-outline-secondary me-3"
+                    @onclick="GoBack">
+                ← Back
+            </button>
+
+            <div>
+                <h2 class="mb-0">Equipment Maintenance</h2>
+
+                @if (!string.IsNullOrWhiteSpace(siteName))
+                {
+                    <small class="text-muted">@siteName</small>
+                }
+            </div>
+
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="NewMaintenance">
+            + New Maintenance
+        </button>
+
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+    else if (records.Count == 0)
+    {
+        <div class="alert alert-info">
+            No maintenance records found for this site.
+        </div>
+    }
+    else
+    {
+        @foreach (var item in records.OrderByDescending(x => x.ScheduledAtUtc))
+        {
+            <div class="card shadow-sm mb-3">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between">
+
+                        <div>
+                            <h5 class="mb-1">
+                                @item.EquipmentCode — @item.EquipmentName
+                            </h5>
+
+                            <div class="text-muted">
+                                @item.MaintenanceType
+                            </div>
+                        </div>
+
+                        <div>
+                            @if (item.CompletedAtUtc.HasValue)
+                            {
+                                <span class="badge bg-success">
+                                    Completed
+                                </span>
+                            }
+                            else if (item.StartedAtUtc.HasValue)
+                            {
+                                <span class="badge bg-warning text-dark">
+                                    In Progress
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">
+                                    Scheduled
+                                </span>
+                            }
+                        </div>
+
+                    </div>
+
+                    <hr />
+
+                    <div class="row">
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Scheduled
+                            </small>
+
+                            @item.ScheduledAtUtc.ToString("dd/MM/yyyy")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Meter
+                            </small>
+
+                            @(item.MeterReading?.ToString("N0") ?? "-")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Cost
+                            </small>
+
+                            @($"{item.CurrencyCode} {(item.Cost ?? 0):N2}")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Provider
+                            </small>
+
+                            @(item.ServiceProvider ?? "-")
+                        </div>
+
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                    {
+                        <div class="mt-3">
+
+                            <small class="text-muted d-block">
+                                Description
+                            </small>
+
+                            @item.Description
+
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private string siteName = string.Empty;
+
+    private List<EquipmentMaintenanceResponse> records = [];
+
+    private bool loading = true;
+
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            var sites =
+                await ProjectService.GetSitesAsync();
+
+            var site =
+                sites.FirstOrDefault(x => x.Id == SiteId);
+
+            if (site is not null)
+                siteName = site.Name;
+
+            var assignments =
+                await EquipmentService.GetAssignmentsAsync();
+
+            var equipmentIds = assignments
+                .Where(x =>
+                    x.ConstructionSiteId == SiteId &&
+                    x.ReleasedAtUtc == null)
+                .Select(x => x.EquipmentId)
+                .Distinct()
+                .ToHashSet();
+
+            var maintenance =
+                await EquipmentService.GetMaintenanceAsync();
+
+            records = maintenance
+                .Where(x => equipmentIds.Contains(x.EquipmentId))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void NewMaintenance()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/maintenance/create/{SiteId}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(
+            "/equipment/maintenance-sites");
+    }
+
+}

@@ -1,0 +1,199 @@
+@page "/equipment/utilization/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Equipment Utilization</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center mb-4">
+
+        <button class="btn btn-outline-secondary me-3"
+                @onclick="GoBack">
+            ← Back
+        </button>
+
+        <div>
+            <h2 class="mb-0">
+                Equipment Utilization
+            </h2>
+
+            @if (!string.IsNullOrWhiteSpace(siteName))
+            {
+                <small class="text-muted">
+                    @siteName
+                </small>
+            }
+        </div>
+
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+    else if (utilization.Count == 0)
+    {
+        <div class="alert alert-info">
+            No equipment utilization data found for this site.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle">
+
+                <thead>
+                    <tr>
+                        <th>Equipment Code</th>
+                        <th>Equipment</th>
+                        <th class="text-end">Hours Worked</th>
+                        <th class="text-end">Fuel Consumed</th>
+                        <th class="text-end">Downtime Hours</th>
+                        <th class="text-end">Maintenance Cost</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    @foreach (var item in utilization
+                        .OrderBy(x => x.EquipmentCode))
+                    {
+                        <tr>
+
+                            <td>
+                                <strong>
+                                    @item.EquipmentCode
+                                </strong>
+                            </td>
+
+                            <td>
+                                @item.EquipmentName
+                            </td>
+
+                            <td class="text-end">
+                                @item.HoursWorked.ToString("N2")
+                            </td>
+
+                            <td class="text-end">
+                                @item.FuelConsumed.ToString("N2")
+                            </td>
+
+                            <td class="text-end">
+                                @item.DowntimeHours.ToString("N2")
+                            </td>
+
+                            <td class="text-end">
+                                @item.MaintenanceCost.ToString("N2")
+                            </td>
+
+                        </tr>
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private List<EquipmentUtilizationResponse> utilization = [];
+
+    private string siteName = string.Empty;
+
+    private bool loading = true;
+
+    private string? errorMessage;
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            var sites =
+                await ProjectService.GetSitesAsync();
+
+            var site =
+                sites.FirstOrDefault(x => x.Id == SiteId);
+
+            if (site is not null)
+            {
+                siteName = site.Name;
+            }
+
+            var allUtilization =
+                await EquipmentService.GetUtilizationAsync();
+
+            /*
+             * Same site-scoped approach used by
+             * EquipmentDowntime.razor:
+             *
+             * Load the complete dataset first,
+             * then restrict the displayed records
+             * to the selected construction site.
+             *
+             * Utilization currently comes from the
+             * equipment-level endpoint, so equipment
+             * site membership is resolved from the
+             * existing equipment assignments.
+             */
+
+            var assignments =
+                await EquipmentService.GetAssignmentsAsync();
+
+            var equipmentIds = assignments
+                .Where(x => x.ConstructionSiteId == SiteId)
+                .Select(x => x.EquipmentId)
+                .Distinct()
+                .ToHashSet();
+
+            utilization = allUtilization
+                .Where(x => equipmentIds.Contains(x.EquipmentId))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(
+            "/equipment/utilization-sites");
+    }
+
+}

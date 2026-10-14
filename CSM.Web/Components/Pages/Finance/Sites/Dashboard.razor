@@ -1,0 +1,325 @@
+@page "/finance/sites"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Finance Sites</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading sites...</p>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <!-- Header -->
+        <div class="mb-4">
+
+            <button class="btn btn-outline-secondary mb-3"
+                    @onclick="Back">
+                ← Dashboard
+            </button>
+
+            <h1 class="mb-1">Finance</h1>
+
+            <div class="text-muted fs-5">
+                Select Construction Site
+            </div>
+
+            <!-- Company Finance -->
+            <div class="card border-0 shadow-sm mt-4 mb-4">
+                <div class="card-body">
+
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-building fs-2 text-primary me-3"></i>
+
+                        <div>
+                            <h3 class="mb-0">Company Finance</h3>
+                            <div class="text-muted">
+                                Company-wide financial records
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3"
+                                    @onclick="OpenCompanyCostCodes">
+                                <i class="bi bi-diagram-3 d-block fs-3 mb-2"></i>
+                                Cost Codes
+                            </button>
+                        </div>
+
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3"
+                                    @onclick="OpenCompanyVendors">
+                                <i class="bi bi-people d-block fs-3 mb-2"></i>
+                                Vendors
+                            </button>
+                        </div>
+
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3"
+                                    @onclick="OpenCompanyBudgets">
+                                <i class="bi bi-cash-stack d-block fs-3 mb-2"></i>
+                                Budgets
+                            </button>
+                        </div>
+
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3"
+                                    @onclick="OpenCompanyInvoices">
+                                <i class="bi bi-receipt d-block fs-3 mb-2"></i>
+                                Invoices
+                            </button>
+                        </div>
+
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3"
+                                    @onclick="OpenCompanyPayments">
+                                <i class="bi bi-wallet2 d-block fs-3 mb-2"></i>
+                                Payments
+                            </button>
+                        </div>
+
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3"
+                                    @onclick="OpenCompanyExpenses">
+                                <i class="bi bi-currency-dollar d-block fs-3 mb-2"></i>
+                                Expenses
+                            </button>
+                        </div>
+
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-primary w-100 py-3"
+                                    @onclick="OpenCompanyPettyCash">
+                                <i class="bi bi-cash-coin d-block fs-3 mb-2"></i>
+                                Petty Cash
+                            </button>
+                        </div>
+
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-success w-100 py-3"
+                                    @onclick="OpenCompanyFinancialSummary">
+                                <i class="bi bi-bar-chart-line d-block fs-3 mb-2"></i>
+                                Financial Summary
+                            </button>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+        @if (_sites.Count == 0)
+        {
+            <div class="alert alert-info">
+                No construction sites available.
+            </div>
+        }
+        else
+        {
+            <div class="row g-3">
+
+                @foreach (var site in _sites)
+                {
+                    <div class="col-md-6 col-lg-4">
+
+                        <div class="card border-0 shadow-sm h-100 finance-card">
+
+
+                            <div class="card-body d-flex flex-column">
+
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="badge bg-success">@site.Status</span>
+
+                                    <small class="text-muted">@site.SiteCode</small>
+                                </div>
+
+                                <h4 class="mb-2">@site.Name</h4>
+
+                                <div class="text-muted small mb-1">
+                                    @site.Address
+                                </div>
+
+                                <div class="text-secondary small mb-3">
+                                    @site.City, @site.Region
+                                </div>
+
+                                <div class="mt-auto d-grid gap-2">
+
+                                    <button class="btn btn-outline-primary"
+                                            @onclick:stopPropagation
+                                            @onclick="() => OpenCostCodes(site.Id)">
+                                        <i class="bi bi-diagram-3"></i> Cost Codes
+                                    </button>
+
+                                    <button class="btn btn-outline-secondary"
+                                            @onclick:stopPropagation
+                                            @onclick="() => OpenBudgets(site.Id)">
+                                        <i class="bi bi-cash-stack"></i> Budgets
+                                    </button>
+
+                                    <button class="btn btn-primary"
+                                            @onclick:stopPropagation
+                                            @onclick="() => OpenInvoices(site.Id)">
+                                        <i class="bi bi-receipt"></i> Invoices
+                                    </button>
+
+                                    <button class="btn btn-success"
+                                            @onclick:stopPropagation
+                                            @onclick="() => OpenPayments(site.Id)">
+                                        <i class="bi bi-wallet2"></i> Payments
+                                    </button>
+
+                                    <button class="btn btn-warning"
+                                            @onclick:stopPropagation
+                                            @onclick="() => OpenExpenses(site.Id)">
+                                        <i class="bi bi-currency-dollar"></i> Expenses
+                                    </button>
+
+                                    <button class="btn btn-outline-dark"
+                                            @onclick:stopPropagation
+                                            @onclick="() => OpenPettyCash(site.Id)">
+                                        <i class="bi bi-cash-coin"></i> Petty Cash
+                                    </button>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+
+            </div>
+        }
+
+    </div>
+}
+
+<style>
+    .finance-card{
+        transition:all .2s ease;
+    }
+
+    .finance-card:hover{
+        transform:translateY(-3px);
+        box-shadow:0 .75rem 1.5rem rgba(0,0,0,.15)!important;
+    }
+</style>
+
+@code {
+
+    private List<SiteResponse> _sites = new();
+
+    private bool _loading = true;
+    private bool _loaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _sites = await ProjectService.GetSitesAsync();
+
+        _loading = false;
+
+        StateHasChanged();
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+
+    private void OpenCostCodes(Guid siteId)
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{siteId}/cost-codes");
+    }
+
+    private void OpenBudgets(Guid siteId)
+    {
+        Navigation.NavigateTo($"/finance/sites/{siteId}/budgets");
+    }
+
+    private void OpenInvoices(Guid siteId)
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{siteId}/invoices");
+    }
+
+    private void OpenPayments(Guid siteId)
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{siteId}/payments");
+    }
+
+    private void OpenExpenses(Guid siteId)
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{siteId}/expenses");
+    }
+
+    private void OpenPettyCash(Guid siteId)
+    {
+        Navigation.NavigateTo(
+            $"/finance/petty-cash/site/{siteId}");
+    }
+
+    private void OpenCompanyCostCodes()
+    {
+        Navigation.NavigateTo("/finance/company/cost-codes");
+    }
+
+    private void OpenCompanyVendors()
+    {
+        Navigation.NavigateTo("/finance/company/vendors");
+    }
+
+    private void OpenCompanyBudgets()
+    {
+        Navigation.NavigateTo("/finance/company/budgets");
+    }
+
+    private void OpenCompanyInvoices()
+    {
+        Navigation.NavigateTo("/finance/company/invoices");
+    }
+
+    private void OpenCompanyPayments()
+    {
+        Navigation.NavigateTo("/finance/company/payments");
+    }
+
+    private void OpenCompanyExpenses()
+    {
+        Navigation.NavigateTo("/finance/company/expenses");
+    }
+
+    private void OpenCompanyPettyCash()
+    {
+        Navigation.NavigateTo("/finance/petty-cash");
+    }
+
+    private void OpenCompanyFinancialSummary()
+    {
+        Navigation.NavigateTo("/finance/summary");
+    }
+
+}

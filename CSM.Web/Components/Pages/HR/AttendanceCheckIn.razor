@@ -1,0 +1,289 @@
+@page "/hr/attendance/check-in"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IAttendanceService AttendanceService
+@inject IEmployeeService EmployeeService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Attendance Check-In</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Attendance Check-In</h2>
+            <div class="text-muted">
+                Record an employee check-in
+            </div>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            Back
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-3">Loading employees and sites...</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger">
+                        @_error
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_success))
+                {
+                    <div class="alert alert-success">
+                        @_success
+                    </div>
+                }
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Employee
+                        </label>
+
+                        <select class="form-select"
+                                @bind="_employeeId">
+
+                            <option value="">
+                                -- Select Employee --
+                            </option>
+
+                            @foreach (var employee in _employees)
+                            {
+                                <option value="@employee.Id">
+                                    @employee.EmployeeNumber -
+                                    @employee.FirstName
+                                    @if (!string.IsNullOrWhiteSpace(employee.LastName))
+                                    {
+                                        @($" {employee.LastName}")
+                                    }
+                                </option>
+                            }
+
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Construction Site
+                        </label>
+
+                        <select class="form-select"
+                                @bind="_constructionSiteId">
+
+                            <option value="">
+                                -- Select Site --
+                            </option>
+
+                            @foreach (var site in _sites)
+                            {
+                                <option value="@site.Id">
+                                    @site.SiteCode - @site.Name
+                                </option>
+                            }
+
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Check-In Time
+                        </label>
+
+                        <input type="datetime-local"
+                               class="form-control"
+                               @bind="_checkInLocal" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Source
+                        </label>
+
+                        <select class="form-select"
+                                @bind="_source">
+
+                            <option value="Manual">
+                                Manual
+                            </option>
+
+                            <option value="MobileGps">
+                                Mobile GPS
+                            </option>
+
+                            <option value="Biometric">
+                                Biometric
+                            </option>
+
+                            <option value="Imported">
+                                Imported
+                            </option>
+
+                        </select>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">
+                            Remarks
+                        </label>
+
+                        <textarea class="form-control"
+                                  rows="3"
+                                  @bind="_remarks">
+                        </textarea>
+                    </div>
+
+                </div>
+
+                <div class="mt-4 d-flex gap-2">
+
+                    <button class="btn btn-primary"
+                            disabled="@_saving"
+                            @onclick="CheckIn">
+
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>Check In</span>
+                        }
+
+                    </button>
+
+                    <button class="btn btn-outline-secondary"
+                            disabled="@_saving"
+                            @onclick="Back">
+                        Cancel
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+
+    private List<EmployeeResponse> _employees = [];
+    private List<SiteResponse> _sites = [];
+
+    private Guid? _employeeId;
+    private Guid? _constructionSiteId;
+
+    private DateTime _checkInLocal =
+        DateTime.Now;
+
+    private string _source = "Manual";
+    private string? _remarks;
+
+    private bool _loading = true;
+    private bool _saving;
+
+    private string? _error;
+    private string? _success;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _employees = (
+                await EmployeeService.GetEmployeesAsync("Active")
+            ).ToList();
+
+            _sites = await ProjectService.GetSitesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CheckIn()
+    {
+        _error = null;
+        _success = null;
+
+        if (!_employeeId.HasValue)
+        {
+            _error = "Please select an employee.";
+            return;
+        }
+
+        if (!_constructionSiteId.HasValue)
+        {
+            _error = "Please select a construction site.";
+            return;
+        }
+
+        try
+        {
+            _saving = true;
+
+            var request = new CheckInRequest
+            {
+                EmployeeId = _employeeId.Value,
+                ConstructionSiteId = _constructionSiteId.Value,
+                ShiftId = null,
+                CheckInAtUtc = _checkInLocal.ToUniversalTime(),
+                Latitude = null,
+                Longitude = null,
+                AccuracyMeters = null,
+                Source = _source,
+                BiometricReference = null,
+                Remarks = _remarks
+            };
+
+            await AttendanceService.CheckInAsync(request);
+
+            _success = "Attendance check-in recorded successfully.";
+
+            _employeeId = null;
+            _constructionSiteId = null;
+            _remarks = null;
+            _checkInLocal = DateTime.Now;
+            _source = "Manual";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/hr/attendance");
+    }
+}

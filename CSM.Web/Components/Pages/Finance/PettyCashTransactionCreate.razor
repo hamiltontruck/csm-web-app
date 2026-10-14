@@ -1,0 +1,260 @@
+@page "/finance/petty-cash/account/{AccountId:guid}/transactions/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>New Petty Cash Transaction</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <button class="btn btn-outline-secondary mb-3"
+            @onclick="Back">
+        <i class="bi bi-arrow-left"></i> Back
+    </button>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h4 class="mb-0">New Petty Cash Transaction</h4>
+        </div>
+
+        <div class="card-body">
+
+            @if (_loading)
+            {
+                <p>Loading account...</p>
+            }
+            else if (_account is null)
+            {
+                <div class="alert alert-danger">
+                    Petty cash account not found.
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-light border mb-4">
+                    <strong>Account:</strong>
+                    @_account.AccountCode - @_account.AccountName
+                    <br />
+                    <strong>Current Balance:</strong>
+                    @_account.CurrentBalance.ToString("N2")
+                </div>
+
+                <EditForm Model="_form"
+                          OnValidSubmit="Submit">
+
+                    <DataAnnotationsValidator />
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Transaction Type
+                            </label>
+
+                            <select class="form-select"
+                                    @bind="_form.TransactionType">
+                                <option value="CashOut">
+                                    Cash Out
+                                </option>
+                                <option value="CashIn">
+                                    Cash In
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Reference Number
+                            </label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="_form.ReferenceNumber" />
+
+                            <ValidationMessage
+                                For="@(() => _form.ReferenceNumber)" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Amount
+                            </label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="_form.Amount" />
+
+                            <ValidationMessage
+                                For="@(() => _form.Amount)" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Cost Code
+                            </label>
+
+                            <select class="form-select"
+                                    @bind="_form.CostCodeId">
+
+                                <option value="">
+                                    -- No Cost Code --
+                                </option>
+
+                                @foreach (var costCode in _costCodes)
+                                {
+                                    <option value="@costCode.Id">
+                                        @costCode.Code - @costCode.Name
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                Description
+                            </label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="_form.Description" />
+
+                            <ValidationMessage
+                                For="@(() => _form.Description)" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                Remarks
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="3"
+                                           @bind-Value="_form.Remarks" />
+                        </div>
+
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_error))
+                    {
+                        <div class="alert alert-danger mt-3">
+                            @_error
+                        </div>
+                    }
+
+                    <div class="mt-4">
+
+                        <button type="submit"
+                                class="btn btn-primary"
+                                disabled="@_saving">
+                            @if (_saving)
+                            {
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <span>
+                                    <i class="bi bi-check-lg"></i>
+                                    Save Transaction
+                                </span>
+                            }
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-outline-secondary ms-2"
+                                @onclick="Back"
+                                disabled="@_saving">
+                            Cancel
+                        </button>
+
+                    </div>
+
+                </EditForm>
+            }
+
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid AccountId { get; set; }
+
+    private PettyCashAccountResponse? _account;
+
+    private IReadOnlyList<CostCodeResponse> _costCodes = Array.Empty<CostCodeResponse>();
+
+    private PettyCashTransactionForm _form = new();
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _account = await FinanceService
+            .GetPettyCashAccountAsync(AccountId);
+
+        _costCodes = await FinanceService
+            .GetCostCodesAsync();
+
+        _form.PettyCashAccountId = AccountId;
+
+        _loading = false;
+    }
+
+    private async Task Submit()
+    {
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            var request = new CreatePettyCashTransactionRequest(
+                _form.PettyCashAccountId,
+                _form.TransactionType,
+                _form.ReferenceNumber,
+                _form.Amount,
+                _form.Description,
+                _form.Remarks,
+                _form.CostCodeId);
+
+            await FinanceService
+                .CreatePettyCashTransactionAsync(request);
+
+            Navigation.NavigateTo(
+                $"/finance/petty-cash/account/{AccountId}/transactions");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(
+            $"/finance/petty-cash/account/{AccountId}/transactions");
+    }
+
+    private sealed class PettyCashTransactionForm
+    {
+        public Guid PettyCashAccountId { get; set; }
+
+        public string TransactionType { get; set; } = "CashOut";
+
+        public string ReferenceNumber { get; set; } = string.Empty;
+
+        public decimal Amount { get; set; }
+
+        public string Description { get; set; } = string.Empty;
+
+        public string? Remarks { get; set; }
+
+        public Guid? CostCodeId { get; set; }
+    }
+}

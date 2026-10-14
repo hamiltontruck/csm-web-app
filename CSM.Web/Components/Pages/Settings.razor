@@ -1,0 +1,91 @@
+@page "/settings"
+@rendermode InteractiveServer
+
+@using CSM.Web.Services
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+
+@inject ProtectedSessionStorage SessionStorage
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Settings &amp; Privacy</PageTitle>
+
+<div class="container py-4">
+    <div class="mb-4">
+        <h2 class="mb-1">Settings &amp; Privacy</h2>
+        <p class="text-muted mb-0">Review your signed-in account and session.</p>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <h5 class="card-title">Account</h5>
+
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Name</dt>
+                    <dd class="col-sm-9">@ValueOrUnavailable(_userName)</dd>
+
+                    <dt class="col-sm-3">Email</dt>
+                    <dd class="col-sm-9">@ValueOrUnavailable(_email)</dd>
+
+                    <dt class="col-sm-3">Roles</dt>
+                    <dd class="col-sm-9">@ValueOrUnavailable(_roles)</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h5 class="card-title">Session</h5>
+                <p class="text-muted">
+                    Sign out on shared devices when you finish working.
+                </p>
+                <button class="btn btn-outline-danger" @onclick="SignOutAsync">
+                    Sign Out
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _userName;
+    private string? _email;
+    private string? _roles;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var name = await SessionStorage.GetAsync<string>("userName");
+        var email = await SessionStorage.GetAsync<string>("email");
+        var roles = await SessionStorage.GetAsync<List<string>>("roles");
+
+        _userName = name.Success ? name.Value : null;
+        _email = email.Success ? email.Value : null;
+        _roles = roles.Success && roles.Value is not null
+            ? string.Join(", ", roles.Value)
+            : null;
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task SignOutAsync()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", true);
+    }
+
+    private static string ValueOrUnavailable(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "Not available" : value;
+}

@@ -1,0 +1,155 @@
+@page "/vendors/create"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IVendorService VendorService
+@inject NavigationManager Navigation
+
+<PageTitle>New Vendor</PageTitle>
+
+<div class="container py-4">
+
+    <button class="btn btn-outline-secondary mb-3"
+            @onclick="GoBack">
+        <i class="bi bi-arrow-left"></i> Back
+    </button>
+
+    <h2 class="mb-4">New Vendor</h2>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-4">
+                    <label class="form-label">Vendor Code</label>
+                    <input class="form-control"
+                           @bind="model.VendorCode"
+                           @bind:event="oninput" />
+                </div>
+
+                <div class="col-md-8">
+                    <label class="form-label">Vendor Name</label>
+                    <input class="form-control"
+                           @bind="model.Name"
+                           @bind:event="oninput" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Contact Person</label>
+                    <input class="form-control" @bind="model.ContactPerson" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Phone Number</label>
+                    <input class="form-control" @bind="model.PhoneNumber" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Email</label>
+                    <input class="form-control" @bind="model.Email" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Tax Number</label>
+                    <input class="form-control" @bind="model.TaxIdentificationNumber" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Bank Name</label>
+                    <input class="form-control" @bind="model.BankName" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Bank Account</label>
+                    <input class="form-control" @bind="model.BankAccountNumber" />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Address</label>
+                    <textarea class="form-control"
+                              rows="3"
+                              @bind="model.Address"></textarea>
+                </div>
+
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               @bind="model.IsActive" />
+
+                        <label class="form-check-label">
+                            Active Vendor
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+
+            <hr />
+
+            <div class="d-flex justify-content-end gap-2">
+                <button class="btn btn-secondary"
+                        @onclick="GoBack">
+                    Cancel
+                </button>
+
+                <button class="btn btn-primary"
+                        @onclick="Save"
+                        disabled="@saving">
+                    @(saving ? "Saving..." : "Save Vendor")
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+@code{
+    private CreateVendorRequest model = new()
+    {
+        IsActive = true
+    };
+
+    private bool saving;
+    private string? errorMessage;
+
+    async Task Save()
+    {
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(model.VendorCode))
+        {
+            errorMessage = "Vendor Code is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Name))
+        {
+            errorMessage = "Vendor Name is required.";
+            return;
+        }
+
+        saving = true;
+
+        var success = await VendorService.CreateVendorAsync(model);
+
+        saving = false;
+
+        if (success)
+            Navigation.NavigateTo("/vendors");
+        else
+            errorMessage = "Unable to save vendor.";
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo("/vendors");
+}

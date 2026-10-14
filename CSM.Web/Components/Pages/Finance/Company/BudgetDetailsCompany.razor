@@ -1,0 +1,447 @@
+@page "/finance/company/budgets/{Id:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Company Budget Details</PageTitle>
+
+@if (_loading)
+{
+    <p>Loading budget...</p>
+}
+else if (_budget is null)
+{
+    <div class="alert alert-danger">
+        Budget not found.
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="Back">
+            ← Company Budgets
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>@_budget.BudgetNumber</h2>
+                <div class="text-muted">@_budget.Name</div>
+            </div>
+
+            <span class="badge bg-secondary fs-6">
+                @_budget.Status
+            </span>
+        </div>
+
+        <div class="row g-3">
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Budget</div>
+                        <h3>
+                            @_budget.CurrencyCode
+                            @(_budget.TotalAmount.ToString("N2"))
+                        </h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Scope</div>
+                        <h5>Company</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Project</div>
+                        <h5>@(_budget.ProjectName ?? "-")</h5>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm mt-4">
+            <div class="card-header fw-bold">
+                Budget Information
+            </div>
+
+            <div class="card-body">
+
+                <div class="row mb-2">
+                    <div class="col-md-3 fw-semibold">
+                        Description
+                    </div>
+                    <div class="col-md-9">
+                        @(_budget.Description ?? "-")
+                    </div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-md-3 fw-semibold">
+                        Effective From
+                    </div>
+                    <div class="col-md-9">
+                        @_budget.EffectiveFrom
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-3 fw-semibold">
+                        Effective To
+                    </div>
+                    <div class="col-md-9">
+                        @(_budget.EffectiveTo?.ToString() ?? "-")
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        @if (_budget is not null)
+        {
+            <div class="d-flex gap-2 flex-wrap mt-4 mb-3">
+
+                @if (_budget.Status == "Draft")
+                {
+                    <button class="btn btn-primary"
+                            @onclick="() => ChangeStatus(2)">
+                        Submit for Approval
+                    </button>
+
+                    <button class="btn btn-outline-danger"
+                            @onclick="() => ChangeStatus(6)">
+                        Cancel
+                    </button>
+                }
+                else if (_budget.Status == "PendingApproval")
+                {
+                    <button class="btn btn-success"
+                            @onclick="() => ChangeStatus(3)">
+                        Approve
+                    </button>
+
+                    <button class="btn btn-warning"
+                            @onclick="() => ChangeStatus(1)">
+                        Return to Draft
+                    </button>
+
+                    <button class="btn btn-outline-danger"
+                            @onclick="() => ChangeStatus(6)">
+                        Cancel
+                    </button>
+                }
+                else if (_budget.Status == "Approved")
+                {
+                    <button class="btn btn-primary"
+                            @onclick="() => ChangeStatus(4)">
+                        Activate
+                    </button>
+
+                    <button class="btn btn-outline-danger"
+                            @onclick="() => ChangeStatus(6)">
+                        Cancel
+                    </button>
+                }
+                else if (_budget.Status == "Active")
+                {
+                    <button class="btn btn-secondary"
+                            @onclick="() => ChangeStatus(5)">
+                        Close
+                    </button>
+                }
+
+            </div>
+        }
+
+        @if (!_loading && _budget is not null)
+        {
+            <div class="row g-3 mt-4">
+
+                <div class="col-md-3">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">
+                                Budget Total
+                            </div>
+                            <h5>
+                                @_budget.CurrencyCode
+                                @(_budget.TotalAmount.ToString("N2"))
+                            </h5>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">
+                                Budgeted Lines Total
+                            </div>
+                            <h5>
+                                @_budget.CurrencyCode
+                                @BudgetedLinesTotal.ToString("N2")
+                            </h5>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">
+                                Revised Lines Total
+                            </div>
+                            <h5>
+                                @_budget.CurrencyCode
+                                @RevisedLinesTotal.ToString("N2")
+                            </h5>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">
+                                Revised Variance
+                            </div>
+                            <h5>
+                                @_budget.CurrencyCode
+                                @RevisedVariance.ToString("N2")
+                            </h5>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        }
+
+        @if (!_loading && _budget is not null)
+        {
+            <div class="card mt-4">
+
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Budget Lines</strong>
+
+                    @if (_budget.Status != "Closed" &&
+                         _budget.Status != "Cancelled")
+                    {
+                        <button class="btn btn-primary btn-sm"
+                                @onclick="AddBudgetLine">
+                            Add Budget Line
+                        </button>
+                    }
+                </div>
+
+                <div class="card-body">
+
+                    @if (_budgetLines.Count == 0)
+                    {
+                        <div class="text-muted">
+                            No budget lines have been added.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered">
+
+                                <thead>
+                                    <tr>
+                                        <th>Cost Code</th>
+                                        <th>Description</th>
+                                        <th class="text-end">
+                                            Budgeted Amount
+                                        </th>
+                                        <th class="text-end">
+                                            Revised Amount
+                                        </th>
+                                        <th class="text-end">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    @foreach (var line in _budgetLines)
+                                    {
+                                        <tr>
+                                            <td>@line.CostCode</td>
+
+                                            <td>@line.Description</td>
+
+                                            <td class="text-end">
+                                                @line.BudgetedAmount.ToString("N2")
+                                            </td>
+
+                                            <td class="text-end">
+                                                @line.RevisedAmount.ToString("N2")
+                                            </td>
+
+                                            <td class="text-end">
+                                                @if (_budget.Status != "Closed" &&
+                                                     _budget.Status != "Cancelled")
+                                                {
+                                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                                            @onclick="() => EditBudgetLine(line.Id)">
+                                                        Edit
+                                                    </button>
+
+                                                    <button class="btn btn-sm btn-outline-danger"
+                                                            @onclick="() => DeleteBudgetLine(line.Id)">
+                                                        Delete
+                                                    </button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+
+                            </table>
+                        </div>
+                    }
+
+                </div>
+            </div>
+        }
+
+        <div class="mt-4 d-flex gap-2">
+
+            <button class="btn btn-primary"
+                    @onclick="Edit">
+                Edit Budget
+            </button>
+
+            <button class="btn btn-outline-secondary"
+                    @onclick="Back">
+                Back
+            </button>
+
+        </div>
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private BudgetResponse? _budget;
+    private List<BudgetLineResponse> _budgetLines = new();
+
+    private bool _loading = true;
+    private bool _loaded;
+    private string? _error;
+
+    private decimal BudgetedLinesTotal =>
+        _budgetLines.Sum(x => x.BudgetedAmount);
+
+    private decimal RevisedLinesTotal =>
+        _budgetLines.Sum(x => x.RevisedAmount);
+
+    private decimal RevisedVariance =>
+        (_budget?.TotalAmount ?? 0m) -
+        RevisedLinesTotal;
+
+    protected override async Task OnAfterRenderAsync(
+        bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        try
+        {
+            _budget =
+                await FinanceService.GetBudgetAsync(Id);
+
+            _budgetLines =
+                await FinanceService.GetBudgetLinesAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ChangeStatus(int status)
+    {
+        try
+        {
+            _error = null;
+
+            await FinanceService.ChangeBudgetStatusAsync(
+                Id,
+                status);
+
+            _budget =
+                await FinanceService.GetBudgetAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DeleteBudgetLine(Guid budgetLineId)
+    {
+        try
+        {
+            _error = null;
+
+            await FinanceService.DeleteBudgetLineAsync(
+                budgetLineId);
+
+            _budgetLines =
+                await FinanceService.GetBudgetLinesAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void AddBudgetLine()
+    {
+        Navigation.NavigateTo(
+            $"/finance/company/budgets/{Id}/lines/create");
+    }
+
+    private void Edit()
+    {
+        Navigation.NavigateTo(
+            $"/finance/company/budgets/{Id}/edit");
+    }
+
+    private void EditBudgetLine(Guid budgetLineId)
+    {
+        Navigation.NavigateTo(
+            $"/finance/company/budgets/{Id}/lines/{budgetLineId}/edit");
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(
+            "/finance/company/budgets");
+    }
+}

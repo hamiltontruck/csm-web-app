@@ -1,0 +1,312 @@
+@page "/finance/invoices/{Id:guid}/edit"
+@page "/finance/sites/{SiteId:guid}/invoices/{Id:guid}/edit"
+
+@namespace CSM.Web.Components.Pages.Finance
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Models.Projects
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject IProjectService ProjectService
+@inject IVendorService VendorService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Invoice</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading invoice...</p>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+
+            <div>
+                <button class="btn btn-outline-secondary mb-3"
+                        @onclick="Back">
+                    ← Invoice Details
+                </button>
+
+                <h2 class="mb-1">Edit Invoice</h2>
+
+                <div class="text-muted">
+                    @_invoice.InvoiceNumber
+                </div>
+            </div>
+
+        </div>
+
+        <EditForm Model="_invoice" OnValidSubmit="Save">
+
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="alert alert-danger">@_error</div>
+            }
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">Invoice Number</label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="_invoice.InvoiceNumber" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Project</label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="_invoice.ProjectId">
+
+                                <option value="@Guid.Empty">-- Select Project --</option>
+
+                                @foreach (var project in _projects)
+                                {
+                                    <option value="@project.Id">@project.Name</option>
+                                }
+
+                            </InputSelect>
+                        </div>
+
+                       <div class="col-md-6">
+                           <label class="form-label">Vendor *</label>
+
+                           <InputSelect TValue="Guid?"
+                                        class="form-select"
+                                        @bind-Value="_invoice.VendorId">
+
+                               <option value="@((Guid?)null)">-- Select Vendor --</option>
+
+                               @foreach (var vendor in _vendors)
+                               {
+                                   <option value="@vendor.Id">
+                                       @($"{vendor.VendorCode} - {vendor.Name}")
+                                   </option>
+                               }
+
+                           </InputSelect>
+                       </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Invoice Type</label>
+
+                            <InputSelect TValue="int"
+                                         class="form-select"
+                                         @bind-Value="_invoice.Type">
+                                <option value="2">Vendor Bill</option>
+                                <option value="1">Client Invoice</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Currency</label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="_invoice.CurrencyCode">
+                                <option value="ETB">ETB</option>
+                                <option value="USD">USD</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Exchange Rate</label>
+
+                            <InputNumber TValue="decimal"
+                                         class="form-control"
+                                         @bind-Value="_invoice.ExchangeRate" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Invoice Date</label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="_invoice.InvoiceDate" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Due Date</label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="_invoice.DueDate" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Subtotal</label>
+
+                            <InputNumber TValue="decimal"
+                                         class="form-control"
+                                         @bind-Value="_invoice.Subtotal"
+                                         @bind-Value:after="Recalculate" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Tax</label>
+
+                            <InputNumber TValue="decimal"
+                                         class="form-control"
+                                         @bind-Value="_invoice.TaxAmount"
+                                         @bind-Value:after="Recalculate" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Total</label>
+
+                            <input class="form-control"
+                                   value="@_invoice.TotalAmount.ToString("N2")"
+                                   readonly />
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="mt-4 d-flex gap-2">
+
+                <button class="btn btn-primary" type="submit">
+                    Save Changes
+                </button>
+
+                <button class="btn btn-outline-secondary"
+                        type="button"
+                        @onclick="Back">
+                    Cancel
+                </button>
+
+            </div>
+
+        </EditForm>
+
+    </div>
+}
+
+@code {
+    [Parameter] public Guid? SiteId { get; set; }
+    [Parameter] public Guid Id { get; set; }
+
+    private UpdateInvoiceRequest _invoice = new();
+    private List<ProjectResponse> _projects = new();
+    private List<VendorResponse> _vendors = new();
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var data = await FinanceService.GetInvoiceAsync(Id);
+
+            if (data is null)
+            {
+                _error = "Invoice not found.";
+                return;
+            }
+
+            _invoice.InvoiceNumber = data.InvoiceNumber;
+            _invoice.ConstructionSiteId = SiteId;
+            _invoice.ProjectId = data.ProjectId;
+            _invoice.VendorId = data.VendorId;
+
+            _invoice.InvoiceDate = DateOnly.FromDateTime(data.InvoiceDate);
+            _invoice.DueDate = data.DueDate is null
+                ? null
+                : DateOnly.FromDateTime(data.DueDate.Value);
+
+            _invoice.CurrencyCode = data.CurrencyCode;
+            _invoice.ExchangeRate = 1;
+            _invoice.Type = data.InvoiceType == "ClientInvoice" ? 1 : 2;
+
+            _invoice.Subtotal = data.TotalAmount;
+            _invoice.TaxAmount = 0;
+            _invoice.TotalAmount = data.TotalAmount;
+
+            if (SiteId.HasValue)
+                _projects = await ProjectService.GetProjectsBySiteAsync(SiteId.Value);
+
+            _vendors = await VendorService.GetVendorsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Recalculate()
+    {
+        _invoice.TotalAmount = _invoice.Subtotal + _invoice.TaxAmount;
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            Recalculate();
+
+            _invoice.ConstructionSiteId = SiteId;
+
+            // Company invoice has no project
+            if (SiteId.HasValue)
+            {
+                if (_invoice.ProjectId == null)
+                {
+                    _error = "Please select a project.";
+                    return;
+                }
+            }
+            else
+            {
+                _invoice.ProjectId = null;
+            }
+
+            if (_invoice.ExchangeRate <= 0)
+                _invoice.ExchangeRate = 1;
+
+            if (_invoice.Type == 2 && _invoice.VendorId == null)
+            {
+                _error = "Please select a vendor.";
+                return;
+            }
+
+            await FinanceService.UpdateInvoiceAsync(Id, _invoice);
+
+            if (SiteId.HasValue)
+                Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/invoices/{Id}");
+            else
+                Navigation.NavigateTo($"/finance/invoices/{Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    void Back()
+    {
+        if (SiteId.HasValue)
+            Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/invoices/{Id}");
+        else
+            Navigation.NavigateTo($"/finance/invoices/{Id}");
+    }
+}

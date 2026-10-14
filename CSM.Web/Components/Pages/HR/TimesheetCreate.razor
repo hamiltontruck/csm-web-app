@@ -1,0 +1,236 @@
+@page "/hr/timesheets/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+@inject ITimesheetService TimesheetService
+@inject IEmployeeService EmployeeService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Timesheet</PageTitle>
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3>Create Timesheet</h3>
+            <p class="text-muted mb-0">
+                Create a timesheet for an active employee.
+            </p>
+        </div>
+
+        <button class="btn btn-secondary"
+                @onclick="GoBack">
+            Back
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="text-muted">
+            Loading employees...
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_model"
+                  OnValidSubmit="CreateAsync">
+
+            <DataAnnotationsValidator />
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Employee
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="_model.EmployeeId">
+
+                                <option value="@Guid.Empty">
+                                    -- Select Employee --
+                                </option>
+
+                                @foreach (var employee in _employees)
+                                {
+                                    <option value="@employee.Id">
+                                        @employee.EmployeeNumber -
+                                        @employee.FirstName
+                                        @employee.LastName
+                                    </option>
+                                }
+
+                            </InputSelect>
+
+                            <ValidationMessage For="@(() => _model.EmployeeId)" />
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">
+                                Period Start
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="_model.PeriodStartDate" />
+
+                            <ValidationMessage For="@(() => _model.PeriodStartDate)" />
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">
+                                Period End
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="_model.PeriodEndDate" />
+
+                            <ValidationMessage For="@(() => _model.PeriodEndDate)" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                Remarks
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="4"
+                                           @bind-Value="_model.Remarks" />
+                        </div>
+
+                    </div>
+
+                    <div class="mt-4">
+
+                        <button type="submit"
+                                class="btn btn-primary"
+                                disabled="@_processing">
+
+                            @if (_processing)
+                            {
+                                <span>Creating...</span>
+                            }
+                            else
+                            {
+                                <span>Create Timesheet</span>
+                            }
+
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-secondary ms-2"
+                                @onclick="GoBack"
+                                disabled="@_processing">
+                            Cancel
+                        </button>
+
+                    </div>
+
+                </div>
+            </div>
+
+        </EditForm>
+    }
+
+</div>
+
+@code {
+    private CreateTimesheetRequest _model = new();
+
+    private List<EmployeeResponse> _employees = [];
+
+    private bool _loading = true;
+    private bool _processing;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
+        _model.PeriodStartDate =
+            new DateOnly(today.Year, today.Month, 1);
+
+        _model.PeriodEndDate =
+            _model.PeriodStartDate
+                .AddMonths(1)
+                .AddDays(-1);
+
+        await LoadEmployeesAsync();
+    }
+
+    private async Task LoadEmployeesAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var result =
+                await EmployeeService.GetEmployeesAsync(
+                    status: "Active");
+
+            _employees = result.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to load employees: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        _processing = true;
+        _error = null;
+
+        try
+        {
+            if (_model.EmployeeId == Guid.Empty)
+            {
+                _error = "Please select an employee.";
+                return;
+            }
+
+            if (_model.PeriodEndDate < _model.PeriodStartDate)
+            {
+                _error =
+                    "Period end date cannot be before the period start date.";
+                return;
+            }
+
+            var result =
+                await TimesheetService.CreateAsync(_model);
+
+            Navigation.NavigateTo(
+                $"/hr/timesheets/edit/{result.Id}");
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to create timesheet: {ex.Message}";
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/hr/timesheets");
+    }
+}

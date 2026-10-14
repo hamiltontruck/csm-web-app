@@ -1,0 +1,162 @@
+@page "/finance/sites/{SiteId:guid}/payments"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Site Payments</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading payments...</p>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="Back">
+            ← Finance Sites
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">Site Payments</h2>
+                <div class="text-muted">
+                    @_payments.Count payment(s)
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+
+            <div class="table-responsive">
+
+                <table class="table table-hover mb-0">
+
+                    <thead class="table-light">
+                        <tr>
+                            <th>No.</th>
+                            <th>Date</th>
+                            <th>Method</th>
+                            <th>Status</th>
+                            <th class="text-end">Amount</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        @if (_payments.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="5"
+                                    class="text-center py-4 text-muted">
+                                    No payments recorded.
+                                </td>
+                            </tr>
+                        }
+
+                        @foreach (var item in _payments)
+                        {
+                            <tr style="cursor:pointer"
+                                @onclick="() => Open(item.Id)">
+
+                                <td class="fw-semibold">@item.PaymentNumber</td>
+
+                                <td>@item.PaymentDate.ToString("dd MMM yyyy")</td>
+
+                                <td>@item.PaymentMethod</td>
+
+                                <td>
+                                    @switch (item.Status)
+                                    {
+                                        case "Pending":
+                                            <span class="badge bg-warning text-dark">Pending</span>
+                                            break;
+                                        case "Completed":
+                                            <span class="badge bg-success">Completed</span>
+                                            break;
+                                        case "Reversed":
+                                            <span class="badge bg-dark">Reversed</span>
+                                            break;
+                                    }
+                                </td>
+
+                                <td class="text-end fw-semibold">
+                                    @item.CurrencyCode @item.Amount.ToString("N2")
+                                </td>
+
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick:stopPropagation="true"
+                                            @onclick="() => Delete(item.Id)">
+                                        Delete
+                                    </button>
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+    [Parameter] public Guid SiteId { get; set; }
+
+    private List<PaymentResponse> _payments = new();
+
+    private bool _loading = true;
+    private bool _loaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _payments = await FinanceService
+            .GetPaymentsBySiteAsync(SiteId);
+
+        _loading = false;
+
+        StateHasChanged();
+    }
+
+    private async Task Delete(Guid id)
+    {
+        await FinanceService.DeletePaymentAsync(id);
+
+        _payments = await FinanceService.GetPaymentsBySiteAsync(SiteId);
+
+        StateHasChanged();
+    }
+
+    private void Open(Guid id)
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/payments/{id}");
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/finance/sites");
+    }
+
+
+}

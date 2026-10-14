@@ -1,0 +1,75 @@
+@page "/purchase-orders"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Purchase Orders</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading sites...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <div class="mb-4">
+            <h2>Purchase Orders</h2>
+            <p class="text-muted">
+                Select a construction site
+            </p>
+        </div>
+
+        <div class="row">
+            @foreach (var site in sites)
+            {
+                <div class="col-md-6 mb-3">
+                    <div class="card shadow-sm h-100"
+                         style="cursor:pointer"
+                         @onclick="() => OpenSite(site.Id)">
+
+                        <div class="card-body">
+                            <h5 class="mb-0">@site.Name</h5>
+                        </div>
+
+                    </div>
+                </div>
+            }
+        </div>
+
+    </div>
+}
+
+@code {
+    private bool loading = true;
+
+    private List<SiteResponse> sites = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        sites = await ProjectService.GetSitesAsync();
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    void OpenSite(Guid siteId)
+        => Navigation.NavigateTo($"/purchase-orders/site/{siteId}");
+
+    void GoBack()
+        => Navigation.NavigateTo("/procurement");
+}

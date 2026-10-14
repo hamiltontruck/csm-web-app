@@ -1,0 +1,183 @@
+@page "/compliance/documents"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Services
+
+@inject IComplianceService ComplianceService
+@inject NavigationManager Navigation
+
+<PageTitle>Documents</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2>Documents</h2>
+            <p class="text-muted mb-0">
+                Manage compliance and project documents.
+            </p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary"
+                    @onclick='() => Navigation.NavigateTo("/compliance/documents/create")'>
+                Add Document
+            </button>
+
+            <button class="btn btn-secondary"
+                    @onclick="Back">
+                Back
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="alert alert-info">
+            Loading documents...
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+    else if (_documents.Count == 0)
+    {
+        <div class="alert alert-secondary">
+            No documents found.
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+
+                        <thead>
+                            <tr>
+                                <th>Document Number</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Drawing No.</th>
+                                <th>Revision</th>
+                                <th>Issue Date</th>
+                                <th>Expiry Date</th>
+                                <th>Confidential</th>
+                                <th>File</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var document in _documents)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>
+                                            @document.DocumentNumber
+                                        </strong>
+                                    </td>
+
+                                    <td>
+                                        @document.Name
+                                    </td>
+
+                                    <td>
+                                        @document.DocumentType
+                                    </td>
+
+                                    <td>
+                                        @document.DrawingNumber
+                                    </td>
+
+                                    <td>
+                                        @document.CurrentRevision
+                                    </td>
+
+                                    <td>
+                                        @(document.IssueDate?.ToString("dd/MM/yyyy") ?? "-")
+                                    </td>
+
+                                    <td>
+                                        @(document.ExpiryDate?.ToString("dd/MM/yyyy") ?? "-")
+                                    </td>
+
+                                    <td>
+                                        @if (document.IsConfidential)
+                                        {
+                                            <span class="badge bg-warning text-dark">
+                                                Yes
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">
+                                                No
+                                            </span>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        @document.FileName
+                                    </td>
+
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="() => EditDocument(document.Id)">
+                                            Edit
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private List<DocumentResponse> _documents = [];
+
+    private bool _loading = true;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var documents =
+                await ComplianceService.GetDocumentsAsync();
+
+            _documents = documents.ToList();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void EditDocument(Guid id)
+    {
+        Navigation.NavigateTo(
+            $"/compliance/documents/{id}/edit");
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/compliance");
+    }
+}

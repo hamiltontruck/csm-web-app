@@ -1,0 +1,129 @@
+@page "/finance/petty-cash"
+@page "/finance/petty-cash/site/{SiteId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Petty Cash</PageTitle>
+
+<button class="btn btn-outline-secondary mb-3"
+        @onclick="Back">
+    <i class="bi bi-arrow-left"></i> Back
+</button>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Petty Cash Accounts</h3>
+
+    <button class="btn btn-primary"
+            @onclick="Create">
+        <i class="bi bi-plus-lg"></i> New Account
+    </button>
+</div>
+
+@if (_loading)
+{
+    <p>Loading petty cash accounts...</p>
+}
+else if (_items.Count == 0)
+{
+    <div class="alert alert-info">
+        No petty cash accounts found.
+    </div>
+}
+else
+{
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Account Code</th>
+                <th>Account Name</th>
+                <th>Site</th>
+                <th>Opening Balance</th>
+                <th>Current Balance</th>
+                <th>Status</th>
+                <th width="90"></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in _items)
+        {
+            <tr>
+                <td>@item.AccountCode</td>
+                <td>@item.AccountName</td>
+                <td>
+                    @(string.IsNullOrWhiteSpace(item.SiteName)
+                        ? "Company"
+                        : item.SiteName)
+                </td>
+                <td>@item.OpeningBalance.ToString("N2")</td>
+                <td>@item.CurrentBalance.ToString("N2")</td>
+                <td>
+                    @if (item.IsActive)
+                    {
+                        <span class="badge bg-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Inactive</span>
+                    }
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary"
+                                @onclick="() => ViewTransactions(item)">
+                            Transactions
+                        </button>
+
+                        <button class="btn btn-outline-secondary"
+                                @onclick="() => Edit(item)">
+                            Edit
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter]
+    public Guid? SiteId { get; set; }
+    private bool _loading = true;
+    private List<PettyCashAccountResponse> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = SiteId.HasValue
+            ? await FinanceService.GetSitePettyCashAccountsAsync(SiteId.Value)
+            : await FinanceService.GetPettyCashAccountsAsync();
+
+        _loading = false;
+    }
+
+    private void Create()
+    {
+        Navigation.NavigateTo("/finance/petty-cash/create");
+    }
+
+    private void Edit(PettyCashAccountResponse account)
+    {
+        Navigation.NavigateTo(
+            $"/finance/petty-cash/edit/{account.Id}");
+    }
+
+    private void ViewTransactions(PettyCashAccountResponse account)
+    {
+        Navigation.NavigateTo(
+            $"/finance/petty-cash/account/{account.Id}/transactions");
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/finance/sites");
+    }
+}

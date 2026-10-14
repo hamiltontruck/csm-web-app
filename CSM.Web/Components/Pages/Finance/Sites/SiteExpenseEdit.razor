@@ -1,0 +1,473 @@
+@page "/finance/sites/{SiteId:guid}/expenses/{ExpenseId:guid}/edit"
+@namespace CSM.Web.Components.Pages.Finance.Sites
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Models.Projects
+@using CSM.Web.Models.Sites
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject IProjectService ProjectService
+@inject IVendorService VendorService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Expense</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading expense...</p>
+    </div>
+}
+else if (_expense is null)
+{
+    <div class="container py-4">
+        <div class="alert alert-danger">
+            Expense not found.
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            ← Expenses
+        </button>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <button class="btn btn-outline-secondary mb-3"
+                        @onclick="Back">
+                    ← Expenses
+                </button>
+
+                <h2 class="mb-1">Edit Expense</h2>
+                <div class="text-muted">
+                    @_expense.ExpenseNumber
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">
+                @_error
+            </div>
+        }
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Expense Information</h5>
+            </div>
+
+            <div class="card-body">
+
+                <EditForm Model="_model" OnValidSubmit="Save">
+                    <DataAnnotationsValidator />
+
+                    <div class="row g-3">
+
+                        <!-- Expense Number -->
+                        <div class="col-md-6">
+                            <label class="form-label">Expense Number</label>
+                            <input class="form-control"
+                                   value="@_expense.ExpenseNumber"
+                                   disabled />
+                        </div>
+
+                        <!-- Expense Date -->
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Expense Date <span class="text-danger">*</span>
+                            </label>
+
+                            <InputDate @bind-Value="_model.ExpenseDate"
+                                       class="form-control" />
+                        </div>
+
+                        <!-- Site -->
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Construction Site
+                            </label>
+
+                            <input class="form-control"
+                                   value="@SiteDisplay"
+                                   disabled />
+                        </div>
+
+                        <!-- Project -->
+                        <div class="col-md-6">
+                            <label class="form-label">Project</label>
+
+                            <InputSelect @bind-Value="_model.ProjectId"
+                                         class="form-select"
+                                         disabled="@(_model.ConstructionSiteId == Guid.Empty)">
+                                <option value="">-- No Project --</option>
+
+                                @foreach (var project in _projects)
+                                {
+                                    <option value="@project.Id">
+                                        @project.ProjectCode - @project.Name
+                                    </option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <!-- Cost Code -->
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Cost Code <span class="text-danger">*</span>
+                            </label>
+
+                            <InputSelect @bind-Value="_model.CostCodeId"
+                                         class="form-select">
+                                <option value="">-- Select Cost Code --</option>
+
+                                @foreach (var costCode in _costCodes)
+                                {
+                                    <option value="@costCode.Id">
+                                        @costCode.Code - @costCode.Name
+                                    </option>
+                                }
+                            </InputSelect>
+
+                            <ValidationMessage For="@(() => _model.CostCodeId)" />
+                        </div>
+
+                        <!-- Vendor -->
+                        <div class="col-md-6">
+                            <label class="form-label">Vendor</label>
+
+                            <InputSelect @bind-Value="_model.VendorId"
+                                         class="form-select">
+                                <option value="">-- No Vendor --</option>
+
+                                @foreach (var vendor in _vendors)
+                                {
+                                    <option value="@vendor.Id">
+                                        @vendor.VendorCode - @vendor.Name
+                                    </option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-12">
+                            <label class="form-label">
+                                Description <span class="text-danger">*</span>
+                            </label>
+
+                            <InputTextArea @bind-Value="_model.Description"
+                                           class="form-control"
+                                           rows="3" />
+
+                            <ValidationMessage For="@(() => _model.Description)" />
+                        </div>
+
+                        <!-- Amount -->
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                Amount <span class="text-danger">*</span>
+                            </label>
+
+                            <InputNumber @bind-Value="_model.Amount"
+                                         class="form-control" />
+
+                            <ValidationMessage For="@(() => _model.Amount)" />
+                        </div>
+
+                        <!-- Tax -->
+                        <div class="col-md-4">
+                            <label class="form-label">Tax Amount</label>
+
+                            <InputNumber @bind-Value="_model.TaxAmount"
+                                         class="form-control" />
+
+                            <ValidationMessage For="@(() => _model.TaxAmount)" />
+                        </div>
+
+                        <!-- Currency -->
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                Currency <span class="text-danger">*</span>
+                            </label>
+
+                            <InputText @bind-Value="_model.CurrencyCode"
+                                       class="form-control"
+                                       maxlength="3" />
+
+                            <ValidationMessage For="@(() => _model.CurrencyCode)" />
+                        </div>
+
+                        <!-- Exchange Rate -->
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                Exchange Rate <span class="text-danger">*</span>
+                            </label>
+
+                            <InputNumber @bind-Value="_model.ExchangeRate"
+                                         class="form-control" />
+
+                            <ValidationMessage For="@(() => _model.ExchangeRate)" />
+                        </div>
+
+                        <!-- Reference -->
+                        <div class="col-md-4">
+                            <label class="form-label">Reference Number</label>
+
+                            <InputText @bind-Value="_model.ReferenceNumber"
+                                       class="form-control" />
+                        </div>
+
+                        <!-- Receipt -->
+                        <div class="col-md-4">
+                            <label class="form-label">Receipt Document URL</label>
+
+                            <InputText @bind-Value="_model.ReceiptDocumentUrl"
+                                       class="form-control" />
+                        </div>
+
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex justify-content-end gap-2">
+
+                        <button type="button"
+                                class="btn btn-outline-secondary"
+                                @onclick="Back">
+                            Cancel
+                        </button>
+
+                        <button type="submit"
+                                class="btn btn-primary"
+                                disabled="@_saving">
+                            @if (_saving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Save Changes</span>
+                            }
+                        </button>
+
+                    </div>
+
+                </EditForm>
+
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    [Parameter]
+    public Guid ExpenseId { get; set; }
+
+    private ExpenseResponse? _expense;
+
+    private List<SiteResponse> _sites = new();
+    private List<ProjectResponse> _projects = new();
+    private IReadOnlyList<CostCodeResponse> _costCodes = Array.Empty<CostCodeResponse>();
+    private List<VendorResponse> _vendors = new();
+
+    private EditExpenseModel _model = new();
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+
+    private bool _loaded;
+
+    private string SiteDisplay =>
+        _sites.FirstOrDefault(x => x.Id == SiteId) is { } site
+            ? $"{site.SiteCode} - {site.Name}"
+            : "Unknown Site";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        try
+        {
+            _expense = await FinanceService.GetExpenseAsync(ExpenseId);
+
+            if (_expense is null ||
+                _expense.ConstructionSiteId != SiteId)
+            {
+                _expense = null;
+                return;
+            }
+
+            _sites = await ProjectService.GetSitesAsync();
+
+            _costCodes = await FinanceService.GetActiveCostCodesAsync();
+
+            _vendors = (await VendorService.GetVendorsAsync())
+                .Where(v => v.IsActive)
+                .ToList();
+
+            _model = new EditExpenseModel
+            {
+                ConstructionSiteId = SiteId,
+                ProjectId = _expense.ProjectId,
+                CostCodeId = _expense.CostCodeId,
+                VendorId = _expense.VendorId,
+                ExpenseDate = _expense.ExpenseDate,
+                Description = _expense.Description,
+                Amount = _expense.Amount,
+                TaxAmount = _expense.TaxAmount,
+                CurrencyCode = _expense.CurrencyCode,
+                ExchangeRate = _expense.ExchangeRate,
+                ReferenceNumber = _expense.ReferenceNumber,
+                ReceiptDocumentUrl = _expense.ReceiptDocumentUrl
+            };
+
+            if (_model.ConstructionSiteId != Guid.Empty)
+            {
+                _projects = await ProjectService.GetProjectsBySiteAsync(
+                    _model.ConstructionSiteId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+
+
+    private async Task Save()
+    {
+        _error = null;
+
+        if (_model.ConstructionSiteId == Guid.Empty)
+        {
+            _error = "Construction Site is required.";
+            return;
+        }
+
+        if (_model.CostCodeId == Guid.Empty)
+        {
+            _error = "Cost Code is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_model.Description))
+        {
+            _error = "Description is required.";
+            return;
+        }
+
+        if (_model.Amount < 0)
+        {
+            _error = "Amount cannot be negative.";
+            return;
+        }
+
+        if (_model.TaxAmount < 0)
+        {
+            _error = "Tax Amount cannot be negative.";
+            return;
+        }
+
+        if (_model.ExchangeRate <= 0)
+        {
+            _error = "Exchange Rate must be greater than zero.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_model.CurrencyCode) ||
+            _model.CurrencyCode.Trim().Length != 3)
+        {
+            _error = "Currency must contain exactly 3 characters.";
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            var request = new UpdateExpenseRequest(
+                _model.ConstructionSiteId,
+                _model.ProjectId,
+                _model.CostCodeId,
+                _model.VendorId,
+                _model.ExpenseDate,
+                _model.Description.Trim(),
+                _model.Amount,
+                _model.TaxAmount,
+                _model.CurrencyCode.Trim().ToUpperInvariant(),
+                _model.ExchangeRate,
+                string.IsNullOrWhiteSpace(_model.ReferenceNumber)
+                    ? null
+                    : _model.ReferenceNumber.Trim(),
+                string.IsNullOrWhiteSpace(_model.ReceiptDocumentUrl)
+                    ? null
+                    : _model.ReceiptDocumentUrl.Trim());
+
+            await FinanceService.UpdateExpenseAsync(
+                ExpenseId,
+                request);
+
+            Navigation.NavigateTo(
+                $"/finance/sites/{SiteId}/expenses/{ExpenseId}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/expenses/{ExpenseId}");
+    }
+
+    private sealed class EditExpenseModel
+    {
+        public Guid ConstructionSiteId { get; set; }
+        public Guid? ProjectId { get; set; }
+        public Guid CostCodeId { get; set; }
+        public Guid? VendorId { get; set; }
+
+        public DateOnly ExpenseDate { get; set; }
+
+        public string Description { get; set; } = string.Empty;
+
+        public decimal Amount { get; set; }
+        public decimal TaxAmount { get; set; }
+
+        public string CurrencyCode { get; set; } = "ETB";
+        public decimal ExchangeRate { get; set; } = 1;
+
+        public string? ReferenceNumber { get; set; }
+        public string? ReceiptDocumentUrl { get; set; }
+    }
+}

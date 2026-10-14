@@ -1,0 +1,242 @@
+@page "/equipment/edit/{Id:guid}"
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Services
+@inject IEquipmentService EquipmentService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Equipment</PageTitle>
+
+<div class="container py-4">
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="mb-0">Edit Equipment</h3>
+
+            <button class="btn btn-outline-secondary"
+                    @onclick="Cancel">
+                Cancel
+            </button>
+        </div>
+
+        <EditForm Model="model" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-header">
+                    <strong>Equipment Information</strong>
+                </div>
+
+                <div class="card-body">
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <label class="form-label">Equipment Code</label>
+                            <input class="form-control"
+                                   value="@equipmentCode"
+                                   readonly />
+                        </div>
+
+                        <div class="col-md-8">
+                            <label class="form-label">Name</label>
+                            <InputText class="form-control"
+                                       @bind-Value="model.Name" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Category</label>
+                            <InputText class="form-control"
+                                       @bind-Value="model.Category" />
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Make</label>
+                            <InputText class="form-control"
+                                       @bind-Value="model.Make" />
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Model</label>
+                            <InputText class="form-control"
+                                       @bind-Value="model.Model" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Serial Number</label>
+                            <InputText class="form-control"
+                                       @bind-Value="model.SerialNumber" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Registration</label>
+                            <InputText class="form-control"
+                                       @bind-Value="model.RegistrationNumber" />
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-header">
+                    <strong>Ownership & Meter</strong>
+                </div>
+
+                <div class="card-body">
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <label class="form-label">Ownership</label>
+                            <InputSelect class="form-select"
+                                         @bind-Value="model.OwnershipType">
+                                <option>Owned</option>
+                                <option>Rented</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Current Meter</label>
+                            <InputNumber class="form-control"
+                                         @bind-Value="model.CurrentMeterReading" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Meter Unit</label>
+                            <InputSelect class="form-select"
+                                         @bind-Value="model.MeterUnit">
+                                <option>Hours</option>
+                                <option>KM</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Active</label>
+                            <InputCheckbox class="form-check-input ms-2"
+                                           @bind-Value="model.IsActive" />
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <strong>Cost Information</strong>
+                </div>
+
+                <div class="card-body">
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">Purchase Cost (ETB)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">ETB</span>
+                                <InputNumber class="form-control"
+                                             @bind-Value="model.PurchaseCost" />
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Rental Rate</label>
+                            <InputNumber class="form-control"
+                                         @bind-Value="model.RentalRate" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Rental Start</label>
+                            <InputDate class="form-control"
+                                       @bind-Value="model.RentalStartDate" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">Rental End</label>
+                            <InputDate class="form-control"
+                                       @bind-Value="model.RentalEndDate" />
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary"
+                        type="submit"
+                        disabled="@saving">
+                    @(saving ? "Saving..." : "Update Equipment")
+                </button>
+
+                <button class="btn btn-outline-secondary"
+                        type="button"
+                        @onclick="Cancel">
+                    Cancel
+                </button>
+            </div>
+
+        </EditForm>
+    }
+
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private readonly UpdateEquipmentRequest model = new();
+    private bool loading = true;
+    private bool saving;
+    private string equipmentCode = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var equipment = await EquipmentService.GetEquipmentByIdAsync(Id);
+
+        if (equipment is not null)
+        {
+            equipmentCode = equipment.EquipmentCode;
+            model.EquipmentCode = equipment.EquipmentCode;
+
+            model.Name = equipment.Name;
+            model.Category = equipment.Category ?? "";
+            model.Make = equipment.Make;
+            model.Model = equipment.Model;
+            model.SerialNumber = equipment.SerialNumber;
+            model.RegistrationNumber = equipment.RegistrationNumber;
+            model.OwnershipType = equipment.OwnershipType;
+            model.VendorId = equipment.VendorId;
+            model.PurchaseCost = equipment.PurchaseCost;
+            model.RentalRate = equipment.RentalRate;
+            model.RentalRateUnit = equipment.RentalRateUnit;
+            model.RentalStartDate = equipment.RentalStartDate;
+            model.RentalEndDate = equipment.RentalEndDate;
+            model.CurrentMeterReading = equipment.CurrentMeterReading;
+            model.MeterUnit = equipment.MeterUnit;
+            model.IsActive = equipment.IsActive;
+        }
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Save()
+    {
+        saving = true;
+
+        await EquipmentService.UpdateEquipmentAsync(Id, model);
+
+        Navigation.NavigateTo($"/equipment/{Id}");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo($"/equipment/{Id}");
+    }
+}

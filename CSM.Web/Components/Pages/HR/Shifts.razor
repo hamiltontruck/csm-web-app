@@ -1,0 +1,246 @@
+@page "/hr/shifts"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IShiftService ShiftService
+@inject NavigationManager Navigation
+
+<PageTitle>Shifts</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1">Shifts</h3>
+            <p class="text-muted mb-0">
+                Manage company work shifts and working hours.
+            </p>
+        </div>
+
+        <div>
+            <button class="btn btn-outline-secondary me-2"
+                    @onclick="Back">
+                <i class="bi bi-arrow-left me-1"></i>
+                Back
+            </button>
+
+            <button class="btn btn-primary"
+                    @onclick="CreateShift">
+                <i class="bi bi-plus-lg me-1"></i>
+                Add Shift
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else if (_shifts.Count == 0)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="alert alert-info mb-0">
+                    No shifts have been configured yet.
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Grace</th>
+                                <th>Hours</th>
+                                <th>Night</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var shift in _shifts)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@shift.Code</strong>
+                                    </td>
+
+                                    <td>@shift.Name</td>
+
+                                    <td>
+                                        @shift.StartTime.ToString("HH:mm")
+                                    </td>
+
+                                    <td>
+                                        @shift.EndTime.ToString("HH:mm")
+                                    </td>
+
+                                    <td>
+                                        @shift.GracePeriodMinutes min
+                                    </td>
+
+                                    <td>
+                                        @shift.StandardHours.ToString("0.##")
+                                    </td>
+
+                                    <td>
+                                        @if (shift.IsNightShift)
+                                        {
+                                            <span class="badge bg-dark">
+                                                Night
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">
+                                                No
+                                            </span>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        @if (shift.IsActive)
+                                        {
+                                            <span class="badge bg-success">
+                                                Active
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">
+                                                Inactive
+                                            </span>
+                                        }
+                                    </td>
+
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1"
+                                                @onclick="() => EditShift(shift.Id)">
+                                            <i class="bi bi-pencil me-1"></i>
+                                            Edit
+                                        </button>
+
+                                        <button class="btn btn-sm @(shift.IsActive ? "btn-outline-danger" : "btn-outline-success")"
+                                                @onclick="() => ChangeActiveStatus(shift)">
+                                            @if (shift.IsActive)
+                                            {
+                                                <i class="bi bi-pause-circle me-1"></i>
+                                                <span>Deactivate</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-play-circle me-1"></i>
+                                                <span>Activate</span>
+                                            }
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ShiftResponse> _shifts = [];
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShifts();
+    }
+
+    private async Task LoadShifts()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var shifts = await ShiftService.GetAllAsync();
+
+            _shifts = shifts.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load shifts: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CreateShift()
+    {
+        Navigation.NavigateTo("/hr/shifts/create");
+    }
+
+    private void EditShift(Guid shiftId)
+    {
+        Navigation.NavigateTo(
+            $"/hr/shifts/edit/{shiftId}");
+    }
+
+    private async Task ChangeActiveStatus(
+        ShiftResponse shift)
+    {
+        _error = null;
+
+        try
+        {
+            var request =
+                new ChangeShiftActiveStatusRequest
+                {
+                    IsActive = !shift.IsActive
+                };
+
+            var updated =
+                await ShiftService.ChangeActiveStatusAsync(
+                    shift.Id,
+                    request);
+
+            var index = _shifts.FindIndex(
+                x => x.Id == updated.Id);
+
+            if (index >= 0)
+            {
+                _shifts[index] = updated;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to change shift status: {ex.Message}";
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/hr");
+    }
+}

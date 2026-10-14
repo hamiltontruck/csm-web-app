@@ -1,0 +1,252 @@
+@page "/finance/payments/{Id:guid}"
+@page "/finance/sites/{SiteId:guid}/payments/{Id:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Payment Details</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading payment...</p>
+    </div>
+}
+else if (_payment is null)
+{
+    <div class="container py-4">
+        <div class="alert alert-danger">
+            Payment not found.
+        </div>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="Back">
+            ← Payments
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>@_payment.PaymentNumber</h2>
+                <div class="text-muted">
+                    @_payment.PaymentDate.ToString("dd MMM yyyy")
+                </div>
+            </div>
+
+            @switch (_payment.Status)
+            {
+                case "Pending":
+                    <span class="badge bg-info text-dark fs-6">Recorded</span>
+                    break;
+
+                case "Completed":
+                    <span class="badge bg-success fs-6">Completed</span>
+                    break;
+
+                case "Reversed":
+                    <span class="badge bg-dark fs-6">Reversed</span>
+                    break;
+
+                case "Failed":
+                    <span class="badge bg-danger fs-6">Failed</span>
+                    break;
+
+                case "Cancelled":
+                    <span class="badge bg-secondary fs-6">Cancelled</span>
+                    break;
+            }
+        </div>
+
+        <div class="d-flex gap-2 mb-4">
+
+            @if (_payment.Status == "Pending")
+            {
+                <button class="btn btn-success" @onclick="CompletePayment">
+                    Complete Payment
+                </button>
+            }
+
+            @if (_payment.Status == "Completed")
+            {
+                <button class="btn btn-outline-danger"
+                        @onclick="ReversePayment">
+                    Reverse Payment
+                </button>
+            }
+
+            <button class="btn btn-primary"
+                    @onclick="EditPayment">
+                Edit Payment
+            </button>
+
+            @if (_payment.Status == "Pending")
+            {
+                <button class="btn btn-outline-danger"
+                        @onclick="DeletePayment">
+                    Delete Payment
+                </button>
+            }
+
+            <button class="btn btn-outline-dark"
+                    @onclick="PrintReceipt">
+                <i class="bi bi-printer"></i> Print Receipt
+            </button>
+
+        </div>
+
+        <div class="row g-3">
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Amount</div>
+                        <h3>@_payment.CurrencyCode @_payment.Amount.ToString("N2")</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Direction</div>
+                        <h5>@_payment.Direction</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Method</div>
+                        <h5>@_payment.PaymentMethod</h5>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm mt-4">
+            <div class="card-header fw-bold">
+                Payment Information
+            </div>
+
+            <div class="card-body">
+
+                <div class="row mb-3">
+                    <div class="col-md-3 fw-semibold">Reference</div>
+                    <div class="col-md-9">@_payment.ReferenceNumber</div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-3 fw-semibold">Exchange Rate</div>
+                    <div class="col-md-9">@_payment.ExchangeRate</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-3 fw-semibold">Notes</div>
+                    <div class="col-md-9">@_payment.Notes</div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    [Parameter] public Guid? SiteId { get; set; }
+
+    private PaymentResponse? _payment;
+
+    private bool _loading = true;
+    private bool _loaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _payment = await FinanceService.GetPaymentAsync(Id);
+
+        _loading = false;
+
+        StateHasChanged();
+    }
+
+    private async Task CompletePayment()
+    {
+        await FinanceService.ChangePaymentStatusAsync(Id, 2);
+
+        _payment = await FinanceService.GetPaymentAsync(Id);
+
+        StateHasChanged();
+    }
+
+    private async Task ReversePayment()
+    {
+        await FinanceService.ReversePaymentAsync(Id);
+
+        _payment = await FinanceService.GetPaymentAsync(Id);
+
+        StateHasChanged();
+    }
+
+    private void EditPayment()
+    {
+        if (SiteId.HasValue)
+            Navigation.NavigateTo(
+                $"/finance/sites/{SiteId.Value}/payments/{Id}/edit");
+        else
+            Navigation.NavigateTo(
+                $"/finance/payments/{Id}/edit");
+    }
+
+    private async Task DeletePayment()
+    {
+        var confirmed = await JS.InvokeAsync<bool>(
+            "confirm",
+            "Delete this recorded payment?");
+
+        if (!confirmed)
+            return;
+
+        await FinanceService.DeletePaymentAsync(Id);
+
+        if (SiteId.HasValue)
+            Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/payments");
+        else
+            Navigation.NavigateTo("/finance/company/payments");
+    }
+
+    private async Task PrintReceipt()
+    {
+        var pdf = await FinanceService.DownloadPaymentReceiptPdfAsync(Id);
+
+        await JS.InvokeVoidAsync(
+            "downloadPdf",
+            $"Receipt-{_payment?.PaymentNumber ?? "Receipt"}.pdf",
+            Convert.ToBase64String(pdf));
+    }
+
+    private void Back()
+    {
+        if (SiteId.HasValue)
+            Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/payments");
+        else
+            Navigation.NavigateTo("/finance/company/payments");
+    }
+}

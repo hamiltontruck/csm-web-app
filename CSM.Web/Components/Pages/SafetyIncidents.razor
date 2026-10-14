@@ -1,0 +1,279 @@
+@page "/compliance/safety-incidents"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Services
+
+@inject IComplianceService ComplianceService
+@inject NavigationManager Navigation
+
+<PageTitle>Safety Incidents</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3>Safety Incidents</h3>
+            <p class="text-muted mb-0">
+                Review and manage construction site safety incidents.
+            </p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary"
+                    @onclick="Back">
+                Back
+            </button>
+
+            <button class="btn btn-primary"
+                    @onclick="CreateIncident">
+                Add Safety Incident
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+            <div class="mt-2">Loading safety incidents...</div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+    else if (_incidents.Count == 0)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <h5>No safety incidents found</h5>
+                <p class="text-muted mb-3">
+                    No safety incidents have been recorded yet.
+                </p>
+
+                <button class="btn btn-primary"
+                        @onclick="CreateIncident">
+                    Add Safety Incident
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+
+                        <thead>
+                            <tr>
+                                <th>Incident Number</th>
+                                <th>Construction Site</th>
+                                <th>Occurred</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                                <th>Injury</th>
+                                <th>Medical</th>
+                                <th>Lost Time</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var incident in _incidents)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>
+                                            @incident.IncidentNumber
+                                        </strong>
+                                    </td>
+
+                                    <td>
+                                        @incident.ConstructionSiteName
+                                    </td>
+
+                                    <td>
+                                        @(incident.OccurredAtUtc.ToString("yyyy-MM-dd HH:mm"))
+                                    </td>
+
+                                    <td>
+                                        <span class="badge @SeverityBadgeClass(incident.Severity)">
+                                            @incident.Severity
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <span class="badge @StatusBadgeClass(incident.Status)">
+                                            @incident.Status
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        @if (incident.InjuryOccurred)
+                                        {
+                                            <span class="text-danger fw-semibold">
+                                                Yes
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">No</span>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        @if (incident.MedicalTreatmentRequired)
+                                        {
+                                            <span class="text-danger fw-semibold">
+                                                Yes
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">No</span>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        @if (incident.LostTimeIncident)
+                                        {
+                                            <span class="text-danger fw-semibold">
+                                                Yes
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">No</span>
+                                        }
+                                    </td>
+
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                                @onclick='() => Navigation.NavigateTo($"/compliance/safety-incidents/{incident.Id}")'>
+                                            View
+                                        </button>
+
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="() => EditIncident(incident.Id)">
+                                            Edit
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<SafetyIncidentResponse> _incidents = [];
+
+    private bool _loading;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadIncidents();
+    }
+
+    private async Task LoadIncidents()
+    {
+        try
+        {
+            _loading = true;
+            _errorMessage = null;
+
+            _incidents =
+                await ComplianceService.GetSafetyIncidentsAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CreateIncident()
+    {
+        Navigation.NavigateTo(
+            "/compliance/safety-incidents/create");
+    }
+
+    private void EditIncident(Guid id)
+    {
+        Navigation.NavigateTo(
+            $"/compliance/safety-incidents/{id}/edit");
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/compliance");
+    }
+
+    private static string SeverityName(int severity)
+    {
+        return severity switch
+        {
+            1 => "Near Miss",
+            2 => "Minor",
+            3 => "Moderate",
+            4 => "Serious",
+            5 => "Critical",
+            6 => "Fatal",
+            _ => "Unknown"
+        };
+    }
+
+    private static string StatusName(int status)
+    {
+        return status switch
+        {
+            1 => "Reported",
+            2 => "Under Investigation",
+            3 => "Corrective Action Required",
+            4 => "Resolved",
+            5 => "Closed",
+            _ => "Unknown"
+        };
+    }
+
+    private static string SeverityBadgeClass(string severity)
+    {
+        return severity switch
+        {
+            "NearMiss" => "bg-info",
+            "Minor" => "bg-secondary",
+            "Moderate" => "bg-warning text-dark",
+            "Serious" => "bg-warning text-dark",
+            "Critical" => "bg-danger",
+            "Fatal" => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
+
+    private static string StatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Reported" => "bg-secondary",
+            "UnderInvestigation" => "bg-warning text-dark",
+            "CorrectiveActionRequired" => "bg-warning text-dark",
+            "Resolved" => "bg-success",
+            "Closed" => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
+}

@@ -1,0 +1,178 @@
+@page "/goods-receipts/{Id:guid}"
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IProcurementService ProcurementService
+@inject NavigationManager Navigation
+
+<PageTitle>Goods Receipt Details</PageTitle>
+
+@if (loading)
+{
+    <p>Loading...</p>
+}
+else if (receipt is null)
+{
+    <div class="alert alert-danger">
+        Goods Receipt not found.
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-0">@receipt.ReceiptNumber</h2>
+            <div class="text-muted">
+                Purchase Order: @receipt.PurchaseOrderNumber
+            </div>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="GoBackToGoodsReceipts">
+            ← Back
+        </button>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            Receipt Information
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <div class="text-muted small">Construction Site</div>
+                    <div class="fw-semibold">@receipt.SiteName</div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="text-muted small">Received Date</div>
+                    <div class="fw-semibold">
+                        @receipt.ReceivedAtUtc.ToString("dd MMM yyyy")
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="text-muted small">Delivery Note</div>
+                    <div>@(receipt.DeliveryNoteNumber ?? "-")</div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="text-muted small">Vehicle Plate</div>
+                    <div>@(receipt.VehiclePlateNumber ?? "-")</div>
+                </div>
+
+                <div class="col-12">
+                    <div class="text-muted small">Remarks</div>
+                    <div>@(receipt.Remarks ?? "-")</div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            Received Materials
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Material</th>
+                        <th class="text-end">Ordered</th>
+                        <th class="text-end">Received</th>
+                        <th class="text-end">Remaining</th>
+                        <th class="text-end">Accepted</th>
+                        <th class="text-end">Rejected</th>
+                        <th class="text-end">Stock Before</th>
+                        <th class="text-end">Stock After</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var line in receipt.Lines)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">
+                                    @line.MaterialName
+                                </div>
+
+                                <small class="text-muted">
+                                    @line.MaterialCode
+                                </small>
+                            </td>
+
+                            <td class="text-end">
+                                @line.OrderedQuantity.ToString("N2")
+                            </td>
+
+                            <td class="text-end">
+                                @line.ReceivedQuantity.ToString("N2")
+                            </td>
+
+                            <td class="text-end fw-semibold text-warning">
+                                @line.RemainingQuantity.ToString("N2")
+                            </td>
+
+                            <td class="text-end text-success fw-semibold">
+                                @line.AcceptedQuantity.ToString("N2")
+                            </td>
+
+                            <td class="text-end text-danger fw-semibold">
+                                @line.RejectedQuantity.ToString("N2")
+                            </td>
+
+                            <td class="text-end">
+                                @(line.StockBalanceBefore?.ToString("N2") ?? "-")
+                            </td>
+
+                            <td class="text-end fw-semibold">
+                                @(line.StockBalanceAfter?.ToString("N2") ?? "-")
+                            </td>
+                        </tr>
+
+                        @if (!string.IsNullOrWhiteSpace(line.RejectionReason))
+                        {
+                            <tr class="table-warning">
+                                <td colspan="6">
+                                    <strong>Rejection Reason:</strong>
+                                    @line.RejectionReason
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private GoodsReceiptResponse? receipt;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        receipt = await ProcurementService.GetGoodsReceiptAsync(Id);
+        loading = false;
+    }
+
+    private void GoBackToGoodsReceipts()
+    {
+        if (receipt is null)
+        {
+            Navigation.NavigateTo("/sites-management");
+            return;
+        }
+
+        Navigation.NavigateTo($"/goods-receipts/site/{receipt.ConstructionSiteId}");
+    }
+}

@@ -1,0 +1,147 @@
+@page "/finance/petty-cash/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>New Petty Cash Account</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <button class="btn btn-outline-secondary mb-2"
+                    @onclick="Back">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+
+            <h3>New Petty Cash Account</h3>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <p>Loading construction sites...</p>
+    }
+    else
+    {
+        <EditForm Model="_form" OnValidSubmit="Save">
+
+            <DataAnnotationsValidator />
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <label class="form-label">Construction Site</label>
+
+                    <select class="form-select"
+                            @bind="_form.ConstructionSiteId">
+
+                        <option value="">-- Company Level --</option>
+
+                        @foreach (var site in _sites)
+                        {
+                            <option value="@site.Id">
+                                @site.SiteCode - @site.Name
+                            </option>
+                        }
+
+                    </select>
+
+                    <div class="form-text">
+                        Leave as Company Level for a company-wide petty cash account.
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Account Code</label>
+
+                    <InputText class="form-control"
+                               @bind-Value="_form.AccountCode" />
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Opening Balance</label>
+
+                  <InputNumber TValue="decimal"
+                               class="form-control"
+                               @bind-Value="_form.OpeningBalance" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Account Name</label>
+
+                    <InputText class="form-control"
+                               @bind-Value="_form.AccountName" />
+                </div>
+
+            </div>
+
+            <div class="mt-4 d-flex gap-2">
+
+                <button class="btn btn-primary"
+                        type="submit">
+                    Create Account
+                </button>
+
+                <button class="btn btn-outline-secondary"
+                        type="button"
+                        @onclick="Back">
+                    Cancel
+                </button>
+
+            </div>
+
+        </EditForm>
+    }
+</div>
+
+@code {
+
+
+    private List<SiteResponse> _sites = new();
+
+
+
+    private bool _loading = true;
+
+    private sealed class PettyCashAccountForm
+    {
+        public string AccountCode { get; set; } = string.Empty;
+        public string AccountName { get; set; } = string.Empty;
+        public decimal OpeningBalance { get; set; }
+        public Guid? ConstructionSiteId { get; set; }
+    }
+
+    private readonly PettyCashAccountForm _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sites = await ProjectService.GetSitesAsync();
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        var request = new CreatePettyCashAccountRequest(
+            _form.ConstructionSiteId,
+            _form.AccountCode.Trim(),
+            _form.AccountName.Trim(),
+            _form.OpeningBalance);
+
+        await FinanceService.CreatePettyCashAccountAsync(request);
+
+        Navigation.NavigateTo("/finance/petty-cash");
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/finance/petty-cash");
+    }
+}

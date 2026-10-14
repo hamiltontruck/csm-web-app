@@ -1,0 +1,134 @@
+@page "/roles"
+
+@using CSM.Web.Models.Roles
+@using CSM.Web.Services
+
+@inject RoleWebService RoleService
+@inject NavigationManager Navigation
+
+<PageTitle>Role Permissions</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0">Permission Matrix</h3>
+
+    <button class="btn btn-outline-secondary"
+            @onclick="Back">
+        <span class="bi bi-arrow-left me-2"></span>
+        Back
+    </button>
+</div>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <label class="form-label">Role</label>
+
+            <select class="form-select"
+                    value="@selectedRoleId"
+                    @onchange="OnRoleChanged">
+
+                @foreach (var role in roles)
+                {
+                    <option value="@role.Id">
+                        @role.Name
+                    </option>
+                }
+
+            </select>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+
+        <div class="card-header">
+            Permissions
+        </div>
+
+        <div class="card-body">
+
+            @foreach (var item in permissions)
+            {
+                <div class="form-check mb-2">
+
+                    <input class="form-check-input"
+                           type="checkbox"
+                           @bind="item.Granted"/>
+
+                    <label class="form-check-label">
+                        @item.Permission
+                    </label>
+
+                </div>
+            }
+
+        </div>
+
+        <div class="card-footer text-end">
+
+            <button class="btn btn-primary"
+                    @onclick="Save">
+
+                Save Changes
+
+            </button>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    private List<RoleSummaryModel> roles = [];
+
+    private List<RolePermissionModel> permissions = [];
+
+    private Guid selectedRoleId;
+
+    private bool loading = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        roles = await RoleService.GetRolesAsync();
+
+        if (roles.Any())
+        {
+            selectedRoleId = roles.First().Id;
+
+            permissions =
+                await RoleService.GetPermissionsAsync(selectedRoleId);
+        }
+
+        loading = false;
+
+        StateHasChanged();
+    }
+
+    private async Task OnRoleChanged(ChangeEventArgs e)
+    {
+        selectedRoleId = Guid.Parse(e.Value!.ToString()!);
+
+        permissions = await RoleService.GetPermissionsAsync(selectedRoleId);
+    }
+
+    private async Task Save()
+    {
+        await RoleService.SavePermissionsAsync(
+            selectedRoleId,
+            permissions);
+    }
+    private void Back()
+    {
+        Navigation.NavigateTo("/users");
+    }
+}

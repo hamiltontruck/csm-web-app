@@ -1,0 +1,115 @@
+@page "/compliance"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Services
+
+@inject IComplianceService ComplianceService
+
+@inject NavigationManager Navigation
+
+<PageTitle>Compliance</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <h2>Compliance & Safety</h2>
+
+    <div class="row g-3 mt-3">
+
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6>Open Incidents</h6>
+                    <h2>@_openIncidentCount</h2>
+
+                    <button class="btn btn-outline-primary mt-2"
+                            @onclick='() => Navigation.NavigateTo("/compliance/safety-incidents")'>
+                        View Safety Incidents
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6>Inspections</h6>
+                    <h2>0</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6>Permits</h6>
+                    <h2>0</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6>Document Categories</h6>
+
+                    <p class="text-muted small">
+                        Manage document categories used by the document management system.
+                    </p>
+
+                    <button class="btn btn-primary"
+                            @onclick='() => Navigation.NavigateTo("/compliance/document-categories")'>
+                        Manage Categories
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h6>Documents</h6>
+
+                    <p class="text-muted small">
+                        Manage compliance, project, drawing, and other controlled documents.
+                    </p>
+
+                    <button class="btn btn-primary"
+                            @onclick='() => Navigation.NavigateTo("/compliance/documents")'>
+                        Manage Documents
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+@code {
+    private int _openIncidentCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOpenIncidentCountAsync();
+    }
+
+    private async Task LoadOpenIncidentCountAsync()
+    {
+        try
+        {
+            var incidents =
+                await ComplianceService.GetSafetyIncidentsAsync();
+
+            _openIncidentCount = incidents.Count(
+                x => x.Status is
+                    "Reported" or
+                    "UnderInvestigation" or
+                    "CorrectiveActionRequired");
+        }
+        catch
+        {
+            _openIncidentCount = 0;
+        }
+    }
+}

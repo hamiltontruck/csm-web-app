@@ -1,0 +1,157 @@
+@page "/finance/sites/{SiteId:guid}/budgets/{BudgetId:guid}/lines/create"
+@page "/finance/company/budgets/{BudgetId:guid}/lines/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>New Budget Line</PageTitle>
+
+<h3 class="mb-4">New Budget Line</h3>
+
+@if (_loading)
+{
+    <p>Loading cost codes...</p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">
+                @_error
+            </div>
+        }
+
+        <div class="row g-3">
+
+            <div class="col-md-6">
+                <label class="form-label">Cost Code</label>
+
+                <InputSelect class="form-select"
+                             @bind-Value="_model.CostCodeId">
+                    <option value="@Guid.Empty">
+                        -- Select Cost Code --
+                    </option>
+
+                    @foreach (var costCode in _costCodes)
+                    {
+                        <option value="@costCode.Id">
+                            @costCode.Code - @costCode.Name
+                        </option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Description</label>
+
+                <InputText class="form-control"
+                           @bind-Value="_model.Description" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Budgeted Amount</label>
+
+                <InputNumber class="form-control"
+                             @bind-Value="_model.BudgetedAmount" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Revised Amount</label>
+
+                <InputNumber class="form-control"
+                             @bind-Value="_model.RevisedAmount" />
+            </div>
+
+        </div>
+
+        <div class="mt-4 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">
+                Create Budget Line
+            </button>
+
+            <button class="btn btn-outline-secondary"
+                    type="button"
+                    @onclick="Back">
+                Cancel
+            </button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public Guid? SiteId { get; set; }
+
+    [Parameter] public Guid BudgetId { get; set; }
+
+    private readonly CreateBudgetLineRequest _model = new();
+
+    private List<CostCodeResponse> _costCodes = new();
+
+    private bool _loading = true;
+
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _model.BudgetId = BudgetId;
+
+        try
+        {
+            _costCodes =
+                (await FinanceService.GetActiveCostCodesAsync())
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            await FinanceService.CreateBudgetLineAsync(_model);
+
+            if (SiteId.HasValue)
+            {
+                Navigation.NavigateTo(
+                    $"/finance/sites/{SiteId.Value}/budgets/{BudgetId}");
+            }
+            else
+            {
+                Navigation.NavigateTo(
+                    $"/finance/company/budgets/{BudgetId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Back()
+    {
+        if (SiteId.HasValue)
+        {
+            Navigation.NavigateTo(
+                $"/finance/sites/{SiteId.Value}/budgets/{BudgetId}");
+        }
+        else
+        {
+            Navigation.NavigateTo(
+                $"/finance/company/budgets/{BudgetId}");
+        }
+    }
+}

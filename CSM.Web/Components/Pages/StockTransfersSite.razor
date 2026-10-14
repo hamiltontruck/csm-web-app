@@ -1,0 +1,160 @@
+@page "/stock-transfers/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+@inject IProjectService ProjectService
+
+<PageTitle>Site Stock Transfers</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading transfer history...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>@siteName</h2>
+                <div class="text-muted">Stock Transfers</div>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="NewTransfer">
+                <i class="bi bi-plus-lg"></i>
+                New Transfer
+            </button>
+        </div>
+
+        @if (transfers.Count == 0)
+        {
+            <div class="alert alert-info">
+                No stock transfers for this site.
+            </div>
+        }
+        else
+        {
+            @foreach (var item in transfers)
+            {
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <div class="fw-bold">
+                                    @item.MaterialCode - @item.MaterialName
+                                </div>
+
+                                <small class="text-muted">
+                                    @item.TransferDateUtc.ToString("dd MMM yyyy")
+                                </small>
+                            </div>
+
+                            <div class="text-end">
+                                <div class="fw-bold">
+                                    @item.Quantity @item.UnitOfMeasure
+                                </div>
+
+                                <small class="text-muted">
+                                    @item.ReferenceNumber
+                                </small>
+                            </div>
+                        </div>
+
+                        <hr />
+
+                        <div class="row text-center">
+
+                            <div class="col">
+                                <small class="text-muted">From</small>
+                                <div class="fw-bold">@item.FromSiteName</div>
+                            </div>
+
+                            <div class="col">
+                                <small class="text-muted">To</small>
+                                <div class="fw-bold">@item.ToSiteName</div>
+                            </div>
+
+                        </div>
+
+                        <hr />
+
+                        <div class="d-flex justify-content-between align-items-center">
+
+                            <span class="badge bg-primary">
+                                @item.Status
+                            </span>
+
+                            <small class="text-muted">
+                                @item.ReferenceNumber
+                            </small>
+
+                        </div>
+
+                    </div>
+                </div>
+            }
+        }
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private List<StockTransferResponse> transfers = [];
+
+    private bool loading = true;
+    private bool loaded;
+
+    private string siteName = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || loaded)
+            return;
+
+        loaded = true;
+
+        Console.WriteLine("STEP 1");
+
+        var all = await InventoryService.GetStockTransfersAsync();
+
+        Console.WriteLine($"STEP 2 - Transfers: {all.Count}");
+
+        transfers = all
+            .Where(x => x.FromSiteId == SiteId || x.ToSiteId == SiteId)
+            .OrderByDescending(x => x.TransferDateUtc)
+            .ToList();
+
+        Console.WriteLine($"STEP 3 - Filtered: {transfers.Count}");
+
+        var sites = await ProjectService.GetSitesAsync();
+
+        siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name
+            ?? "Construction Site";
+
+        loading = false;
+
+        StateHasChanged();
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo("/stock-transfers");
+
+    void NewTransfer()
+        => Navigation.NavigateTo($"/stock-transfers/create/{SiteId}");
+}

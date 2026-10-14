@@ -1,0 +1,347 @@
+@page "/equipment/timesheet/create/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>New Daily Timesheet</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center mb-4">
+        <button class="btn btn-outline-secondary me-3"
+                @onclick="GoBack">
+            ← Back
+        </button>
+
+        <div>
+            <h2 class="mb-0">New Daily Timesheet</h2>
+            @if (!string.IsNullOrWhiteSpace(siteName))
+            {
+                <small class="text-muted">@siteName</small>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <EditForm Model="request" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">Equipment</label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="request.EquipmentId">
+
+                            <option value="">Select equipment</option>
+
+                            @foreach (var item in equipment)
+                            {
+                                <option value="@item.Id">
+                                    @item.EquipmentCode - @item.Name
+                                </option>
+                            }
+
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Work Date</label>
+
+                        <InputDate class="form-control"
+                                   @bind-Value="workDate" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Operator</label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="request.OperatorName" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Shift</label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="request.Shift">
+                            <option>Day</option>
+                            <option>Night</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Start (Ethiopian)</label>
+
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <InputSelect class="form-select" @bind-Value="startHourET">
+                                    @for (int i = 1; i <= 12; i++)
+                                    {
+                                        <option value="@i">@i</option>
+                                    }
+                                </InputSelect>
+                            </div>
+
+                            <div class="col-4">
+                                <InputSelect class="form-select" @bind-Value="startMinute">
+                                    <option value="0">00</option>
+                                    <option value="15">15</option>
+                                    <option value="30">30</option>
+                                    <option value="45">45</option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="col-4">
+                                <InputSelect class="form-select" @bind-Value="startPeriod">
+                                    <option value="Day">Day</option>
+                                    <option value="Night">Night</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Finish (Ethiopian)</label>
+
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <InputSelect class="form-select" @bind-Value="endHourET">
+                                    @for (int i = 1; i <= 12; i++)
+                                    {
+                                        <option value="@i">@i</option>
+                                    }
+                                </InputSelect>
+                            </div>
+
+                            <div class="col-4">
+                                <InputSelect class="form-select" @bind-Value="endMinute">
+                                    <option value="0">00</option>
+                                    <option value="15">15</option>
+                                    <option value="30">30</option>
+                                    <option value="45">45</option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="col-4">
+                                <InputSelect class="form-select" @bind-Value="endPeriod">
+                                    <option value="Day">Day</option>
+                                    <option value="Night">Night</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Break (minutes)</label>
+
+                        <InputNumber class="form-control"
+                                     @bind-Value="request.BreakMinutes" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Worked Hours</label>
+
+                        <input class="form-control"
+                               value="@WorkedHours"
+                               readonly />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Activity</label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="request.Activity" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Remarks</label>
+
+                        <InputTextArea class="form-control"
+                                       rows="3"
+                                       @bind-Value="request.Remarks" />
+                    </div>
+
+                </div>
+
+                <hr />
+
+                <div class="d-flex justify-content-end gap-2">
+
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            @onclick="GoBack">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-primary"
+                            type="submit"
+                            disabled="@saving">
+
+                        @(saving ? "Saving..." : "Save Timesheet")
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </EditForm>
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private string siteName = "";
+
+    private bool saving;
+
+    private string? errorMessage;
+
+    private DateTime workDate = DateTime.Today;
+
+    private int startHourET = 2;
+    private int startMinute = 0;
+    private string startPeriod = "Day";
+
+    private int endHourET = 11;
+    private int endMinute = 0;
+    private string endPeriod = "Day";
+
+    private List<EquipmentResponse> equipment = [];
+
+    private CreateEquipmentTimesheetRequest request = new()
+    {
+        Shift = "Day"
+    };
+
+    private TimeOnly EthiopianToGregorian(
+        int hour,
+        int minute,
+        string period)
+    {
+        hour = hour % 12;
+
+        int gregorianHour = period == "Day"
+            ? (hour + 6) % 24
+            : (hour + 18) % 24;
+
+        return new TimeOnly(gregorianHour, minute);
+    }
+
+    private string WorkedHours
+    {
+        get
+        {
+            var start = EthiopianToGregorian(
+                startHourET,
+                startMinute,
+                startPeriod);
+
+            var end = EthiopianToGregorian(
+                endHourET,
+                endMinute,
+                endPeriod);
+
+            var hours =
+                (decimal)(end.ToTimeSpan() - start.ToTimeSpan()).TotalHours
+                - request.BreakMinutes / 60m;
+
+            if (hours < 0)
+                hours = 0;
+
+            return hours.ToString("N2");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var sites = await ProjectService.GetSitesAsync();
+
+        var site = sites.FirstOrDefault(x => x.Id == SiteId);
+
+        if (site != null)
+            siteName = site.Name;
+
+        var assignments = await EquipmentService.GetAssignmentsAsync();
+
+        var equipmentIds = assignments
+            .Where(x =>
+                x.ConstructionSiteId == SiteId &&
+                x.ReleasedAtUtc == null)
+            .Select(x => x.EquipmentId)
+            .Distinct()
+            .ToHashSet();
+
+        equipment = (await EquipmentService.GetEquipmentAsync())
+            .Where(x => equipmentIds.Contains(x.Id))
+            .OrderBy(x => x.EquipmentCode)
+            .ToList();
+
+        request.SiteId = SiteId;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        saving = true;
+        errorMessage = null;
+
+        try
+        {
+            request.WorkDate = workDate;
+
+            request.StartTime = EthiopianToGregorian(
+                startHourET,
+                startMinute,
+                startPeriod).ToTimeSpan();
+
+            request.EndTime = EthiopianToGregorian(
+                endHourET,
+                endMinute,
+                endPeriod).ToTimeSpan();
+
+            await EquipmentService.CreateTimesheetAsync(request);
+
+            Navigation.NavigateTo(
+                $"/equipment/timesheet/site/{SiteId}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/timesheet/site/{SiteId}");
+    }
+
+}

@@ -1,0 +1,78 @@
+@page "/stock-balance"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Sites
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>Stock Balance</PageTitle>
+
+<div class="container py-4">
+
+    <button class="btn btn-outline-secondary mb-3" @onclick="GoBack">
+        <i class="bi bi-arrow-left"></i> Back
+    </button>
+
+    <h2>Stock Balance</h2>
+
+    <div class="text-muted mb-4">
+        Select a construction site
+    </div>
+
+    @if (loading)
+    {
+        <p>Loading sites...</p>
+    }
+    else
+    {
+        @foreach (var site in sites)
+        {
+            <div class="card shadow-sm mb-3"
+                 style="cursor:pointer"
+                 @onclick="() => OpenSite(site.Id)">
+
+                <div class="card-body d-flex align-items-center">
+
+                    <div class="bg-primary bg-opacity-10 rounded me-3"
+                         style="width:64px;height:64px;"></div>
+
+                    <div>
+                        <h5 class="mb-1">@site.Name</h5>
+                        <div class="text-muted">
+                            @GetMaterialCount(site.Id) material(s)
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private List<SiteResponse> sites = [];
+    private List<StockBalanceResponse> balances = [];
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        sites = await ProjectService.GetSitesAsync();
+        balances = await InventoryService.GetStockBalancesAsync();
+        loading = false;
+    }
+
+    private int GetMaterialCount(Guid siteId)
+        => balances.Count(x => x.ConstructionSiteId == siteId);
+
+    void OpenSite(Guid siteId)
+        => Navigation.NavigateTo($"/stock-balance/site/{siteId}");
+
+    void GoBack()
+        => Navigation.NavigateTo("/stock-items");
+}

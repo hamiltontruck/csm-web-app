@@ -1,0 +1,233 @@
+@page "/hr/shifts/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IShiftService ShiftService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Shift</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1">Create Shift</h3>
+            <p class="text-muted mb-0">
+                Configure a company work shift.
+            </p>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Cancel">
+            <i class="bi bi-arrow-left me-1"></i>
+            Back
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+
+            <EditForm Model="_model"
+                      OnValidSubmit="SaveAsync">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Shift Code
+                        </label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="_model.Code" />
+
+                        <div class="form-text">
+                            Example: DAY or NIGHT
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Shift Name
+                        </label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="_model.Name" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Start Time
+                        </label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="_startTime"
+                                   placeholder="08:00" />
+
+                        <div class="form-text">
+                            Enter time as HH:mm
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            End Time
+                        </label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="_endTime"
+                                   placeholder="17:00" />
+
+                        <div class="form-text">
+                            Enter time as HH:mm
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Grace Period (minutes)
+                        </label>
+
+                        <InputNumber class="form-control"
+                                     @bind-Value="_model.GracePeriodMinutes" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Standard Hours
+                        </label>
+
+                        <InputNumber class="form-control"
+                                     @bind-Value="_model.StandardHours" />
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-check">
+                            <InputCheckbox class="form-check-input"
+                                           @bind-Value="_model.IsNightShift" />
+
+                            <label class="form-check-label">
+                                Night Shift
+                            </label>
+                        </div>
+
+                        <div class="form-text">
+                            Night shifts must cross midnight.
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            @onclick="Cancel"
+                            disabled="@_saving">
+                        Cancel
+                    </button>
+
+                    <button type="submit"
+                            class="btn btn-primary"
+                            disabled="@_saving">
+
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"
+                                  role="status"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                            <span>Save Shift</span>
+                        }
+
+                    </button>
+
+                </div>
+
+            </EditForm>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private string _startTime = "08:00";
+    private string _endTime = "17:00";
+
+    private readonly CreateShiftRequest _model = new()
+    {
+        GracePeriodMinutes = 0,
+        StandardHours = 8m,
+        IsNightShift = false
+    };
+
+    private bool _saving;
+    private string? _error;
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            if (!TimeOnly.TryParse(
+                    _startTime,
+                    out var startTime))
+            {
+                _error = "Please enter a valid start time.";
+                return;
+            }
+
+            if (!TimeOnly.TryParse(
+                    _endTime,
+                    out var endTime))
+            {
+                _error = "Please enter a valid end time.";
+                return;
+            }
+
+            _model.StartTime = startTime;
+            _model.EndTime = endTime;
+
+            await ShiftService.CreateAsync(_model);
+
+            Navigation.NavigateTo("/hr/shifts");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void OnStartTimeChanged(ChangeEventArgs e)
+    {
+        _startTime = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OnEndTimeChanged(ChangeEventArgs e)
+    {
+        _endTime = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/hr/shifts");
+    }
+}

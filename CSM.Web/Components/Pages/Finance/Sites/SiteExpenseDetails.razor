@@ -1,0 +1,470 @@
+@page "/finance/sites/{SiteId:guid}/expenses/{ExpenseId:guid}"
+@namespace CSM.Web.Components.Pages.Finance.Sites
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Models.Sites
+@using CSM.Web.Models.Projects
+@using CSM.Web.Models.Procurement
+
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject IProjectService ProjectService
+@inject IVendorService VendorService
+
+@inject NavigationManager Navigation
+
+<PageTitle>Expense Details</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading expense...</p>
+    </div>
+}
+else if (_expense is null)
+{
+    <div class="container py-4">
+        <div class="alert alert-danger">
+            Expense not found.
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+
+            <div>
+                <button class="btn btn-outline-secondary mb-3"
+                        @onclick="Back">
+                    ← Expenses
+                </button>
+
+                <h2 class="mb-1">@_expense.ExpenseNumber</h2>
+
+                <div class="text-muted">
+                    @_expense.Description
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary"
+                        @onclick="EditExpense">
+                    Edit Expense
+                </button>
+            </div>
+
+        </div>
+
+        <!-- KPI -->
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Status</div>
+                        <h5>@_expense.Status</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Expense Date</div>
+                        <strong>
+                            @_expense.ExpenseDate.ToString("dd MMM yyyy")
+                        </strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Amount</div>
+                        <h5>
+                            @_expense.Amount.ToString("N2")
+                            @_expense.CurrencyCode
+                        </h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Tax Amount</div>
+                        <h5>
+                            @_expense.TaxAmount.ToString("N2")
+                            @_expense.CurrencyCode
+                        </h5>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Expense Information -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Expense Information</h5>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-4">
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Expense Number</div>
+                        <div class="fw-semibold">
+                            @_expense.ExpenseNumber
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Expense Date</div>
+                        <div class="fw-semibold">
+                            @_expense.ExpenseDate.ToString("dd MMM yyyy")
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Construction Site</div>
+                        <div class="fw-semibold">
+                            @ConstructionSiteDisplay
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Project</div>
+                        <div class="fw-semibold">
+                            @(ProjectDisplay ?? "-")
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Cost Code</div>
+                        <div class="fw-semibold">
+                            @(_costCodes.FirstOrDefault(x => x.Id == _expense!.CostCodeId) is { } costCode
+                                ? $"{costCode.Code} - {costCode.Name}"
+                                : "Unknown Cost Code")
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Vendor</div>
+                        <div class="fw-semibold">
+                            @(VendorDisplay ?? "-")
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="text-muted small">Description</div>
+                        <div class="fw-semibold">
+                            @_expense.Description
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Financial Information -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Financial Information</h5>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-4">
+
+                    <div class="col-md-4">
+                        <div class="text-muted small">Amount</div>
+                        <div class="fw-semibold">
+                            @_expense.Amount.ToString("N2")
+                            @_expense.CurrencyCode
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="text-muted small">Tax Amount</div>
+                        <div class="fw-semibold">
+                            @_expense.TaxAmount.ToString("N2")
+                            @_expense.CurrencyCode
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="text-muted small">Exchange Rate</div>
+                        <div class="fw-semibold">
+                            @_expense.ExchangeRate.ToString("N4")
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Currency</div>
+                        <div class="fw-semibold">
+                            @_expense.CurrencyCode
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Reference Number</div>
+                        <div class="fw-semibold">
+                            @(_expense.ReferenceNumber ?? "-")
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Approval / Audit Information -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Approval & Audit Information</h5>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-4">
+
+                    <div class="col-md-4">
+                        <div class="text-muted small">Status</div>
+                        <div>
+                            <span class="badge bg-success">
+                                @_expense.Status
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="text-muted small">Approved By</div>
+                        <div class="fw-semibold">
+                            @(_expense.ApprovedByName ?? "-")
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="text-muted small">Approved At</div>
+                        <div class="fw-semibold">
+                            @(_expense.ApprovedAtUtc?.ToString("dd MMM yyyy HH:mm") ?? "-")
+                        </div>
+                    </div>
+
+                    <div class="col-md-4 mt-3">
+                        @if (_expense.Status == "Draft")
+                        {
+                            <button class="btn btn-primary"
+                                    @onclick="SubmitExpense"
+                                    disabled="@_saving">
+                                @if (_saving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                Submit Expense
+                            </button>
+                        }
+                    </div>
+
+                    @if (_expense.Status == "Submitted")
+                    {
+                        <button class="btn btn-success"
+                                @onclick="ApproveExpense"
+                                disabled="@_saving">
+                            @if (_saving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Approve Expense
+                        </button>
+                    }
+
+                    @if (_expense.Status == "Approved")
+                    {
+                        <button class="btn btn-success"
+                                @onclick="MarkExpenseAsPaid"
+                                disabled="@_saving">
+                            @if (_saving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Mark as Paid
+                        </button>
+                    }
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Created</div>
+                        <div class="fw-semibold">
+                            @_expense.CreatedAtUtc.ToString("dd MMM yyyy HH:mm")
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="text-muted small">Last Updated</div>
+                        <div class="fw-semibold">
+                            @(_expense.UpdatedAtUtc?.ToString("dd MMM yyyy HH:mm") ?? "-")
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Receipt -->
+        @if (!string.IsNullOrWhiteSpace(_expense.ReceiptDocumentUrl))
+        {
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Receipt Document</h5>
+                </div>
+
+                <div class="card-body">
+                    <a href="@_expense.ReceiptDocumentUrl"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="btn btn-outline-primary">
+                        Open Receipt
+                    </a>
+                </div>
+            </div>
+        }
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    [Parameter]
+    public Guid ExpenseId { get; set; }
+
+    private ExpenseResponse? _expense;
+    private bool _loading = true;
+
+    private List<SiteResponse> _sites = [];
+    private List<ProjectResponse> _projects = [];
+    private List<VendorResponse> _vendors = [];
+    private IReadOnlyList<CostCodeResponse> _costCodes = [];
+
+
+
+    private bool _saving;
+
+    private async Task SubmitExpense()
+    {
+        _saving = true;
+
+        try
+        {
+            await FinanceService.GetExpenseAsync(ExpenseId);
+            _expense = await FinanceService.GetExpenseAsync(ExpenseId);
+
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ApproveExpense()
+    {
+        _saving = true;
+
+        try
+        {
+            await FinanceService.ChangeExpenseStatusAsync(ExpenseId, 3);
+            _expense = await FinanceService.GetExpenseAsync(ExpenseId);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task MarkExpenseAsPaid()
+    {
+        _saving = true;
+
+        try
+        {
+            await FinanceService.ChangeExpenseStatusAsync(ExpenseId, 5);
+            _expense = await FinanceService.GetExpenseAsync(ExpenseId);
+
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private string ConstructionSiteDisplay =>
+        _sites.FirstOrDefault(x => x.Id == _expense?.ConstructionSiteId) is { } site
+            ? $"{site.SiteCode} - {site.Name}"
+            : "Unknown Site";
+
+    private string ProjectDisplay =>
+        _expense?.ProjectId is Guid projectId
+            ? _projects.FirstOrDefault(x => x.Id == projectId) is { } project
+                ? $"{project.ProjectCode} - {project.Name}"
+                : "Unknown Project"
+            : "—";
+
+    private string VendorDisplay =>
+        _expense?.VendorId is Guid vendorId
+            ? _vendors.FirstOrDefault(x => x.Id == vendorId) is { } vendor
+                ? $"{vendor.VendorCode} - {vendor.Name}"
+                : "Unknown Vendor"
+            : "—";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _expense = await FinanceService.GetExpenseAsync(ExpenseId);
+            if (_expense is null ||
+                _expense.ConstructionSiteId != SiteId)
+            {
+                _expense = null;
+                return;
+            }
+            _sites = await ProjectService.GetSitesAsync();
+            _projects = _expense.ProjectId.HasValue
+                ? await ProjectService.GetProjectsBySiteAsync(SiteId)
+                : new List<ProjectResponse>();
+            _vendors = await VendorService.GetVendorsAsync();
+            _costCodes = await FinanceService.GetActiveCostCodesAsync();
+        }
+        catch
+        {
+            _expense = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/expenses");
+    }
+
+    private void EditExpense()
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/expenses/{ExpenseId}/edit");
+    }
+}

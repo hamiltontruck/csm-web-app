@@ -1,0 +1,256 @@
+@page "/hr/attendance"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IAttendanceService AttendanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Attendance</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Attendance</h2>
+            <div class="text-muted">
+                Employee attendance records
+            </div>
+        </div>
+
+        <div>
+            <button class="btn btn-outline-secondary me-2"
+                    @onclick='() => Navigation.NavigateTo("/hr")'>
+                Back
+            </button>
+
+            <button class="btn btn-primary"
+                    @onclick='() => Navigation.NavigateTo("/hr/attendance/check-in")'>
+                <span class="me-1">+</span>
+                Check In
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="mt-3">Loading attendance...</p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">
+                        Attendance Records
+                    </h5>
+
+                    <span class="badge bg-secondary">
+                        @_attendance.Count records
+                    </span>
+                </div>
+
+                @if (_attendance.Count == 0)
+                {
+                    <div class="text-muted py-4 text-center">
+                        No attendance records found.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Site</th>
+                                    <th>Date</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Status</th>
+                                    <th>Source</th>
+                                    <th>Hours</th>
+                                    <th>Approval</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                @foreach (var item in _attendance)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@item.EmployeeName</strong>
+                                            <div class="small text-muted">
+                                                @item.EmployeeNumber
+                                            </div>
+                                        </td>
+
+                                        <td>
+                                            @item.SiteName
+                                        </td>
+
+                                        <td>
+                                            @item.AttendanceDate.ToString("yyyy-MM-dd")
+                                        </td>
+
+                                        <td>
+                                            @(item.CheckInAtUtc?.ToLocalTime()
+                                                .ToString("yyyy-MM-dd HH:mm") ?? "-")
+                                        </td>
+
+                                        <td>
+                                            @(item.CheckOutAtUtc?.ToLocalTime()
+                                                .ToString("yyyy-MM-dd HH:mm") ?? "-")
+                                        </td>
+
+                                        <td>
+                                            <span class="badge bg-secondary">
+                                                @item.Status
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            @item.Source
+                                        </td>
+
+                                        <td>
+                                            @item.RegularHours.ToString("0.##")
+                                            <span class="text-muted">h</span>
+
+                                            @if (item.OvertimeHours > 0)
+                                            {
+                                                <div class="small text-muted">
+                                                    OT:
+                                                    @item.OvertimeHours.ToString("0.##")h
+                                                </div>
+                                            }
+                                        </td>
+
+                                        <td>
+                                            @if (item.IsApproved)
+                                            {
+                                                <span class="badge bg-success">
+                                                    Approved
+                                                </span>
+                                            }
+                                            else if (item.RequiresApproval)
+                                            {
+                                                <span class="badge bg-warning text-dark">
+                                                    Pending
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">
+                                                    Not Required
+                                                </span>
+                                            }
+                                        </td>
+
+                                        <td>
+                                            @if (item.CheckInAtUtc.HasValue &&
+                                                 !item.CheckOutAtUtc.HasValue)
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary me-1"
+                                                        @onclick='() => Navigation.NavigateTo($"/hr/attendance/check-out/{item.Id}")'>
+                                                    Check Out
+                                                </button>
+                                            }
+
+                                            @if (!item.IsApproved)
+                                            {
+                                                <button class="btn btn-sm btn-outline-warning me-1"
+                                                        @onclick='() => Navigation.NavigateTo($"/hr/attendance/override/{item.Id}")'>
+                                                    Override
+                                                </button>
+                                            }
+
+                                            @if (item.RequiresApproval && !item.IsApproved &&
+                                                 item.CheckOutAtUtc.HasValue)
+                                            {
+                                                <button class="btn btn-sm btn-outline-success"
+                                                        @onclick='() => ApproveAttendance(item.Id)'>
+                                                    Approve
+                                                </button>
+                                            }
+                                            else if (item.IsApproved)
+                                            {
+                                                <span class="text-success small">
+                                                    Approved
+                                                </span>
+                                            }
+                                            else if (item.CheckOutAtUtc.HasValue)
+                                            {
+                                                <span class="text-muted small">
+                                                    Completed
+                                                </span>
+                                            }
+                                        </td>
+
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private List<AttendanceResponse> _attendance = [];
+    private bool _loading = true;
+    private string? _error;
+
+    private async Task ApproveAttendance(Guid attendanceId)
+    {
+        _error = null;
+
+        try
+        {
+            await AttendanceService.ApproveAsync(
+                attendanceId,
+                new ApproveAttendanceRequest());
+
+            _attendance = (
+                await AttendanceService.GetAttendancesAsync()
+            ).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _attendance = (
+                await AttendanceService.GetAttendancesAsync()
+            ).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

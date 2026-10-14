@@ -1,0 +1,275 @@
+@page "/hr/employees/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IEmployeeService EmployeeService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Employee</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3>Create Employee</h3>
+            <p class="text-muted mb-0">Add a new employee to the company.</p>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Cancel">
+            <i class="bi bi-arrow-left me-1"></i>
+            Back
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <EditForm Model="_model" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+                        <label class="form-label">Employee Number *</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.EmployeeNumber" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">First Name *</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.FirstName" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Middle Name</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.MiddleName" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Last Name *</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.LastName" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Phone Number</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.PhoneNumber" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Email</label>
+                        <InputText type="email"
+                                   class="form-control"
+                                   @bind-Value="_model.Email" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">National ID Number</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.NationalIdNumber" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Tax Identification Number</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.TaxIdentificationNumber" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Date of Birth</label>
+                        <InputDate class="form-control"
+                                   @bind-Value="_model.DateOfBirth" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Hire Date *</label>
+                        <InputDate class="form-control"
+                                   @bind-Value="_model.HireDate" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Job Title</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.JobTitle" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Department</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.Department" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Employee Type *</label>
+                        <InputSelect class="form-select"
+                                     @bind-Value="_model.EmployeeType">
+                            <option value="">Select employee type</option>
+                            <option value="Permanent">Permanent</option>
+                            <option value="Contract">Contract</option>
+                            <option value="DailyWage">Daily Wage</option>
+                            <option value="Hourly">Hourly</option>
+                            <option value="SubcontractorCrew">Subcontractor Crew</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Employee Scope *</label>
+                        <InputSelect class="form-select"
+                                     @bind-Value="_model.EmployeeScope">
+                            <option value="Site">Site</option>
+                            <option value="Company">Company</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Wage Type *</label>
+                        <InputSelect class="form-select"
+                                     @bind-Value="_model.WageType">
+                            <option value="">Select wage type</option>
+                            <option value="Monthly">Monthly</option>
+                            <option value="Daily">Daily</option>
+                            <option value="Hourly">Hourly</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Base Wage *</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="_model.BaseWage" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Currency</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.CurrencyCode" />
+                    </div>
+
+                    <div class="col-12">
+                        <hr />
+                        <h5>Bank Information</h5>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Bank Name</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.BankName" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Bank Account Number</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.BankAccountNumber" />
+                    </div>
+
+                    <div class="col-12">
+                        <hr />
+                        <h5>Emergency Contact</h5>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Contact Name</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.EmergencyContactName" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Contact Phone</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_model.EmergencyContactPhone" />
+                    </div>
+
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            @onclick="Cancel"
+                            disabled="@_saving">
+                        Cancel
+                    </button>
+
+                    <button type="submit"
+                            class="btn btn-primary"
+                            disabled="@_saving">
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg me-1"></i>
+                            <span>Create Employee</span>
+                        }
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public Guid? SiteId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? Scope { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    private readonly CreateEmployeeRequest _model = new()
+    {
+        HireDate = DateOnly.FromDateTime(DateTime.Today),
+        CurrencyCode = "ETB"
+    };
+
+    private bool _saving;
+    private string? _error;
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            await EmployeeService.CreateEmployeeAsync(_model);
+
+            Navigation.NavigateTo("/hr/employees");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        if (!string.IsNullOrWhiteSpace(ReturnUrl))
+        {
+            Navigation.NavigateTo(ReturnUrl);
+            return;
+        }
+
+        Navigation.NavigateTo("/hr/employees/company");
+    }
+}

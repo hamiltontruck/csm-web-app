@@ -1,0 +1,151 @@
+@page "/projects/{ProjectId:guid}/phases/create"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Projects
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Phase</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+            <button class="btn btn-outline-secondary mb-3"
+                    @onclick="Back">
+                ← WBS
+            </button>
+
+            <h2 class="mb-0">Create Project Phase</h2>
+            <p class="text-muted mb-0">
+                Add a new phase to the Work Breakdown Structure.
+            </p>
+        </div>
+
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+
+    <EditForm Model="_phase" OnValidSubmit="Save">
+
+        <DataAnnotationsValidator/>
+
+        <div class="card shadow-sm border-0">
+
+            <div class="card-header bg-white">
+                <strong>Phase Information</strong>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-4">
+                        <label class="form-label">Phase No.</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_phase.PhaseNumber" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Sequence</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="_phase.Sequence" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Phase Name</label>
+                        <InputText class="form-control"
+                                   @bind-Value="_phase.Name" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Planned Start</label>
+                        <InputDate class="form-control"
+                                   @bind-Value="_phase.PlannedStartDate" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Planned End</label>
+                        <InputDate class="form-control"
+                                   @bind-Value="_phase.PlannedEndDate" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Description</label>
+                        <InputTextArea class="form-control"
+                                       rows="5"
+                                       @bind-Value="_phase.Description" />
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="card-footer bg-white d-flex justify-content-end gap-2">
+
+                <button class="btn btn-outline-secondary"
+                        type="button"
+                        @onclick="Back">
+                    Cancel
+                </button>
+
+                <button class="btn btn-primary"
+                        type="submit">
+                    Create Phase
+                </button>
+
+            </div>
+
+        </div>
+
+    </EditForm>
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid ProjectId { get; set; }
+
+    private CreateProjectPhaseRequest _phase = new();
+
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        _phase.ProjectId = ProjectId;
+
+        _phase.Sequence = 1;
+
+        _phase.PhaseNumber = "PH-001";
+    }
+
+    async Task Save()
+    {
+        _error = null;
+
+        var success = await ProjectService.CreateProjectPhaseAsync(_phase);
+
+        if (!success)
+        {
+            _error = "Unable to create project phase.";
+            return;
+        }
+
+        Navigation.NavigateTo($"/projects/{ProjectId}/phases", true);
+    }
+
+    void Back()
+    {
+        Navigation.NavigateTo($"/projects/{ProjectId}/phases");
+    }
+
+}

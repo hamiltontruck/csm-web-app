@@ -1,0 +1,267 @@
+@page "/equipment/downtime/create/{SiteId:guid}"
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>New Equipment Downtime</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center mb-4">
+
+        <button class="btn btn-outline-secondary me-3"
+                @onclick="GoBack">
+            ← Back
+        </button>
+
+        <h3 class="mb-0">
+            New Equipment Downtime
+        </h3>
+
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+
+            <div class="mt-2 text-muted">
+                Loading...
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+    else
+    {
+        <EditForm Model="model"
+                  OnValidSubmit="CreateDowntime">
+
+            <DataAnnotationsValidator />
+
+            <div class="card shadow-sm">
+
+                <div class="card-body">
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Construction Site
+                        </label>
+
+                        <input class="form-control"
+                               value="@siteName"
+                               disabled />
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Equipment
+                        </label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="model.EquipmentId">
+
+                            <option value="@Guid.Empty">
+                                -- Select Equipment --
+                            </option>
+
+                            @foreach (var equipment in equipmentList)
+                            {
+                                <option value="@equipment.Id">
+                                    @equipment.EquipmentCode -
+                                    @equipment.Name
+                                </option>
+                            }
+
+                        </InputSelect>
+
+                        <ValidationMessage For="@(() => model.EquipmentId)" />
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Downtime Number
+                        </label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="model.DowntimeNumber" />
+
+                        <ValidationMessage For="@(() => model.DowntimeNumber)" />
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Start Date & Time
+                        </label>
+
+                        <InputDate class="form-control"
+                                   Type="InputDateType.DateTimeLocal"
+                                   @bind-Value="model.StartedAtUtc" />
+
+                        <ValidationMessage For="@(() => model.StartedAtUtc)" />
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            End Date & Time
+                        </label>
+
+                        <InputDate class="form-control"
+                                   Type="InputDateType.DateTimeLocal"
+                                   @bind-Value="model.EndedAtUtc" />
+
+                        <div class="form-text">
+                            Leave blank to keep the downtime open.
+                        </div>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Reason
+                        </label>
+
+                        <InputTextArea class="form-control"
+                                       rows="4"
+                                       @bind-Value="model.Reason" />
+
+                        <ValidationMessage For="@(() => model.Reason)" />
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Resolution
+                        </label>
+
+                        <InputTextArea class="form-control"
+                                       rows="4"
+                                       @bind-Value="model.Resolution" />
+
+                    </div>
+
+                </div>
+
+                <div class="card-footer d-flex justify-content-end gap-2">
+
+                    <button type="button"
+                            class="btn btn-secondary"
+                            @onclick="GoBack">
+                        Cancel
+                    </button>
+
+                    <button type="submit"
+                            class="btn btn-primary">
+                        Create Downtime
+                    </button>
+
+                </div>
+
+            </div>
+
+        </EditForm>
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private CreateEquipmentDowntimeRequest model = new()
+    {
+        StartedAtUtc = DateTime.Now
+    };
+
+    private List<EquipmentResponse> equipmentList = [];
+
+    private string siteName = string.Empty;
+
+    private bool loading = true;
+
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            var sites =
+                await ProjectService.GetSitesAsync();
+
+            var site =
+                sites.FirstOrDefault(x => x.Id == SiteId);
+
+            if (site is null)
+            {
+                errorMessage = "Construction site was not found.";
+            }
+            else
+            {
+                siteName = site.Name;
+
+                model.ConstructionSiteId = SiteId;
+
+                equipmentList =
+                    await EquipmentService.GetEquipmentAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CreateDowntime()
+    {
+        errorMessage = null;
+
+        try
+        {
+            model.ConstructionSiteId = SiteId;
+
+            await EquipmentService.CreateDowntimeAsync(model);
+
+            Navigation.NavigateTo(
+                $"/equipment/downtime/site/{SiteId}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/downtime/site/{SiteId}");
+    }
+}

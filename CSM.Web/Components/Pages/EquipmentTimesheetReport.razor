@@ -1,0 +1,205 @@
+@page "/equipment/timesheet/report/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+            <h2 class="mb-0">Daily Equipment Report</h2>
+            <small class="text-muted">@siteName</small>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="GoBack">
+            Back
+        </button>
+
+    </div>
+
+    <div class="row mb-3">
+
+        <div class="col-md-3">
+            <label>Date</label>
+            <InputDate class="form-control"
+                       @bind-Value="reportDate" />
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100"
+                    @onclick="LoadReport">
+                Load
+            </button>
+        </div>
+
+    </div>
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border"></div>
+    </div>
+}
+else
+{
+    @foreach (var eq in groups)
+    {
+        <div class="card mb-4 shadow-sm">
+
+            <div class="card-header bg-primary text-white">
+                <strong>@eq.EquipmentCode</strong> — @eq.EquipmentName
+            </div>
+
+            <div class="card-body p-0">
+
+                <table class="table table-bordered mb-0">
+
+                    <thead class="table-light">
+                        <tr>
+                            <th>Operator</th>
+                            <th>Start</th>
+                            <th>Finish</th>
+                            <th>Hours</th>
+                            <th>Activity</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                    @foreach (var item in eq.Entries)
+                    {
+                        <tr>
+                            <td>@item.OperatorName</td>
+                            <td>@ToEthiopian(item.StartTime)</td>
+                            <td>@ToEthiopian(item.EndTime)</td>
+                            <td>@item.WorkedHours.ToString("N2")</td>
+                            <td>@item.Activity</td>
+                        </tr>
+                    }
+
+                    </tbody>
+
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="3" class="text-end">
+                                Equipment Total
+                            </th>
+
+                            <th>@eq.TotalHours.ToString("N2")</th>
+
+                            <th></th>
+                        </tr>
+                    </tfoot>
+
+                </table>
+
+            </div>
+
+        </div>
+    }
+
+    <div class="alert alert-dark d-flex justify-content-between">
+        <strong>Site Total Hours</strong>
+        <strong>@SiteTotalHours.ToString("N2") hrs</strong>
+    </div>
+}
+
+</div>
+
+@code {
+
+    [Parameter] public Guid SiteId { get; set; }
+
+    private string siteName = "";
+
+    private DateTime reportDate = DateTime.Today;
+
+    private bool loading = true;
+
+    private List<EquipmentTimesheetResponse> report = [];
+
+    private List<EquipmentGroup> groups = [];
+
+    private sealed class EquipmentGroup
+    {
+        public Guid EquipmentId { get; set; }
+        public string EquipmentCode { get; set; } = "";
+        public string EquipmentName { get; set; } = "";
+        public List<EquipmentTimesheetResponse> Entries { get; set; } = [];
+        public decimal TotalHours => Entries.Sum(x => x.WorkedHours);
+    }
+
+    private decimal SiteTotalHours => groups.Sum(x => x.TotalHours);
+
+    private decimal TotalHours =>
+        report.Sum(x => x.WorkedHours);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var site = (await ProjectService.GetSitesAsync())
+            .FirstOrDefault(x => x.Id == SiteId);
+
+        siteName = site?.Name ?? "";
+
+        await LoadReport();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadReport()
+    {
+        loading = true;
+
+        var data = await EquipmentService.GetTimesheetsAsync();
+
+        groups = data
+            .Where(x => x.SiteId == SiteId &&
+                        x.WorkDate.Date == reportDate.Date)
+            .GroupBy(x => new
+            {
+                x.EquipmentId,
+                x.EquipmentCode,
+                x.EquipmentName
+            })
+            .Select(g => new EquipmentGroup
+            {
+                EquipmentId = g.Key.EquipmentId,
+                EquipmentCode = g.Key.EquipmentCode,
+                EquipmentName = g.Key.EquipmentName,
+                Entries = g.OrderBy(x => x.StartTime).ToList()
+            })
+            .OrderBy(x => x.EquipmentCode)
+            .ToList();
+
+        loading = false;
+    }
+
+    private static string ToEthiopian(TimeSpan time)
+    {
+        int hour = time.Hours;
+        int minute = time.Minutes;
+
+        string period =
+            hour >= 18 || hour < 6 ? "Night" : "Day";
+
+        int ethHour = ((hour + 5) % 12) + 1;
+
+        return $"{ethHour}:{minute:00} {period}";
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/timesheet/site/{SiteId}");
+    }
+
+}

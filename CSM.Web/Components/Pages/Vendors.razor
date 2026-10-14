@@ -1,0 +1,105 @@
+@page "/vendors"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IVendorService VendorService
+@inject NavigationManager Navigation
+
+<button class="btn btn-outline-secondary mb-3"
+        @onclick="GoBack">
+    <i class="bi bi-arrow-left"></i> Back
+</button>
+
+<PageTitle>Vendors</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Vendors</h2>
+            <div class="text-muted">
+                Supplier & Vendor Management
+            </div>
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="NewVendor">
+            <i class="bi bi-plus-lg"></i>
+            New Vendor
+        </button>
+    </div>
+
+    @if (loading)
+    {
+        <p>Loading vendors...</p>
+    }
+    else if (vendors.Count == 0)
+    {
+        <div class="alert alert-info">
+            No vendors found.
+        </div>
+    }
+    else
+    {
+        @foreach (var vendor in vendors)
+        {
+            <div class="card shadow-sm mb-3"
+                 style="cursor:pointer"
+                 @onclick="() => OpenVendor(vendor.Id)">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between align-items-start">
+
+                        <div>
+                            <div class="fw-bold">
+                                @vendor.VendorCode
+                            </div>
+
+                            <h5 class="mb-1">
+                                @vendor.Name
+                            </h5>
+
+                            <div class="text-muted">
+                                @vendor.ContactPerson
+                            </div>
+
+                            <div class="small text-muted">
+                                @vendor.PhoneNumber
+                            </div>
+                        </div>
+
+                        <span class="badge @(vendor.IsActive ? "bg-success" : "bg-secondary")">
+                            @(vendor.IsActive ? "Active" : "Inactive")
+                        </span>
+
+                    </div>
+
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code{
+    private List<VendorResponse> vendors = [];
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        vendors = await VendorService.GetVendorsAsync();
+        loading = false;
+    }
+
+    void NewVendor()
+        => Navigation.NavigateTo("/vendors/create");
+
+    void OpenVendor(Guid id)
+        => Navigation.NavigateTo($"/vendors/{id}");
+
+     void GoBack()
+         => Navigation.NavigateTo("/procurement");
+}

@@ -1,0 +1,316 @@
+@page "/users"
+
+@using CSM.Web.Services
+@using CSM.Web.Models.Users
+@using Microsoft.AspNetCore.Authorization
+
+@inject UserWebService UserService
+@inject NavigationManager Navigation
+
+<PageTitle>Users</PageTitle>
+
+<h3 class="mb-4">User Management</h3>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <input class="form-control"
+               placeholder="Search user..."
+               @bind="search" />
+    </div>
+
+    <div class="col-md-3">
+        <select class="form-select" @bind="statusFilter">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+        </select>
+    </div>
+
+    <div class="col-md-5 text-end">
+        <button class="btn btn-primary"
+                @onclick="NewUser">
+            + New User
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border"></div>
+    </div>
+}
+else
+{
+    <table class="table table-hover align-middle">
+
+        <thead class="table-light">
+            <tr>
+                <th>User</th>
+                <th>Phone</th>
+                <th>Job</th>
+                <th>Roles</th>
+                <th>Sites</th>
+                <th>Status</th>
+                <th width="180"></th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+        @foreach (var user in FilteredUsers)
+        {
+            <tr>
+                <td>
+                    <a href="/users/@user.Id"
+                       class="fw-bold text-decoration-none">
+                        @user.FullName
+                    </a><br/>
+                    <small class="text-muted">@user.Email</small>
+                </td>
+
+                <td>@user.PhoneNumber</td>
+
+                <td>@user.JobTitle</td>
+
+                <td>
+                    @foreach (var role in user.Roles)
+                    {
+                        <span class="badge bg-primary me-1">
+                            @role
+                        </span>
+                    }
+                </td>
+
+                <td>
+                    @if (user.SiteNames.Any())
+                    {
+                        @foreach (var site in user.SiteNames)
+                        {
+                            var isDefault = user.DefaultSiteId != null &&
+                                            user.SiteAccesses.Count == 1;
+
+                            <span class="badge @(isDefault ? "bg-success" : "bg-info text-dark") me-1 mb-1">
+                                @site
+                                @if (isDefault)
+                                {
+                                    <span> ★</span>
+                                }
+                            </span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="text-muted">No Site</span>
+                    }
+                </td>
+
+                <td>
+                    @if (user.IsActive)
+                    {
+                        <span class="badge bg-success">
+                            Active
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">
+                            Inactive
+                        </span>
+                    }
+                </td>
+
+                <td class="text-end">
+
+                    <button class="btn btn-sm btn-outline-primary me-1"
+                            @onclick="() => Edit(user.Id)">
+                        Edit
+                    </button>
+
+                    @if (user.IsActive)
+                    {
+                        <button class="btn btn-sm btn-outline-danger me-1"
+                                @onclick="() => Deactivate(user.Id)">
+                            Disable
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-outline-success me-1"
+                                @onclick="() => Activate(user.Id)">
+                            Enable
+                        </button>
+
+                        <button class="btn btn-sm btn-danger"
+                                @onclick="() => ConfirmDelete(user.Id)">
+                            Delete
+                        </button>
+                    }
+
+                </td>
+
+            </tr>
+        }
+
+        </tbody>
+
+    </table>
+}
+@if (showDeleteDialog)
+{
+    <div class="modal fade show d-block"
+         style="background:rgba(0,0,0,.45)">
+
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5>Delete User</h5>
+                </div>
+
+                <div class="modal-body">
+                    This user will be soft deleted and removed from active records.
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary"
+                            @onclick="CancelDelete">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-danger"
+                            @onclick="DeleteUser">
+                        Delete
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    private List<UserModel> users = [];
+
+    private bool loading = true;
+
+    private string search = "";
+
+    private string statusFilter = "";
+
+    private string? errorMessage;
+
+    private bool showDeleteDialog;
+    private Guid deleteUserId;
+
+    private IEnumerable<UserModel> FilteredUsers =>
+        users.Where(x =>
+        {
+            var matchSearch =
+                string.IsNullOrWhiteSpace(search) ||
+
+                x.FullName.Contains(search,
+                    StringComparison.OrdinalIgnoreCase) ||
+
+                x.Email.Contains(search,
+                    StringComparison.OrdinalIgnoreCase);
+
+            var matchStatus =
+                statusFilter switch
+                {
+                    "active" => x.IsActive,
+                    "inactive" => !x.IsActive,
+                    _ => true
+                };
+
+            return matchSearch && matchStatus;
+        });
+
+    private bool initialized;
+
+    protected override Task OnInitializedAsync()
+    {
+        loading = true;
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || initialized)
+            return;
+
+        initialized = true;
+
+        try
+        {
+            users = await UserService.GetAllAsync();
+
+            Console.WriteLine($"Loaded users: {users.Count}");
+
+            foreach (var u in users)
+            {
+                Console.WriteLine(
+                    $"{u.FullName} | Sites = {u.SiteAccesses.Count}");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.ToString();
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void NewUser()
+        => Navigation.NavigateTo("/users/create");
+
+    private void Edit(Guid id)
+        => Navigation.NavigateTo($"/users/edit/{id}");
+
+    private void ConfirmDelete(Guid id)
+    {
+        deleteUserId = id;
+        showDeleteDialog = true;
+    }
+
+    private async Task DeleteUser()
+    {
+        await UserService.DeleteAsync(deleteUserId);
+
+        users = await UserService.GetAllAsync();
+
+        showDeleteDialog = false;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteDialog = false;
+    }
+
+    private async Task Activate(Guid id)
+    {
+        await UserService.ActivateAsync(id);
+
+        users = await UserService.GetAllAsync();
+
+        Console.WriteLine($"Users loaded: {users.Count}");
+        Console.WriteLine($"First user sites: {users.First().SiteAccesses.Count}");
+    }
+
+    private async Task Deactivate(Guid id)
+    {
+        await UserService.DeactivateAsync(id);
+
+        users = await UserService.GetAllAsync();
+    }
+}

@@ -1,0 +1,263 @@
+@page "/hr/contractors/details/{contractorId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IContractorService ContractorService
+@inject NavigationManager Navigation
+
+<PageTitle>Contractor Details</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Contractor Details</h2>
+            <p class="text-muted mb-0">
+                View contractor information.
+            </p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary"
+                    @onclick="BackToContractors">
+                <i class="bi bi-arrow-left"></i>
+                Back to Contractors
+            </button>
+
+            @if (_contractor is not null)
+            {
+                <button class="btn btn-primary"
+                        @onclick="EditContractor">
+                    <i class="bi bi-pencil"></i>
+                    Edit Contractor
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center p-5">
+                <div class="spinner-border" role="status"></div>
+
+                <div class="mt-2 text-muted">
+                    Loading contractor details...
+                </div>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+    else if (_contractor is not null)
+    {
+        <div class="row g-3">
+
+            <div class="col-lg-8">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Contractor Information</h5>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row g-4">
+
+                            <div class="col-md-6">
+                                <div class="text-muted small">
+                                    Contractor Code
+                                </div>
+
+                                <div class="fw-semibold">
+                                    @_contractor.ContractorCode
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="text-muted small">
+                                    Name
+                                </div>
+
+                                <div class="fw-semibold">
+                                    @_contractor.Name
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="text-muted small">
+                                    Contact Person
+                                </div>
+
+                                <div>
+                                    @(_contractor.ContactPerson ?? "-")
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="text-muted small">
+                                    Phone Number
+                                </div>
+
+                                <div>
+                                    @(_contractor.PhoneNumber ?? "-")
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="text-muted small">
+                                    Email
+                                </div>
+
+                                <div>
+                                    @(_contractor.Email ?? "-")
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="text-muted small">
+                                    Tax Identification Number
+                                </div>
+
+                                <div>
+                                    @(_contractor.TaxIdentificationNumber ?? "-")
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="text-muted small">
+                                    Registration Number
+                                </div>
+
+                                <div>
+                                    @(_contractor.RegistrationNumber ?? "-")
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="text-muted small">
+                                    Address
+                                </div>
+
+                                <div>
+                                    @(_contractor.Address ?? "-")
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Status</h5>
+                    </div>
+
+                    <div class="card-body">
+
+                        @if (_contractor.IsActive)
+                        {
+                            <span class="badge bg-success fs-6">
+                                Active
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary fs-6">
+                                Inactive
+                            </span>
+                        }
+
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Record Information</h5>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="mb-3">
+                            <div class="text-muted small">
+                                Created
+                            </div>
+
+                            <div>
+                                @(_contractor.CreatedAtUtc
+                                    .ToLocalTime()
+                                    .ToString("dd MMM yyyy HH:mm"))
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="text-muted small">
+                                Last Updated
+                            </div>
+
+                            <div>
+                                @(_contractor.UpdatedAtUtc.HasValue
+                                    ? _contractor.UpdatedAtUtc.Value
+                                        .ToLocalTime()
+                                        .ToString("dd MMM yyyy HH:mm")
+                                    : "-")
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter]
+    public Guid contractorId { get; set; }
+
+    private ContractorResponse? _contractor;
+    private bool _loading = true;
+    private string? _errorMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _errorMessage = null;
+
+        try
+        {
+            _contractor =
+                await ContractorService.GetContractorAsync(contractorId);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+            _contractor = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void BackToContractors()
+    {
+        Navigation.NavigateTo("/hr/contractors");
+    }
+
+    private void EditContractor()
+    {
+        Navigation.NavigateTo(
+            $"/hr/contractors/edit/{contractorId}");
+    }
+}

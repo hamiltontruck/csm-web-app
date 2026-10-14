@@ -1,0 +1,264 @@
+@page "/goods-receipts/create/{SiteId:guid}"
+@rendermode InteractiveServer
+
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IProcurementService ProcurementService
+@inject NavigationManager Navigation
+
+<PageTitle>New Goods Receipt</PageTitle>
+
+<h2 class="mb-4">New Goods Receipt</h2>
+
+@if (loading)
+{
+    <div class="alert alert-info">Loading...</div>
+}
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">
+        @errorMessage
+    </div>
+}
+else
+{
+    <EditForm Model="@request"
+              OnValidSubmit="@Save"
+              FormName="GoodsReceiptCreateForm">
+
+        <DataAnnotationsValidator/>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">Receipt Number</label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="request.ReceiptNumber" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Receipt Date</label>
+                        <InputDate class="form-control"
+                                   @bind-Value="request.ReceivedAtUtc"/>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label">Purchase Order</label>
+
+                        <select class="form-select" @onchange="PurchaseOrderChanged">
+                            <option value="">-- Select Purchase Order --</option>
+
+                            @foreach (var po in purchaseOrders)
+                            {
+                                <option value="@po.Id">@po.PurchaseOrderNumber</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Delivery Note</label>
+                        <InputText class="form-control"
+                                   @bind-Value="request.DeliveryNoteNumber"/>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Vehicle Plate</label>
+                        <InputText class="form-control"
+                                   @bind-Value="request.VehiclePlateNumber"/>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Remarks</label>
+                        <InputTextArea class="form-control"
+                                       rows="3"
+                                       @bind-Value="request.Remarks"/>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">Received Materials</h5>
+            </div>
+
+            <div class="card-body">
+
+                @foreach (var line in receiptLines)
+                {
+                    <div class="row g-3 align-items-end mb-3">
+
+                        <div class="col-md-5">
+                            <label class="form-label">Material</label>
+
+                            <input class="form-control"
+                                   value="@line.MaterialName"
+                                   readonly />
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label">Ordered</label>
+                            <input class="form-control"
+                                   value="@line.OrderedQuantity"
+                                   readonly />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Received Qty</label>
+                            <InputNumber TValue="decimal"
+                                         class="form-control"
+                                         Value="line.ReceivedQuantity"
+                                         ValueChanged="@( (decimal v) => UpdateReceived(line, v) )"
+                                         ValueExpression="() => line.ReceivedQuantity" />
+                        </div>
+
+                    </div>
+                }
+
+            </div>
+
+            <div class="card-footer text-end">
+
+                <button type="button"
+                        class="btn btn-secondary me-2"
+                        @onclick="Cancel">
+                    Cancel
+                </button>
+
+                <button class="btn btn-success"
+                        type="submit">
+                    Save Goods Receipt
+                </button>
+
+            </div>
+
+        </div>
+
+    </EditForm>
+}
+
+@code {
+    [Parameter] public Guid SiteId { get; set; }
+
+    private bool loading = true;
+
+
+
+
+
+    private List<PurchaseOrderResponse> purchaseOrders = [];
+        private List<GoodsReceiptLineRequest> receiptLines = [];
+
+    private CreateGoodsReceiptRequest request = new()
+    {
+        ReceivedAtUtc = DateTime.UtcNow
+    };
+
+    private void UpdateReceived(GoodsReceiptLineRequest line, decimal value)
+    {
+        line.ReceivedQuantity = value;
+        line.AcceptedQuantity = value;
+        line.RejectedQuantity = 0;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var all = await ProcurementService.GetPurchaseOrdersAsync();
+
+        foreach (var po in all)
+        {
+            Console.WriteLine(
+                $"ALL PO: {po.PurchaseOrderNumber} | Status: {po.Status}");
+        }
+
+        purchaseOrders = (await ProcurementService.GetReceivablePurchaseOrdersAsync())
+            .Where(x => x.ConstructionSiteId == SiteId)
+            .OrderByDescending(x => x.OrderDate)
+            .ToList();
+
+        foreach (var po in purchaseOrders)
+        {
+            Console.WriteLine(
+                $"RECEIVABLE PO: {po.PurchaseOrderNumber} | Status: {po.Status}");
+        }
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string? errorMessage;
+
+    private async Task PurchaseOrderChanged(ChangeEventArgs e)
+    {
+        receiptLines.Clear();
+
+        if (!Guid.TryParse(e.Value?.ToString(), out var poId))
+        {
+            request.PurchaseOrderId = Guid.Empty;
+            return;
+        }
+
+        request.PurchaseOrderId = poId;
+
+        var po = await ProcurementService.GetPurchaseOrderAsync(poId);
+
+        if (po == null)
+            return;
+
+        foreach (var line in po.Lines)
+        {
+            receiptLines.Add(new GoodsReceiptLineRequest
+            {
+                PurchaseOrderLineId = line.Id,
+                MaterialId = line.MaterialId,
+                MaterialName = line.MaterialName,
+                OrderedQuantity = line.OrderedQuantity,
+                ReceivedQuantity = 0,
+                AcceptedQuantity = 0,
+                RejectedQuantity = 0
+            });
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    async Task Save()
+    {
+        request.ConstructionSiteId = SiteId;
+        request.Lines = receiptLines
+            .Where(x => x.ReceivedQuantity > 0)
+            .ToList();
+
+        if (request.PurchaseOrderId == Guid.Empty)
+        {
+            errorMessage = "Select a Purchase Order first.";
+            return;
+        }
+
+        if (request.Lines.Count == 0)
+        {
+            errorMessage = "Enter at least one received quantity.";
+            return;
+        }
+
+        await ProcurementService.CreateGoodsReceiptAsync(request);
+
+        Navigation.NavigateTo($"/goods-receipts/site/{SiteId}", true);
+    }
+
+    void Cancel()
+        => Navigation.NavigateTo($"/goods-receipts/site/{SiteId}");
+
+
+}

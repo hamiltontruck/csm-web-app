@@ -1,0 +1,94 @@
+@page "/finance/sites/{SiteId:guid}/budgets"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Site Budgets</PageTitle>
+
+<h3 class="mb-3">Site Budgets</h3>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <button class="btn btn-secondary"
+            @onclick="Back">
+        <i class="bi bi-arrow-left"></i>
+        Back
+    </button>
+
+    <button class="btn btn-primary"
+            @onclick="Create">
+        <i class="bi bi-plus-lg"></i>
+        New Budget
+    </button>
+</div>
+
+@if (_loading)
+{
+    <p>Loading budgets...</p>
+}
+else if (_items.Count == 0)
+{
+    <div class="alert alert-info">
+        No budgets have been created for this site.
+    </div>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Budget No</th>
+                <th>Name</th>
+                <th>Project</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th width="90"></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in _items)
+        {
+            <tr>
+                <td>@item.BudgetNumber</td>
+                <td>@item.Name</td>
+                <td>@item.ProjectName</td>
+                <td>@($"{item.CurrencyCode} {item.TotalAmount:N2}")</td>
+                <td>@item.Status</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary"
+                            @onclick="() => Open(item.Id)">
+                        Open
+                    </button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter] public Guid SiteId { get; set; }
+
+    private bool _loading = true;
+    private List<BudgetResponse> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = (await FinanceService.GetSiteBudgetsAsync(SiteId)).ToList();
+        _loading = false;
+    }
+
+    void Create()
+        => Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets/create");
+
+    void Open(Guid id)
+        => Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets/{id}");
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/finance/sites");
+    }
+}

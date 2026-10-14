@@ -1,0 +1,106 @@
+@page "/project-tracking"
+@rendermode InteractiveServer
+
+@inject NavigationManager Navigation
+
+<PageTitle>Project Tracking</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="mb-4">
+        <h2 class="mb-1">Project Tracking</h2>
+        <p class="text-muted">
+            Monitor construction sites, projects, daily progress and milestones.
+        </p>
+    </div>
+
+    <div class="row g-4">
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <h5>Construction Sites</h5>
+                    <p class="text-muted">
+                        Manage sites, GPS geofences and operational status.
+                    </p>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <button class="btn btn-primary w-100"
+                            @onclick='() => Navigation.NavigateTo("/sites-management")'>
+                        Open
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <h5>Projects</h5>
+                    <p class="text-muted">
+                        View all projects and assign them to construction sites.
+                    </p>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <button class="btn btn-primary w-100"
+                            @onclick='() => Navigation.NavigateTo("/projects")'>
+                        Open
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <h5>Daily Progress</h5>
+                    <p class="text-muted">
+                        Record labour, equipment hours and daily site progress.
+                    </p>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <button class="btn btn-primary w-100"
+                            @onclick='() => Navigation.NavigateTo("/projects")'>
+                        Select Project
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <h5>Milestones</h5>
+                    <p class="text-muted">
+                        Track project schedule and completion milestones.
+                    </p>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <button class="btn btn-primary w-100"
+                            @onclick='() => Navigation.NavigateTo("/projects")'>
+                        Select Project
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <h5>Resources</h5>
+                    <p class="text-muted">
+                        Site workforce, equipment and resource allocation.
+                    </p>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <button class="btn btn-primary w-100"
+                            @onclick='() => Navigation.NavigateTo("/projects")'>
+                        Open
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>

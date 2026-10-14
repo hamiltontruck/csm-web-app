@@ -1,0 +1,513 @@
+@page "/compliance/safety-incidents/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Models.HRM
+@using CSM.Web.Models.Projects
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IComplianceService ComplianceService
+@inject IProjectService ProjectService
+@inject IEmployeeService EmployeeService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Safety Incident</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3>Create Safety Incident</h3>
+            <p class="text-muted mb-0">
+                Record a new construction site safety incident.
+            </p>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            Back
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+            <div class="mt-2">Loading incident form...</div>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <div class="alert alert-danger">
+                @_errorMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_successMessage))
+        {
+            <div class="alert alert-success">
+                @_successMessage
+            </div>
+        }
+
+        <EditForm Model="_request" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <strong>Incident Information</strong>
+                </div>
+
+                <div class="card-body">
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Construction Site *
+                            </label>
+
+                            <select class="form-select"
+                                    value="@_request.ConstructionSiteId"
+                                    @onchange="OnSiteChanged">
+                                <option value="@Guid.Empty">
+                                    -- Select Construction Site --
+                                </option>
+
+                                @foreach (var site in _sites)
+                                {
+                                    <option value="@site.Id">
+                                        @site.SiteCode - @site.Name
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Project
+                            </label>
+
+                            <select class="form-select"
+                                    @bind="_request.ProjectId">
+                                <option value="">
+                                    -- No Project --
+                                </option>
+
+                                @foreach (var project in _projects)
+                                {
+                                    <option value="@project.Id">
+                                        @project.ProjectCode - @project.Name
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Incident Number *
+                            </label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="_request.IncidentNumber" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Occurred At *
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="_occurredDate" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Severity *
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="_request.Severity">
+                                <option value="0">
+                                    -- Select Severity --
+                                </option>
+                                <option value="1">Near Miss</option>
+                                <option value="2">Minor</option>
+                                <option value="3">Moderate</option>
+                                <option value="4">Serious</option>
+                                <option value="5">Critical</option>
+                                <option value="6">Fatal</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Status
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="_request.Status">
+                                <option value="1">Reported</option>
+                                <option value="2">
+                                    Under Investigation
+                                </option>
+                                <option value="3">
+                                    Corrective Action Required
+                                </option>
+                                <option value="4">Resolved</option>
+                                <option value="5">Closed</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Employee Involved
+                            </label>
+
+                            <select class="form-select"
+                                    @bind="_request.EmployeeId">
+                                <option value="">
+                                    -- No Employee --
+                                </option>
+
+                                @foreach (var employee in _employees)
+                                {
+                                    <option value="@employee.Id">
+                                        @employee.EmployeeNumber -
+                                        @employee.FirstName
+                                        @employee.LastName
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Location Description *
+                            </label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="_request.LocationDescription" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                Description *
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="4"
+                                           @bind-Value="_request.Description" />
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <strong>Incident Classification</strong>
+                </div>
+
+                <div class="card-body">
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input"
+                                               @bind-Value="_request.InjuryOccurred" />
+                                <label class="form-check-label">
+                                    Injury Occurred
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input"
+                                               @bind-Value="_request.MedicalTreatmentRequired" />
+                                <label class="form-check-label">
+                                    Medical Treatment Required
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input"
+                                               @bind-Value="_request.LostTimeIncident" />
+                                <label class="form-check-label">
+                                    Lost Time Incident
+                                </label>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <strong>Investigation & Corrective Action</strong>
+                </div>
+
+                <div class="card-body">
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Investigated By
+                            </label>
+
+                            <select class="form-select"
+                                    @bind="_request.InvestigatedBy">
+                                <option value="">
+                                    -- Not Assigned --
+                                </option>
+
+                                @foreach (var employee in _employees)
+                                {
+                                    <option value="@employee.Id">
+                                        @employee.EmployeeNumber -
+                                        @employee.FirstName
+                                        @employee.LastName
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Investigation Completed
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="_investigationDate" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                Immediate Action Taken
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="3"
+                                           @bind-Value="_request.ImmediateActionTaken" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                Root Cause
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="3"
+                                           @bind-Value="_request.RootCause" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                Corrective Action
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="3"
+                                           @bind-Value="_request.CorrectiveAction" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Closed At
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="_closedDate" />
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        @onclick="Back">
+                    Cancel
+                </button>
+
+                <button type="submit"
+                        class="btn btn-primary"
+                        disabled="@_saving">
+                    @if (_saving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save Incident</span>
+                    }
+                </button>
+            </div>
+
+        </EditForm>
+    }
+</div>
+
+@code {
+    private CreateSafetyIncidentRequest _request = new()
+    {
+        Status = 1
+    };
+
+    private IReadOnlyList<SiteResponse> _sites = [];
+    private IReadOnlyList<ProjectResponse> _projects = [];
+    private IReadOnlyList<EmployeeResponse> _employees = [];
+
+    private DateTime _occurredDate = DateTime.Now;
+    private DateTime? _investigationDate;
+    private DateTime? _closedDate;
+
+    private bool _loading = true;
+    private bool _saving;
+
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _loading = true;
+
+            _sites = await ProjectService.GetSitesAsync();
+
+            _employees =
+                await EmployeeService.GetEmployeesAsync();
+
+            if (_request.ConstructionSiteId != Guid.Empty)
+            {
+                _projects =
+                    await ProjectService.GetProjectsBySiteAsync(
+                        _request.ConstructionSiteId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnSiteChanged(ChangeEventArgs args)
+    {
+        if (!Guid.TryParse(
+                args.Value?.ToString(),
+                out var siteId))
+        {
+            siteId = Guid.Empty;
+        }
+
+        _request.ConstructionSiteId = siteId;
+        _request.ProjectId = null;
+        _projects = [];
+
+        if (siteId == Guid.Empty)
+        {
+            return;
+        }
+
+        try
+        {
+            _projects =
+                await ProjectService.GetProjectsBySiteAsync(siteId);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task Save()
+    {
+        _errorMessage = null;
+        _successMessage = null;
+
+        if (_request.ConstructionSiteId == Guid.Empty)
+        {
+            _errorMessage = "Construction Site is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                _request.IncidentNumber))
+        {
+            _errorMessage = "Incident Number is required.";
+            return;
+        }
+
+        if (_request.Severity <= 0)
+        {
+            _errorMessage = "Severity is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                _request.LocationDescription))
+        {
+            _errorMessage = "Location Description is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                _request.Description))
+        {
+            _errorMessage = "Description is required.";
+            return;
+        }
+
+        try
+        {
+            _saving = true;
+
+            _request.OccurredAtUtc =
+                DateTime.SpecifyKind(
+                    _occurredDate,
+                    DateTimeKind.Local).ToUniversalTime();
+
+            _request.InvestigationCompletedAtUtc =
+                _investigationDate?.ToUniversalTime();
+
+            _request.ClosedAtUtc =
+                _closedDate?.ToUniversalTime();
+
+            await ComplianceService
+                .CreateSafetyIncidentAsync(_request);
+
+            _successMessage =
+                "Safety incident created successfully.";
+
+            Navigation.NavigateTo(
+                "/compliance/safety-incidents");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo(
+            "/compliance/safety-incidents");
+    }
+}

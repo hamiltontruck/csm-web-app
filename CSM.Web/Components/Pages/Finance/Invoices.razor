@@ -1,0 +1,215 @@
+@page "/finance/sites/{SiteId:guid}/invoices"
+@namespace CSM.Web.Components.Pages.Finance
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Invoice Management</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+
+        <div>
+            <button class="btn btn-outline-secondary mb-3"
+                    @onclick="Back">
+                ← Finance Sites
+            </button>
+
+            <h3 class="mb-1">Invoice Management</h3>
+
+            <div class="text-muted">
+                Vendor Bills & Client Invoices
+            </div>
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="CreateInvoice">
+            + New Invoice
+        </button>
+
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Total</div>
+                    <h3>@_invoices.Count</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Draft</div>
+                    <h3>@_invoices.Count(x => x.Status == "Draft")</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Issued</div>
+                    <h3>@_invoices.Count(x => x.Status == "Issued")</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Paid</div>
+                    <h3>@_invoices.Count(x => x.Status == "Paid")</h3>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Invoice List -->
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-body">
+
+            @if (_loading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                    <div class="mt-3">Loading invoices...</div>
+                </div>
+            }
+            else if (_invoices.Count == 0)
+            {
+                <div class="text-center py-5 text-muted">
+                    No invoices found for this site.
+                </div>
+            }
+            else
+            {
+                <table class="table table-hover align-middle">
+
+                    <thead>
+                        <tr>
+                            <th>Invoice No.</th>
+                            <th>Invoice Date</th>
+                            <th>Due Date</th>
+                            <th>Type</th>
+                            <th>Vendor / Client</th>
+                            <th class="text-end">Amount</th>
+                            <th>Status</th>
+                            <th width="90"></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        @foreach (var item in _invoices)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@item.InvoiceNumber</strong>
+                                </td>
+
+                                <td>@item.InvoiceDate.ToString("dd MMM yyyy")</td>
+
+                                <td>@(item.DueDate?.ToString("dd MMM yyyy") ?? "-")</td>
+
+                                <td>@item.InvoiceType</td>
+
+                                <td>@item.VendorName</td>
+
+                                <td class="text-end fw-semibold">
+                                    @item.CurrencyCode @item.TotalAmount.ToString("N2")
+                                </td>
+
+                                <td>
+                                    <span class="@GetBadge(item.Status)">
+                                        @item.Status
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            @onclick="() => OpenInvoice(item.Id)">
+                                        Open
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+            }
+
+        </div>
+
+    </div>
+
+</div>
+
+@code {
+
+    [Parameter] public Guid SiteId { get; set; }
+
+    private List<InvoiceResponse> _invoices = new();
+
+    private bool _loading = true;
+    private bool _loaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _invoices = await FinanceService.GetInvoicesAsync(SiteId);
+
+        _loading = false;
+
+        StateHasChanged();
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/finance/sites");
+    }
+
+    private void CreateInvoice()
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/invoices/create",
+            forceLoad: false);
+    }
+
+    private void OpenInvoice(Guid id)
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/invoices/{id}");
+    }
+
+    private static string GetBadge(string status)
+    {
+        return status switch
+        {
+            "Draft" => "badge bg-secondary",
+            "Issued" => "badge bg-primary",
+            "PartiallyPaid" => "badge bg-warning text-dark",
+            "Paid" => "badge bg-success",
+            "Overdue" => "badge bg-danger",
+            _ => "badge bg-dark"
+        };
+    }
+
+}

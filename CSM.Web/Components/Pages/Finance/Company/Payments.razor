@@ -1,0 +1,122 @@
+@page "/finance/company/payments"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Company Payments</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-success"></div>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+
+            <div>
+                <button class="btn btn-outline-secondary mb-2"
+                        @onclick="Back">
+                    ← Finance
+                </button>
+
+                <h2 class="mb-0">Company Payments</h2>
+
+                <div class="text-muted">
+                    Head Office Payments
+                </div>
+            </div>
+
+            <button class="btn btn-success"
+                    @onclick="CreatePayment">
+                + New Payment
+            </button>
+
+        </div>
+
+        @if (_items.Count == 0)
+        {
+            <div class="alert alert-info">
+                No company payments found.
+            </div>
+        }
+        else
+        {
+            <table class="table table-hover align-middle">
+
+                <thead>
+                    <tr>
+                        <th>Payment #</th>
+                        <th>Date</th>
+                        <th>Invoice</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var item in _items)
+                    {
+                        <tr style="cursor:pointer"
+                            @onclick="() => Open(item.Id)">
+
+                            <td>@item.PaymentNumber</td>
+
+                            <td>@item.PaymentDate.ToString("dd MMM yyyy")</td>
+
+                            <td>@item.InvoiceNumber</td>
+
+                            <td>@($"{item.CurrencyCode} {item.Amount:N2}")</td>
+
+                            <td>
+                                <span class="badge bg-success">
+                                    @item.Status
+                                </span>
+                            </td>
+
+                        </tr>
+                    }
+                </tbody>
+
+            </table>
+        }
+
+    </div>
+}
+
+@code {
+
+    private bool _loading = true;
+
+    private List<PaymentResponse> _items = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = await FinanceService.GetCompanyPaymentsAsync();
+
+        _loading = false;
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/finance/sites");
+    }
+
+    private void Open(Guid id)
+    {
+        Navigation.NavigateTo($"/finance/payments/{id}");
+    }
+
+    private void CreatePayment()
+    {
+        Navigation.NavigateTo("/finance/payments/create");
+    }
+
+}

@@ -1,0 +1,250 @@
+@page "/hr/site-assignments/edit/{AssignmentId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services.HRM
+
+@inject ISiteAssignmentService SiteAssignmentService
+@inject NavigationManager Navigation
+
+<PageTitle>Edit Site Assignment</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Edit Site Assignment</h2>
+            <p class="text-muted mb-0">
+                Update the employee's site assignment.
+            </p>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            Back
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="alert alert-info">
+            Loading assignment...
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage) && !_loadedSuccessfully)
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+    else if (_assignment is not null)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                {
+                    <div class="alert alert-danger">
+                        @_errorMessage
+                    </div>
+                }
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">Employee</label>
+                        <input class="form-control"
+                               value="@_assignment.EmployeeName"
+                               disabled />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Construction Site</label>
+                        <input class="form-control"
+                               value="@_assignment.SiteName"
+                               disabled />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Start Date</label>
+
+                        <input type="date"
+                               class="form-control"
+                               @bind="_startDate" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">End Date</label>
+
+                        <input type="date"
+                               class="form-control"
+                               @bind="_endDate" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Role at Site</label>
+
+                        <input type="text"
+                               class="form-control"
+                               maxlength="150"
+                               @bind="_roleAtSite" />
+                    </div>
+
+                    <div class="col-md-6 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="primaryAssignment"
+                                   @bind="_isPrimaryAssignment" />
+
+                            <label class="form-check-label"
+                                   for="primaryAssignment">
+                                Primary Assignment
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Remarks</label>
+
+                        <textarea class="form-control"
+                                  rows="3"
+                                  @bind="_remarks"></textarea>
+                    </div>
+
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+
+                    <button class="btn btn-primary"
+                            @onclick="Save"
+                            disabled="@_saving">
+
+                        @if (_saving)
+                        {
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>Save Changes</span>
+                        }
+
+                    </button>
+
+                    <button class="btn btn-outline-secondary"
+                            @onclick="Back"
+                            disabled="@_saving">
+                        Cancel
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid AssignmentId { get; set; }
+
+    private SiteAssignmentResponse? _assignment;
+
+    private DateOnly _startDate;
+    private DateOnly? _endDate;
+    private string? _roleAtSite;
+    private bool _isPrimaryAssignment;
+    private string? _remarks;
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _loadedSuccessfully;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _assignment =
+                await SiteAssignmentService.GetByIdAsync(AssignmentId);
+
+            if (_assignment is null)
+            {
+                _errorMessage = "Site assignment was not found.";
+                return;
+            }
+
+            _startDate = _assignment.StartDate;
+            _endDate = _assignment.EndDate;
+            _roleAtSite = _assignment.RoleAtSite;
+            _isPrimaryAssignment = _assignment.IsPrimaryAssignment;
+            _remarks = _assignment.Remarks;
+
+            _loadedSuccessfully = true;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        _errorMessage = null;
+
+        if (_endDate.HasValue && _endDate.Value < _startDate)
+        {
+            _errorMessage = "End Date cannot be earlier than Start Date.";
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            var request = new UpdateSiteAssignmentRequest
+            {
+                StartDate = _startDate,
+                EndDate = _endDate,
+                RoleAtSite = string.IsNullOrWhiteSpace(_roleAtSite)
+                    ? null
+                    : _roleAtSite.Trim(),
+                IsPrimaryAssignment = _isPrimaryAssignment,
+                Remarks = string.IsNullOrWhiteSpace(_remarks)
+                    ? null
+                    : _remarks.Trim()
+            };
+
+            var result =
+                await SiteAssignmentService.UpdateAsync(
+                    AssignmentId,
+                    request);
+
+            if (result is null)
+            {
+                _errorMessage = "Failed to update the site assignment.";
+                return;
+            }
+
+            Navigation.NavigateTo("/hr/site-assignments");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/hr/site-assignments");
+    }
+}

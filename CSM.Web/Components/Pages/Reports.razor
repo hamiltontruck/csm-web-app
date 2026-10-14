@@ -1,0 +1,1026 @@
+@page "/reports"
+
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Reporting
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IReportingService ReportingService
+@inject IProjectService ProjectService
+
+<PageTitle>Reports & Analytics</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Reports & Analytics</h2>
+            <p class="text-muted mb-0">
+                @(_scope == "Company"
+                    ? "Company-wide management reports and financial analytics."
+                    : $"{CurrentScopeLabel} management reports and financial analytics.")
+            </p>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status"></div>
+            <div class="mt-2">Loading reports...</div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else
+    {
+        <!-- Executive Summary -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+
+                <div class="row g-3 align-items-end">
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">
+                            Report Scope
+                        </label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="_scope"
+                                     @bind-Value:after="ScopeChanged">
+                            <option value="Company">Company</option>
+                            <option value="Site">Site</option>
+                        </InputSelect>
+                    </div>
+
+                    @if (_scope == "Site")
+                    {
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold">
+                                Construction Site
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="_selectedSiteId"
+                                         @bind-Value:after="SiteChanged">
+
+                                <option value="">-- Select Site --</option>
+
+                                @foreach (var site in _sites)
+                                {
+                                    <option value="@site.Id">
+                                        @site.Name
+                                        (@site.SiteCode)
+                                    </option>
+                                }
+
+                            </InputSelect>
+                        </div>
+                    }
+
+                    <div class="col-md-3">
+                        <div class="text-muted small">
+                            Current Scope
+                        </div>
+
+                        <div class="fw-semibold">
+                            @CurrentScopeLabel
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="bi bi-speedometer2 me-2"></i>
+                            Executive Report
+                        </h5>
+                        <small>
+                            @(_scope == "Company"
+                                ? "Company-wide management overview"
+                                : $"{CurrentScopeLabel} management overview")
+                        </small>
+                    </div>
+
+                    <span class="badge bg-light text-dark">
+                        @CurrentScopeLabel
+                    </span>
+                </div>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">
+                                    Budget
+                                </div>
+                                <div class="fs-5 fw-bold">
+                                    @_financial?.TotalBudget.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">
+                                    Cash In
+                                </div>
+                                <div class="fs-5 fw-bold text-success">
+                                    @_financial?.TotalCompletedPayments.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">
+                                    Total Expenditure
+                                </div>
+                                <div class="fs-5 fw-bold text-danger">
+                                    @_financial?.TotalExpenditure.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">
+                                    Balance
+                                </div>
+                                <div class="fs-5 fw-bold text-success">
+                                    @_financial?.Balance.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">
+                                    Petty Cash Balance
+                                </div>
+                                <div class="fs-5 fw-bold">
+                                    @_financial?.PettyCashBalance.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">
+                                    Active Petty Cash Accounts
+                                </div>
+                                <div class="fs-4 fw-bold">
+                                    @_financial?.ActivePettyCashAccounts
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <hr class="my-4" />
+
+                <div class="row g-4">
+
+                    <div class="col-lg-6">
+                        <h6 class="fw-bold mb-3">
+                            Sites by Status
+                        </h6>
+
+                        @if (_executive?.SitesByStatus.Count > 0)
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Status</th>
+                                            <th class="text-end">Count</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in _executive.SitesByStatus)
+                                        {
+                                            <tr>
+                                                <td>@item.Key</td>
+                                                <td class="text-end">@item.Value</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted">
+                                No site status data available.
+                            </div>
+                        }
+                    </div>
+
+                    <div class="col-lg-6">
+                        <h6 class="fw-bold mb-3">
+                            Projects by Status
+                        </h6>
+
+                        @if (_executive?.ProjectsByStatus.Count > 0)
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Status</th>
+                                            <th class="text-end">Count</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in _executive.ProjectsByStatus)
+                                        {
+                                            <tr>
+                                                <td>@item.Key</td>
+                                                <td class="text-end">@item.Value</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted">
+                                No project status data available.
+                            </div>
+                        }
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Financial Summary -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-success text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="bi bi-cash-stack me-2"></i>
+                            Financial Report
+                        </h5>
+                        <small>
+                            @(_scope == "Company"
+                                ? "Company-wide financial position"
+                                : $"{CurrentScopeLabel} financial position")
+                        </small>
+                    </div>
+
+                    <span class="badge bg-light text-dark">
+                        @CurrentScopeLabel
+                    </span>
+                </div>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Budget</div>
+                                <div class="fs-5 fw-bold">
+                                    @_financial?.TotalBudget.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Total Expenses</div>
+                                <div class="fs-5 fw-bold text-danger">
+                                    @_financial?.TotalExpenses.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Cash In</div>
+                                <div class="fs-5 fw-bold text-success">
+                                    @_financial?.TotalCompletedPayments.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Invoices</div>
+                                <div class="fs-5 fw-bold">
+                                    @_financial?.TotalInvoices.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Outstanding Receivables</div>
+                                <div class="fs-5 fw-bold text-warning">
+                                    @_financial?.OutstandingReceivables.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Total Expenditure</div>
+                                <div class="fs-5 fw-bold text-danger">
+                                    @_financial?.TotalExpenditure.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Balance</div>
+                                <div class="fs-5 fw-bold text-success">
+                                    @_financial?.Balance.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Petty Cash Balance</div>
+                                <div class="fs-5 fw-bold">
+                                    @_financial?.PettyCashBalance.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Total Petty Cash Out</div>
+                                <div class="fs-5 fw-bold text-danger">
+                                    @_financial?.TotalPettyCashOut.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Active Petty Cash Accounts</div>
+                                <div class="fs-4 fw-bold">
+                                    @_financial?.ActivePettyCashAccounts
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+                <!-- All Financial Summary -->
+                @if (_scope == "Company" && _allFinancialSummary is not null)
+                {
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-dark text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-bar-chart-line me-2"></i>
+                                        All Financial Summary
+                                    </h5>
+                                    <small>
+                                        Company and all construction sites
+                                    </small>
+                                </div>
+
+                                <span class="badge bg-light text-dark">
+                                    Company + All Sites
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="card-body">
+
+                            <!-- Company Summary -->
+                            <h6 class="fw-bold mb-3">
+                                Company Summary
+                            </h6>
+
+                            <div class="row g-3 mb-4">
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Budget</div>
+                                            <div class="fs-5 fw-bold">
+                                                @_allFinancialSummary.Company.TotalBudget.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Total Expenses</div>
+                                            <div class="fs-5 fw-bold text-danger">
+                                                @_allFinancialSummary.Company.TotalExpenses.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Cash In</div>
+                                            <div class="fs-5 fw-bold text-success">
+                                                @_allFinancialSummary.Company.TotalCompletedPayments.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Invoices</div>
+                                            <div class="fs-5 fw-bold">
+                                                @_allFinancialSummary.Company.TotalInvoices.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Outstanding Receivables</div>
+                                            <div class="fs-5 fw-bold text-warning">
+                                                @_allFinancialSummary.Company.OutstandingReceivables.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Total Expenditure</div>
+                                            <div class="fs-5 fw-bold text-danger">
+                                                @_allFinancialSummary.Company.TotalExpenditure.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Balance</div>
+                                            <div class="fs-5 fw-bold text-success">
+                                                @_allFinancialSummary.Company.Balance.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Petty Cash Balance</div>
+                                            <div class="fs-5 fw-bold">
+                                                @_allFinancialSummary.Company.PettyCashBalance.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Total Petty Cash Out</div>
+                                            <div class="fs-5 fw-bold text-danger">
+                                                @_allFinancialSummary.Company.TotalPettyCashOut.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Active Petty Cash Accounts</div>
+                                            <div class="fs-4 fw-bold">
+                                                @_allFinancialSummary.Company.ActivePettyCashAccounts
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <hr class="my-4" />
+
+                            <!-- Site Summaries -->
+                            <h6 class="fw-bold mb-3">
+                                Site Financial Summaries
+                            </h6>
+
+                            @if (_allFinancialSummary.Sites.Count > 0)
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered table-hover align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Site</th>
+                                                <th>Code</th>
+                                                <th class="text-end">Budget</th>
+                                                <th class="text-end">Expenses</th>
+                                                <th class="text-end">Invoices</th>
+                                                <th class="text-end">Receivables</th>
+                                                <th class="text-end">Cash In</th>
+                                                <th class="text-end">Total Expenditure</th>
+                                                <th class="text-end">Balance</th>
+                                                <th class="text-end">Petty Cash</th>
+                                                <th class="text-end">Petty Cash Out</th>
+                                                <th class="text-end">Accounts</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody>
+                                            @foreach (var site in _allFinancialSummary.Sites)
+                                            {
+                                                <tr>
+                                                    <td class="fw-semibold">
+                                                        @site.SiteName
+                                                    </td>
+
+                                                    <td>
+                                                        @site.SiteCode
+                                                    </td>
+
+                                                    <td class="text-end">
+                                                        @site.Financial.TotalBudget.ToString("N2")
+                                                    </td>
+
+                                                    <td class="text-end">
+                                                        @site.Financial.TotalExpenses.ToString("N2")
+                                                    </td>
+
+                                                    <td class="text-end">
+                                                        @site.Financial.TotalInvoices.ToString("N2")
+                                                    </td>
+                                                    <td class="text-end">
+                                                        @site.Financial.OutstandingReceivables.ToString("N2")
+                                                    </td>
+
+                                                    <td class="text-end text-success">
+                                                        @site.Financial.TotalCompletedPayments.ToString("N2")
+                                                    </td>
+
+                                                    <td class="text-end text-danger">
+                                                        @site.Financial.TotalExpenditure.ToString("N2")
+                                                    </td>
+
+                                                    <td class="text-end text-success">
+                                                        @site.Financial.Balance.ToString("N2")
+                                                    </td>
+
+                                                    <td class="text-end">
+                                                        @site.Financial.PettyCashBalance.ToString("N2")
+                                                    </td>
+
+                                                    <td class="text-end text-danger">
+                                                        @site.Financial.TotalPettyCashOut.ToString("N2")
+                                                    </td>
+
+                                                    <td class="text-end">
+                                                        @site.Financial.ActivePettyCashAccounts
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="text-muted">
+                                    No site financial data available.
+                                </div>
+                            }
+
+                            <hr class="my-4" />
+
+                            <!-- Combined Total -->
+                            <h6 class="fw-bold mb-3">
+                                Combined Company + All Sites Total
+                            </h6>
+
+                            <div class="row g-3">
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">
+                                                Budget
+                                            </div>
+                                            <div class="fs-5 fw-bold">
+                                                @_allFinancialSummary.Total.TotalBudget.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Total Expenses</div>
+                                            <div class="fs-5 fw-bold text-danger">
+                                                @_allFinancialSummary.Total.TotalExpenses.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">
+                                                Cash In
+                                            </div>
+                                            <div class="fs-5 fw-bold text-success">
+                                                @_allFinancialSummary.Total.TotalCompletedPayments.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">
+                                                Total Expenditure
+                                            </div>
+                                            <div class="fs-5 fw-bold text-danger">
+                                                @_allFinancialSummary.Total.TotalExpenditure.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">
+                                                Balance
+                                            </div>
+                                            <div class="fs-5 fw-bold text-success">
+                                                @_allFinancialSummary.Total.Balance.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">
+                                                Petty Cash Balance
+                                            </div>
+                                            <div class="fs-5 fw-bold">
+                                                @_allFinancialSummary.Total.PettyCashBalance.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">
+                                                Total Petty Cash Out
+                                            </div>
+                                            <div class="fs-5 fw-bold text-danger">
+                                                @_allFinancialSummary.Total.TotalPettyCashOut.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">
+                                                Active Petty Cash Accounts
+                                            </div>
+                                            <div class="fs-4 fw-bold">
+                                                @_allFinancialSummary.Total.ActivePettyCashAccounts
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+                }
+
+        <!-- Future report modules -->
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    Additional Management Reports
+                </h5>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <h6>
+                                    <i class="bi bi-kanban me-2"></i>
+                                    Project Progress Report
+                                </h6>
+                                <p class="text-muted small">
+                                    Planned versus actual progress,
+                                    milestones and delays.
+                                </p>
+                                <button class="btn btn-outline-primary"
+                                        disabled>
+                                    Coming Next
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <h6>
+                                    <i class="bi bi-building me-2"></i>
+                                    Site Operations Report
+                                </h6>
+                                <p class="text-muted small">
+                                    Site activity, materials,
+                                    equipment and progress.
+                                </p>
+                                <button class="btn btn-outline-primary"
+                                        disabled>
+                                    Coming Next
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <h6>
+                                    <i class="bi bi-people me-2"></i>
+                                    HR Report
+                                </h6>
+                                <p class="text-muted small">
+                                    Employees, attendance,
+                                    timesheets, leave and payroll.
+                                </p>
+                                <button class="btn btn-outline-primary"
+                                        disabled>
+                                    Coming Next
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <h6>
+                                    <i class="bi bi-box-seam me-2"></i>
+                                    Procurement & Inventory
+                                </h6>
+                                <p class="text-muted small">
+                                    Requests, purchase orders,
+                                    receipts and stock.
+                                </p>
+                                <button class="btn btn-outline-primary"
+                                        disabled>
+                                    Coming Next
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <h6>
+                                    <i class="bi bi-shield-check me-2"></i>
+                                    Safety & Compliance
+                                </h6>
+                                <p class="text-muted small">
+                                    Incidents, inspections,
+                                    permits and corrective actions.
+                                </p>
+                                <button class="btn btn-outline-primary"
+                                        disabled>
+                                    Coming Next
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+
+    private ExecutiveDashboardResponse? _executive;
+    private FinancialSummaryResponse? _financial;
+    private AllFinancialSummaryResponse? _allFinancialSummary;
+
+    private List<SiteResponse> _sites = [];
+
+    private string _scope = "Company";
+    private string _selectedSiteId = string.Empty;
+
+    private bool _loading = true;
+    private string? _error;
+
+    private string CurrentScopeLabel
+        => _scope == "Company"
+            ? "Company-wide"
+            : _sites
+                .FirstOrDefault(
+                    x => x.Id.ToString() == _selectedSiteId)
+                ?.Name
+              ?? "Select a construction site";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSitesAsync();
+        await LoadReportsAsync();
+    }
+
+    private async Task LoadSitesAsync()
+    {
+        try
+        {
+            _sites =
+                await ProjectService.GetSitesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error =
+                $"Failed to load construction sites. {ex.Message}";
+        }
+    }
+
+    private async Task ScopeChanged()
+    {
+        _error = null;
+
+        if (_scope == "Company")
+        {
+            _selectedSiteId = string.Empty;
+            await LoadReportsAsync();
+        }
+        else
+        {
+            _executive = null;
+            _financial = null;
+            _allFinancialSummary = null;
+        }
+    }
+
+    private async Task SiteChanged()
+    {
+        _error = null;
+
+        if (!Guid.TryParse(
+                _selectedSiteId,
+                out var siteId))
+        {
+            _executive = null;
+            _financial = null;
+            return;
+        }
+
+        await LoadSiteReportsAsync(siteId);
+    }
+
+    private async Task LoadReportsAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            _executive =
+                await ReportingService
+                    .GetExecutiveDashboardAsync();
+
+            _financial =
+                await ReportingService
+                    .GetFinancialSummaryAsync();
+
+            _allFinancialSummary =
+                await ReportingService
+                    .GetAllFinancialSummariesAsync();
+        }
+        catch (Exception ex)
+        {
+            _executive = null;
+            _financial = null;
+            _allFinancialSummary = null;
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadSiteReportsAsync(
+        Guid siteId)
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            _executive =
+                await ReportingService
+                    .GetSiteExecutiveDashboardAsync(siteId);
+
+            _financial =
+                await ReportingService
+                    .GetSiteFinancialSummaryAsync(siteId);
+        }
+        catch (Exception ex)
+        {
+            _executive = null;
+            _financial = null;
+            _allFinancialSummary = null;
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

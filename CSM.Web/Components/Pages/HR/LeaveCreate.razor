@@ -1,0 +1,226 @@
+@page "/hr/leave/create"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject ILeaveService LeaveService
+@inject IEmployeeService EmployeeService
+@inject NavigationManager Navigation
+
+<PageTitle>Create Leave Request</PageTitle>
+
+<div class="container-fluid py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2>Create Leave Request</h2>
+            <p class="text-muted mb-0">
+                Create a new employee leave request.
+            </p>
+        </div>
+
+        <button class="btn btn-secondary"
+                @onclick="GoBack">
+            Back
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="alert alert-info">
+            Loading employees...
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_model"
+                  OnValidSubmit="SaveAsync">
+
+            <DataAnnotationsValidator />
+
+            <div class="card shadow-sm">
+                <div class="card-body">
+
+                    @if (!string.IsNullOrWhiteSpace(_error))
+                    {
+                        <div class="alert alert-danger">
+                            @_error
+                        </div>
+                    }
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Employee
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="_model.EmployeeId">
+                                <option value="@Guid.Empty">
+                                    -- Select Employee --
+                                </option>
+
+                                @foreach (var employee in _employees)
+                                {
+                                    <option value="@employee.Id">
+                                        @employee.EmployeeNumber -
+                                        @employee.FirstName
+                                        @if (!string.IsNullOrWhiteSpace(employee.MiddleName))
+                                        {
+                                            <text> @employee.MiddleName</text>
+                                        }
+                                        @employee.LastName
+                                    </option>
+                                }
+                            </InputSelect>
+
+                            <ValidationMessage For="@(() => _model.EmployeeId)" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Leave Type
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="_model.LeaveType">
+                                <option value="">-- Select Leave Type --</option>
+                                <option value="Annual Leave">Annual Leave</option>
+                                <option value="Sick Leave">Sick Leave</option>
+                                <option value="Maternity Leave">Maternity Leave</option>
+                                <option value="Paternity Leave">Paternity Leave</option>
+                                <option value="Bereavement Leave">Bereavement Leave</option>
+                                <option value="Emergency Leave">Emergency Leave</option>
+                                <option value="Study Leave">Study Leave</option>
+                                <option value="Unpaid Leave">Unpaid Leave</option>
+                                <option value="Other">Other</option>
+                            </InputSelect>
+
+                            <ValidationMessage For="@(() => _model.LeaveType)" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Start Date
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="_model.StartDate" />
+
+                            <ValidationMessage For="@(() => _model.StartDate)" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                End Date
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="_model.EndDate" />
+
+                            <ValidationMessage For="@(() => _model.EndDate)" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                Reason
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           @bind-Value="_model.Reason"
+                                           rows="4" />
+                        </div>
+
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit"
+                                class="btn btn-primary"
+                                disabled="@_saving">
+                            @(_saving ? "Saving..." : "Create Leave")
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-secondary"
+                                @onclick="GoBack">
+                            Cancel
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+        </EditForm>
+    }
+
+</div>
+
+@code {
+    private readonly CreateLeaveRequest _model = new()
+    {
+        StartDate = DateOnly.FromDateTime(DateTime.Today),
+        EndDate = DateOnly.FromDateTime(DateTime.Today)
+    };
+
+    private List<EmployeeResponse> _employees = [];
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployeesAsync();
+    }
+
+    private async Task LoadEmployeesAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var employees =
+                await EmployeeService.GetEmployeesAsync(
+                    status: "Active");
+
+            _employees = employees.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            await LeaveService.CreateAsync(_model);
+
+            Navigation.NavigateTo("/hr/leave");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/hr/leave");
+    }
+}

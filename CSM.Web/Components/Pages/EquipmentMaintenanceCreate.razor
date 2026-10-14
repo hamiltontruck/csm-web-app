@@ -1,0 +1,225 @@
+@page "/equipment/maintenance/create/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>New Equipment Maintenance</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center mb-4">
+        <button class="btn btn-outline-secondary me-3"
+                @onclick="GoBack">
+            ← Back
+        </button>
+
+        <div>
+            <h2 class="mb-0">New Equipment Maintenance</h2>
+            @if (!string.IsNullOrWhiteSpace(siteName))
+            {
+                <small class="text-muted">@siteName</small>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <EditForm Model="request" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">Equipment</label>
+                        <InputSelect class="form-select"
+                                     @bind-Value="request.EquipmentId">
+                            <option value="">Select equipment</option>
+
+                            @foreach (var item in equipment)
+                            {
+                                <option value="@item.Id">
+                                    @item.EquipmentCode - @item.Name
+                                </option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Maintenance Type</label>
+                        <InputText class="form-control"
+                                   @bind-Value="request.MaintenanceType" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Scheduled Date</label>
+                        <InputDate class="form-control"
+                                   @bind-Value="scheduledDate" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Meter Reading</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="request.MeterReading" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Cost</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="request.Cost" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Currency</label>
+                        <InputText class="form-control"
+                                   @bind-Value="request.CurrencyCode" />
+                    </div>
+
+                    <div class="col-md-8">
+                        <label class="form-label">Service Provider</label>
+                        <InputText class="form-control"
+                                   @bind-Value="request.ServiceProvider" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Description</label>
+                        <InputTextArea class="form-control"
+                                       rows="3"
+                                       @bind-Value="request.Description" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Parts Replaced</label>
+                        <InputTextArea class="form-control"
+                                       rows="2"
+                                       @bind-Value="request.PartsReplaced" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Next Maintenance Date</label>
+                        <InputDate class="form-control"
+                                   @bind-Value="nextDate" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Next Meter Reading</label>
+                        <InputNumber class="form-control"
+                                     @bind-Value="request.NextMaintenanceMeterReading" />
+                    </div>
+
+                </div>
+
+                <hr />
+
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            @onclick="GoBack">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-primary"
+                            type="submit"
+                            disabled="@saving">
+                        @(saving ? "Saving..." : "Save Maintenance")
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+    </EditForm>
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private string siteName = string.Empty;
+
+    private bool saving;
+    private string? errorMessage;
+
+    private List<EquipmentResponse> equipment = [];
+
+    private DateTime scheduledDate = DateTime.Today;
+    private DateTime? nextDate;
+
+    private CreateEquipmentMaintenanceRequest request = new()
+    {
+        CurrencyCode = "ETB"
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var sites = await ProjectService.GetSitesAsync();
+
+        var site = sites.FirstOrDefault(x => x.Id == SiteId);
+
+        if (site != null)
+            siteName = site.Name;
+
+        var assignments = await EquipmentService.GetAssignmentsAsync();
+
+        var ids = assignments
+            .Where(x => x.ConstructionSiteId == SiteId)
+            .Select(x => x.EquipmentId)
+            .Distinct()
+            .ToHashSet();
+
+        equipment = (await EquipmentService.GetEquipmentAsync())
+            .Where(x => ids.Contains(x.Id))
+            .OrderBy(x => x.EquipmentCode)
+            .ToList();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        saving = true;
+        errorMessage = null;
+
+        try
+        {
+            request.ScheduledAtUtc = scheduledDate;
+            request.NextMaintenanceAtUtc = nextDate;
+
+            await EquipmentService.CreateMaintenanceAsync(request);
+
+            Navigation.NavigateTo(
+                $"/equipment/maintenance/site/{SiteId}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/maintenance/site/{SiteId}");
+    }
+
+}

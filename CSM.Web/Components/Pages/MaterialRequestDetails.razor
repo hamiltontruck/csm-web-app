@@ -1,0 +1,145 @@
+@page "/material-requests/{Id:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IProcurementService ProcurementService
+@inject NavigationManager Navigation
+
+<PageTitle>Material Request Details</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading...</h4>
+    </div>
+}
+else if (request is null)
+{
+    <div class="container py-4">
+        <div class="alert alert-warning">
+            Material Request not found.
+        </div>
+
+        <button class="btn btn-secondary" @onclick="Back">
+            Back
+        </button>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="Back">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>@request.RequestNumber</h2>
+                <div class="text-muted">@request.SiteName</div>
+            </div>
+
+            <span class="badge bg-primary">@request.Status</span>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Request Information</h5>
+            </div>
+
+            <div class="card-body">
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+                        <div class="text-muted small">Requested By</div>
+                        <div class="fw-semibold">@request.RequestedByName</div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <div class="text-muted small">Request Date</div>
+                        <div class="fw-semibold">
+                            @request.RequestDate.ToString("dd MMM yyyy")
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <div class="text-muted small">Priority</div>
+                        <div class="fw-semibold">@request.Priority</div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <div class="text-muted small">Required By</div>
+                        <div class="fw-semibold">
+                            @(request.RequiredByDate?.ToString("dd MMM yyyy") ?? "-")
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="text-muted small">Purpose</div>
+                        <div>@(string.IsNullOrWhiteSpace(request.Purpose) ? "-" : request.Purpose)</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">Requested Materials</h5>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Material</th>
+                            <th>Unit</th>
+                            <th class="text-end">Qty</th>
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                    @foreach (var line in request.Lines)
+                    {
+                        <tr>
+                            <td>@line.MaterialName</td>
+                            <td>@line.UnitOfMeasure</td>
+                            <td class="text-end">@line.RequestedQuantity</td>
+                            <td>@line.Remarks</td>
+                        </tr>
+                    }
+                    </tbody>
+
+                </table>
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private bool loading = true;
+    private MaterialRequestResponse? request;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        request = await ProcurementService.GetMaterialRequestAsync(Id);
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    void Back()
+        => Navigation.NavigateTo("/material-requests");
+}

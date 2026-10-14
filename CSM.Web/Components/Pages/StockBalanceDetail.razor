@@ -1,0 +1,97 @@
+@page "/stock-balance/{ConstructionSiteId:guid}/{MaterialId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>Stock Balance Detail</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading stock balance...</h4>
+    </div>
+}
+else if (balance is null)
+{
+    <div class="container py-4">
+        <div class="alert alert-warning">
+            Stock balance not found.
+        </div>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3" @onclick="GoBack">
+            ← Back
+        </button>
+
+        <h2>@balance.MaterialName</h2>
+        <p class="text-muted">@balance.MaterialCode</p>
+
+        <div class="card shadow-sm mt-4">
+            <div class="card-body">
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="text-muted">Construction Site</div>
+                        <div class="fs-5 fw-semibold">@balance.SiteName</div>
+                    </div>
+
+                    <div class="col-md-6 text-md-end">
+                        <div class="text-muted">Unit</div>
+                        <div class="fs-5 fw-semibold">@balance.UnitOfMeasure</div>
+                    </div>
+                </div>
+
+                <hr />
+
+                <div class="row text-center mt-4">
+
+                    <div class="col-md-4">
+                        <div class="text-muted">On Hand</div>
+                        <h2 class="text-primary">@balance.QuantityOnHand</h2>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="text-muted">Reserved</div>
+                        <h2 class="text-warning">@balance.QuantityReserved</h2>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="text-muted">Available</div>
+                        <h2 class="text-success">@balance.AvailableQuantity</h2>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    [Parameter] public Guid ConstructionSiteId { get; set; }
+    [Parameter] public Guid MaterialId { get; set; }
+
+    private StockBalanceResponse? balance;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        balance = await InventoryService.GetStockBalanceAsync(
+            ConstructionSiteId,
+            MaterialId);
+
+        loading = false;
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo($"/stock-balance/{ConstructionSiteId}");
+}

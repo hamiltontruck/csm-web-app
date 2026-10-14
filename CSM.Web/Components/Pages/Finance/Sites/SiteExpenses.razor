@@ -1,0 +1,196 @@
+@page "/finance/sites/{SiteId:guid}/expenses"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Site Expenses</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1">Site Expenses</h3>
+            <p class="text-muted mb-0">
+                Expenses recorded for this construction site.
+            </p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary"
+                    @onclick="GoBack">
+                <i class="bi bi-arrow-left"></i>
+                Back
+            </button>
+
+            <button class="btn btn-primary"
+                    @onclick="CreateExpense">
+                <i class="bi bi-plus-lg"></i>
+                Create Expense
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status"></div>
+            <div class="mt-2 text-muted">Loading expenses...</div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger">
+            @_errorMessage
+        </div>
+    }
+    else if (_expenses.Count == 0)
+    {
+        <div class="alert alert-info">
+            No expenses have been recorded for this site.
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+
+                        <thead class="table-light">
+                            <tr>
+                                <th>Expense No.</th>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Tax</th>
+                                <th>Currency</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var expense in _expenses)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>
+                                            @expense.ExpenseNumber
+                                        </strong>
+                                    </td>
+
+                                    <td>
+                                        @expense.ExpenseDate.ToString("dd MMM yyyy")
+                                    </td>
+
+                                    <td>
+                                        @expense.Description
+                                    </td>
+
+                                    <td>
+                                        @expense.Amount.ToString("N2")
+                                    </td>
+
+                                    <td>
+                                        @expense.TaxAmount.ToString("N2")
+                                    </td>
+
+                                    <td>
+                                        @expense.CurrencyCode
+                                    </td>
+
+                                    <td>
+                                        <span class="badge @GetStatusClass(expense.Status)">
+                                            @expense.Status
+                                        </span>
+                                    </td>
+
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="() => ViewExpense(expense.Id)">
+                                            View
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private List<ExpenseResponse> _expenses = new();
+    private bool _loading = true;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExpensesAsync();
+    }
+
+    private async Task LoadExpensesAsync()
+    {
+        _loading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var expenses = await FinanceService.GetSiteExpensesAsync(SiteId);
+
+            _expenses = expenses.ToList();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CreateExpense()
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/expenses/create");
+    }
+
+    private void ViewExpense(Guid expenseId)
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites/{SiteId}/expenses/{expenseId}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo(
+            $"/finance/sites");
+    }
+
+    private static string GetStatusClass(object status)
+    {
+        return status?.ToString() switch
+        {
+            "Draft" => "bg-secondary",
+            "Submitted" => "bg-warning text-dark",
+            "Approved" => "bg-success",
+            "Rejected" => "bg-danger",
+            "Paid" => "bg-primary",
+            "Cancelled" => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
+}

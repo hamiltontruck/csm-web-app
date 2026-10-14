@@ -1,0 +1,103 @@
+@page "/goods-receipts/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IProcurementService ProcurementService
+@inject NavigationManager Navigation
+
+<PageTitle>Goods Receipts</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading goods receipts...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="Back">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>Goods Receipts</h2>
+                <div class="text-muted">Selected construction site</div>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="NewReceipt">
+                + New Goods Receipt
+            </button>
+        </div>
+
+        @if (receipts.Count == 0)
+        {
+            <div class="alert alert-info">
+                No goods receipts found for this site.
+            </div>
+        }
+        else
+        {
+            @foreach (var gr in receipts)
+            {
+                <div class="card shadow-sm mb-3"
+                     style="cursor:pointer"
+                     @onclick="() => Open(gr.Id)">
+
+                    <div class="card-body">
+                        <h5>@gr.ReceiptNumber</h5>
+
+                        <div class="text-muted">
+                            PO: @gr.PurchaseOrderNumber
+                        </div>
+
+                        <small>
+                            @gr.ReceivedAtUtc.ToString("dd MMM yyyy")
+                        </small>
+                    </div>
+                </div>
+            }
+        }
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private bool loading = true;
+
+    private List<GoodsReceiptResponse> receipts = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var all = await ProcurementService.GetGoodsReceiptsAsync();
+
+        receipts = all
+            .Where(x => x.ConstructionSiteId == SiteId)
+            .OrderByDescending(x => x.ReceivedAtUtc)
+            .ToList();
+
+        loading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    void Open(Guid id)
+        => Navigation.NavigateTo($"/goods-receipts/{id}");
+
+    void NewReceipt()
+        => Navigation.NavigateTo($"/goods-receipts/create/{SiteId}");
+
+    void Back()
+        => Navigation.NavigateTo("/goods-receipts");
+}

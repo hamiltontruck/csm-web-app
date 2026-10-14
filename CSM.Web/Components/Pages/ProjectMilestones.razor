@@ -1,0 +1,278 @@
+@page "/projects/{ProjectId:guid}/milestones"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Projects
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Project Milestones</PageTitle>
+
+@if (_loading)
+{
+    <div class="container mt-4">
+        <h4>Loading milestones...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+
+            <div>
+                <h2 class="mb-0">Project Milestones</h2>
+                <small class="text-muted">Construction completion checkpoints</small>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary" @onclick="Back">
+                    ← Project
+                </button>
+
+                <button class="btn btn-primary" @onclick="NewMilestone">
+                    + Milestone
+                </button>
+            </div>
+
+        </div>
+
+        @if (!_milestones.Any())
+        {
+            <div class="alert alert-info">
+                No milestones have been created.
+            </div>
+        }
+        else
+        {
+            <table class="table table-hover align-middle">
+
+                <thead class="table-light">
+                    <tr>
+                        <th>No.</th>
+                        <th>Milestone</th>
+                        <th>Planned</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    @foreach (var m in _milestones.OrderBy(x => x.PlannedDate))
+                    {
+                        <tr>
+                            <td class="fw-semibold">@m.MilestoneNumber</td>
+                            <td>@m.Name</td>
+                            <td>@m.PlannedDate.ToString("dd MMM yyyy")</td>
+                            <td>
+                                <span class="@StatusBadge(m.Status)">
+                                    @m.Status
+                                </span>
+                            </td>
+                            <td>@m.ProgressPercentage%</td>
+                        </tr>
+                    }
+
+                </tbody>
+
+            </table>
+        }
+
+    </div>
+}
+
+@if (_showModal)
+{
+    <div class="modal fade show d-block"
+         style="background:rgba(0,0,0,.45)">
+
+        <div class="modal-dialog">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5>Create Milestone</h5>
+
+                    <button class="btn-close"
+                            @onclick="CloseModal">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    @if (!string.IsNullOrWhiteSpace(_error))
+                    {
+                        <div class="alert alert-danger">
+                            @_error
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">Milestone Number</label>
+
+                        <input class="form-control"
+                               placeholder="MS-00126"
+                               @bind="_newMilestone.MilestoneNumber" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Milestone Name</label>
+
+                        <input class="form-control"
+                               @bind="_newMilestone.Name" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+
+                        <textarea class="form-control"
+                                  rows="3"
+                                  @bind="_newMilestone.Description">
+                        </textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Planned Date</label>
+
+                        <input class="form-control"
+                               type="date"
+                               @bind="_newMilestone.PlannedDate" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+
+                        <textarea class="form-control"
+                                  rows="2"
+                                  @bind="_newMilestone.Notes">
+                        </textarea>
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button class="btn btn-secondary"
+                            @onclick="CloseModal">
+                        Cancel
+                    </button>
+
+                    <button class="btn btn-primary"
+                            @onclick="SaveMilestone">
+                        Save Milestone
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    [Parameter]
+    public Guid ProjectId { get; set; }
+
+    private List<ProjectMilestone> _milestones = [];
+    private bool _loading = true;
+
+    private bool _showModal;
+    private string? _error;
+
+    private CreateProjectMilestoneRequest _newMilestone = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            _milestones = await ProjectService.GetProjectMilestonesAsync(ProjectId);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.ToString();
+        }
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    void Back()
+    {
+        Navigation.NavigateTo($"/projects/{ProjectId}");
+    }
+
+    void NewMilestone()
+    {
+        _newMilestone = new CreateProjectMilestoneRequest
+        {
+            ProjectId = ProjectId
+        };
+
+        _showModal = true;
+        _error = null;
+    }
+
+void CloseModal()
+{
+    _showModal = false;
+}
+
+async Task SaveMilestone()
+{
+    _error = null;
+
+    if (string.IsNullOrWhiteSpace(_newMilestone.MilestoneNumber))
+    {
+        _error = "Milestone Number is required.";
+        return;
+    }
+
+    if (!System.Text.RegularExpressions.Regex.IsMatch(
+            _newMilestone.MilestoneNumber,
+            @"^MS-\d{5}$"))
+    {
+        _error = "Use format MS-00126.";
+        return;
+    }
+
+    if (string.IsNullOrWhiteSpace(_newMilestone.Name))
+    {
+        _error = "Milestone Name is required.";
+        return;
+    }
+
+    try
+    {
+        var success = await ProjectService.CreateProjectMilestoneAsync(_newMilestone);
+
+        if (!success)
+        {
+            _error = "Unable to save milestone.";
+            return;
+        }
+
+        _showModal = false;
+        _milestones = await ProjectService.GetProjectMilestonesAsync(ProjectId);
+
+        StateHasChanged();
+    }
+    catch (Exception ex)
+    {
+        _error = ex.Message;
+    }
+}
+
+    static string StatusBadge(MilestoneStatus status) => status switch
+    {
+        MilestoneStatus.Completed => "badge bg-success",
+        MilestoneStatus.InProgress => "badge bg-primary",
+        MilestoneStatus.Pending => "badge bg-warning text-dark",
+        MilestoneStatus.Cancelled => "badge bg-danger",
+        _ => "badge bg-secondary"
+    };
+}

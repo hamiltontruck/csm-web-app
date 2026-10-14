@@ -1,0 +1,257 @@
+@page "/stock-issues/create"
+@page "/stock-issues/create/{SiteId:guid}"
+
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Sites
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>New Stock Issue</PageTitle>
+
+<div class="container py-4">
+
+    <button class="btn btn-outline-secondary mb-3"
+            @onclick="GoBack">
+        <i class="bi bi-arrow-left"></i> Back
+    </button>
+
+    <h2 class="mb-4">New Stock Issue</h2>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <label class="form-label">Construction Site</label>
+
+                    <select class="form-select" @onchange="SiteChanged">
+                        <option value="">-- Select Site --</option>
+
+                        @foreach (var site in sites)
+                        {
+                            <option value="@site.Id">
+                                @site.SiteCode - @site.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Issue Date</label>
+
+                    <input type="date"
+                           class="form-control"
+                           @bind="model.IssueDate" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Material</label>
+
+                    <select class="form-select" @bind="model.MaterialId">
+                        <option value="">-- Select Material --</option>
+
+                        @foreach (var item in materials)
+                        {
+                            <option value="@item.MaterialId">
+                                @item.MaterialCode - @item.MaterialName
+                                (@item.QuantityOnHand @item.UnitOfMeasure)
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Issue Number</label>
+
+                    <input class="form-control"
+                           @bind="model.ReferenceNumber" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Quantity</label>
+
+                    <input type="number"
+                           step="0.01"
+                           class="form-control"
+                           @bind="model.Quantity" />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Issued To</label>
+
+                    <input class="form-control"
+                           @bind="model.IssuedTo" />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Purpose</label>
+
+                    <input class="form-control"
+                           @bind="model.Purpose" />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">Remarks</label>
+
+                    <textarea class="form-control"
+                              rows="3"
+                              @bind="model.Remarks"></textarea>
+                </div>
+
+            </div>
+
+            <hr />
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger">
+                    @errorMessage
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger mb-3">
+                    @errorMessage
+                </div>
+            }
+
+            <div class="d-flex justify-content-end gap-2">
+
+                <button class="btn btn-outline-secondary"
+                        @onclick="GoBack">
+                    Cancel
+                </button>
+
+                <button class="btn btn-primary"
+                        @onclick="SaveIssue"
+                        disabled="@saving">
+                    @(saving ? "Saving..." : "Save Issue")
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+    [Parameter]
+    public Guid? SiteId { get; set; }
+
+    private IssueModel model = new();
+
+    private List<SiteResponse> sites = [];
+    private List<StockBalanceResponse> materials = [];
+
+    private bool loaded;
+    private string? errorMessage = null;
+
+    private bool saving;
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || loaded)
+            return;
+
+        loaded = true;
+
+        sites = await ProjectService.GetSitesAsync();
+
+        if (SiteId.HasValue)
+        {
+            model.SiteId = SiteId.Value;
+
+            materials = await InventoryService.GetStockBySiteAsync(
+                SiteId.Value);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SiteChanged(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var siteId))
+        {
+            materials.Clear();
+            model.SiteId = null;
+            return;
+        }
+
+        model.SiteId = siteId;
+
+        materials = await InventoryService.GetStockBySiteAsync(siteId);
+
+        StateHasChanged();
+    }
+
+    void GoBack()
+    {
+        if (SiteId.HasValue)
+            Navigation.NavigateTo($"/stock-issues/site/{SiteId}");
+        else
+            Navigation.NavigateTo("/stock-issues");
+    }
+
+    public class IssueModel
+    {
+        public Guid? SiteId { get; set; }
+        public Guid? MaterialId { get; set; }
+
+        public DateTime IssueDate { get; set; } = DateTime.Today;
+
+        public string ReferenceNumber { get; set; } = "";
+        public decimal Quantity { get; set; }
+
+        public string IssuedTo { get; set; } = "";
+        public string Purpose { get; set; } = "";
+        public string Remarks { get; set; } = "";
+    }
+
+private async Task SaveIssue()
+{
+    errorMessage = null;
+
+    if (model.SiteId == null || model.MaterialId == null)
+    {
+        errorMessage = "Please select a site and material.";
+        return;
+    }
+
+    if (model.Quantity <= 0)
+    {
+        errorMessage = "Quantity must be greater than zero.";
+        return;
+    }
+
+    saving = true;
+
+    var success = await InventoryService.CreateStockIssueAsync(
+        new CreateStockIssueRequest
+        {
+            ConstructionSiteId = model.SiteId.Value,
+            MaterialId = model.MaterialId.Value,
+            Quantity = model.Quantity,
+            IssueDateUtc = model.IssueDate.ToUniversalTime(),
+            ReferenceNumber = model.ReferenceNumber,
+            IssuedTo = string.IsNullOrWhiteSpace(model.IssuedTo) ? null : model.IssuedTo,
+            Purpose = string.IsNullOrWhiteSpace(model.Purpose) ? null : model.Purpose,
+            Remarks = string.IsNullOrWhiteSpace(model.Remarks) ? null : model.Remarks
+        });
+
+    saving = false;
+
+    if (success)
+        Navigation.NavigateTo($"/stock-issues/site/{model.SiteId}");
+    else
+        errorMessage = "Unable to create stock issue.";
+}
+}

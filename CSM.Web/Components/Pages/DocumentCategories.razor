@@ -1,0 +1,194 @@
+@page "/compliance/document-categories"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.Compliance
+@using CSM.Web.Services
+
+@inject IComplianceService ComplianceService
+@inject NavigationManager Navigation
+
+<PageTitle>Document Categories</PageTitle>
+
+<div class="container-fluid py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Document Categories</h2>
+            <p class="text-muted mb-0">
+                Manage document categories used by the compliance and document system.
+            </p>
+        </div>
+
+        <div>
+            <button class="btn btn-outline-secondary me-2"
+                    @onclick="GoBack">
+                <i class="bi bi-arrow-left me-1"></i>
+                Back
+            </button>
+
+            <button class="btn btn-primary"
+                    @onclick='() => Navigation.NavigateTo("/compliance/document-categories/create")'>
+                Add Category
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status"></div>
+            <div class="mt-2">Loading document categories...</div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else if (_categories.Count == 0)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-folder2-open fs-1 text-muted"></i>
+
+                <h5 class="mt-3">No document categories found</h5>
+
+                <p class="text-muted mb-3">
+                    Create the first document category.
+                </p>
+
+                <button class="btn btn-primary"
+                        @onclick="CreateCategory">
+                    <i class="bi bi-plus-lg me-1"></i>
+                    Add Category
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var category in _categories)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@category.CategoryCode</strong>
+                                    </td>
+
+                                    <td>
+                                        @category.Name
+                                    </td>
+
+                                    <td>
+                                        @if (string.IsNullOrWhiteSpace(category.Description))
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                        else
+                                        {
+                                            @category.Description
+                                        }
+                                    </td>
+
+                                    <td>
+                                        @if (category.IsActive)
+                                        {
+                                            <span class="badge bg-success">
+                                                Active
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">
+                                                Inactive
+                                            </span>
+                                        }
+                                    </td>
+
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="() => EditCategory(category.Id)">
+                                            <i class="bi bi-pencil me-1"></i>
+                                            Edit
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private List<DocumentCategoryResponse> _categories = [];
+
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategoriesAsync();
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var categories =
+                await ComplianceService.GetDocumentCategoriesAsync();
+
+            _categories = categories.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CreateCategory()
+    {
+        Navigation.NavigateTo(
+            "/compliance/document-categories/create");
+    }
+
+    private void EditCategory(Guid id)
+    {
+        Navigation.NavigateTo(
+            $"/compliance/document-categories/{id}/edit");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/compliance");
+    }
+}

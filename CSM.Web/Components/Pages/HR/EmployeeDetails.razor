@@ -1,0 +1,442 @@
+@page "/hr/employees/details/{EmployeeId:guid}"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IEmployeeService EmployeeService
+@inject NavigationManager Navigation
+
+<PageTitle>Employee Details</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3>Employee Details</h3>
+            <p class="text-muted mb-0">
+                View employee information.
+            </p>
+        </div>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="Back">
+            <i class="bi bi-arrow-left me-1"></i>
+            Back
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+            <div class="mt-2">Loading employee...</div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else if (_employee is not null)
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h4 class="mb-1">
+                            @_employee.FirstName
+                            @if (!string.IsNullOrWhiteSpace(_employee.MiddleName))
+                            {
+                                <span> @_employee.MiddleName</span>
+                            }
+                            @_employee.LastName
+                        </h4>
+
+                        <div class="text-muted">
+                            @_employee.EmployeeNumber
+                        </div>
+                    </div>
+
+                    <span class="badge @GetStatusClass(_employee.Status)">
+                        @_employee.Status
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+
+            <div class="col-lg-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">
+                        <strong>Personal Information</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Employee Number</dt>
+                            <dd class="col-sm-7">@_employee.EmployeeNumber</dd>
+
+                            <dt class="col-sm-5">First Name</dt>
+                            <dd class="col-sm-7">@_employee.FirstName</dd>
+
+                            <dt class="col-sm-5">Middle Name</dt>
+                            <dd class="col-sm-7">@Display(_employee.MiddleName)</dd>
+
+                            <dt class="col-sm-5">Last Name</dt>
+                            <dd class="col-sm-7">@_employee.LastName</dd>
+
+                            <dt class="col-sm-5">Date of Birth</dt>
+                            <dd class="col-sm-7">
+                                @_employee.DateOfBirth?.ToString("dd MMM yyyy")
+                            </dd>
+
+                            <dt class="col-sm-5">National ID</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.NationalIdNumber)
+                            </dd>
+
+                            <dt class="col-sm-5">Tax ID</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.TaxIdentificationNumber)
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">
+                        <strong>Employment Information</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Job Title</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.JobTitle)
+                            </dd>
+
+                            <dt class="col-sm-5">Department</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.Department)
+                            </dd>
+
+                            <dt class="col-sm-5">Employee Type</dt>
+                            <dd class="col-sm-7">@_employee.EmployeeType</dd>
+
+                            <dt class="col-sm-5">Wage Type</dt>
+                            <dd class="col-sm-7">@_employee.WageType</dd>
+
+                            <dt class="col-sm-5">Hire Date</dt>
+                            <dd class="col-sm-7">
+                                @_employee.HireDate.ToString("dd MMM yyyy")
+                            </dd>
+
+                            <dt class="col-sm-5">Termination Date</dt>
+                            <dd class="col-sm-7">
+                                @_employee.TerminationDate?.ToString("dd MMM yyyy")
+                            </dd>
+
+                            <dt class="col-sm-5">Base Wage</dt>
+                            <dd class="col-sm-7">
+                                @_employee.BaseWage.ToString("N2")
+                                @_employee.CurrencyCode
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">
+                        <strong>Contact Information</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Phone</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.PhoneNumber)
+                            </dd>
+
+                            <dt class="col-sm-5">Email</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.Email)
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header">
+                        <strong>Bank Information</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Bank Name</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.BankName)
+                            </dd>
+
+                            <dt class="col-sm-5">Account Number</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.BankAccountNumber)
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <strong>Emergency Contact</strong>
+                    </div>
+
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Name</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.EmergencyContactName)
+                            </dd>
+
+                            <dt class="col-sm-5">Phone</dt>
+                            <dd class="col-sm-7">
+                                @Display(_employee.EmergencyContactPhone)
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mt-4">
+                    <div class="card-header">
+                        <strong>Employee Status</strong>
+                    </div>
+
+                    <div class="card-body">
+
+                        @if (!string.IsNullOrWhiteSpace(_statusMessage))
+                        {
+                            <div class="alert alert-success">
+                                @_statusMessage
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(_statusError))
+                        {
+                            <div class="alert alert-danger">
+                                @_statusError
+                            </div>
+                        }
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <label class="form-label">Status</label>
+
+                                <select class="form-select"
+                                        @bind="_newStatus">
+                                    <option value="">Select status</option>
+                                    <option value="Active">Active</option>
+                                    <option value="OnLeave">On Leave</option>
+                                    <option value="Suspended">Suspended</option>
+                                    <option value="Inactive">Inactive</option>
+                                    <option value="Terminated">Terminated</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Termination Date</label>
+
+                                <InputDate class="form-control"
+                                           @bind-Value="_terminationDate" />
+
+                                <div class="form-text">
+                                    Required when terminating an employee.
+                                </div>
+                            </div>
+
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button class="btn btn-primary w-100"
+                                        @onclick="ChangeStatusAsync"
+                                        disabled="@_changingStatus">
+                                    @if (_changingStatus)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                        <span>Updating...</span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-arrow-repeat me-1"></i>
+                                        <span>Update Status</span>
+                                    }
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="mt-4">
+            <button class="btn btn-primary"
+                    @onclick="Back">
+                <i class="bi bi-arrow-left me-1"></i>
+                Back to Employees
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid EmployeeId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public Guid? SiteId { get; set; }
+
+    private EmployeeResponse? _employee;
+    private bool _loading = true;
+    private string? _error;
+
+    private string _newStatus = string.Empty;
+    private DateOnly? _terminationDate;
+
+    private bool _changingStatus;
+
+    private string? _statusMessage;
+    private string? _statusError;
+
+    private async Task ChangeStatusAsync()
+    {
+        _changingStatus = true;
+        _statusMessage = null;
+        _statusError = null;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_newStatus))
+            {
+                _statusError = "Please select a status.";
+                return;
+            }
+
+            if (_newStatus == "Terminated" &&
+                !_terminationDate.HasValue)
+            {
+                _statusError =
+                    "Termination date is required when status is Terminated.";
+                return;
+            }
+
+            if (_newStatus != "Terminated")
+            {
+                _terminationDate = null;
+            }
+
+            var request = new ChangeEmployeeStatusRequest
+            {
+                Status = _newStatus,
+                TerminationDate = _terminationDate
+            };
+
+            _employee =
+                await EmployeeService.ChangeEmployeeStatusAsync(
+                    EmployeeId,
+                    request);
+
+            _statusMessage = "Employee status updated successfully.";
+
+            _newStatus = string.Empty;
+            _terminationDate = null;
+        }
+        catch (Exception ex)
+        {
+            _statusError = ex.Message;
+        }
+        finally
+        {
+            _changingStatus = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadEmployee();
+    }
+
+    private async Task LoadEmployee()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            _employee =
+                await EmployeeService.GetEmployeeAsync(EmployeeId);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private void ViewSiteEmployee(Guid employeeId)
+    {
+        Navigation.NavigateTo(
+            $"/hr/employees/details/{employeeId}?siteId={SiteId}");
+    }
+
+    private void Back()
+    {
+        if (SiteId.HasValue)
+        {
+            Navigation.NavigateTo(
+                $"/hr/employees/site/{SiteId.Value}");
+            return;
+        }
+
+        Navigation.NavigateTo("/hr/employees/company");
+    }
+
+    private static string Display(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? "—"
+            : value;
+    }
+
+    private static string GetStatusClass(string status)
+    {
+        return status switch
+        {
+            "Active" => "bg-success",
+            "OnLeave" => "bg-warning text-dark",
+            "Suspended" => "bg-danger",
+            "Inactive" => "bg-secondary",
+            "Terminated" => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
+}

@@ -1,0 +1,156 @@
+@page "/stock-movements/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>Stock Movement History</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading stock movements...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <h2>@siteName</h2>
+
+        <div class="text-muted mb-4">
+            Complete Stock Movement History
+        </div>
+
+        @if (movements.Count == 0)
+        {
+            <div class="alert alert-info">
+                No stock movements found.
+            </div>
+        }
+        else
+        {
+            @foreach (var item in movements)
+            {
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between">
+
+                            <div>
+                                <div class="fw-bold">
+                                    @item.MaterialCode - @item.MaterialName
+                                </div>
+
+                                <small class="text-muted">
+                                    @item.MovementDateUtc.ToString("dd MMM yyyy")
+                                </small>
+                            </div>
+
+                            <div class="text-end">
+
+                                <span class="@GetBadge(item.MovementType)">
+                                    @item.MovementType
+                                </span>
+
+                                <div class="fw-bold mt-1">
+                                    @item.Quantity @item.UnitOfMeasure
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <hr />
+
+                        <div class="row text-center">
+
+                            <div class="col">
+                                <small class="text-muted">Before</small>
+                                <div class="fw-bold">
+                                    @item.StockBalanceBefore
+                                </div>
+                            </div>
+
+                            <div class="col">
+                                <small class="text-muted">After</small>
+                                <div class="fw-bold">
+                                    @item.StockBalanceAfter
+                                </div>
+                            </div>
+
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(item.ReferenceNumber))
+                        {
+                            <hr />
+
+                            <small class="text-muted">
+                                Ref: @item.ReferenceNumber
+                            </small>
+                        }
+
+                    </div>
+                </div>
+            }
+        }
+
+    </div>
+}
+
+@code{
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private List<StockMovementResponse> movements = [];
+
+    private bool loading = true;
+    private bool loaded;
+
+    private string siteName = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || loaded)
+            return;
+
+        loaded = true;
+
+        var all =
+            await InventoryService.GetStockMovementsAsync();
+
+        movements = all
+            .Where(x => x.ConstructionSiteId == SiteId)
+            .OrderByDescending(x => x.MovementDateUtc)
+            .ToList();
+
+        siteName =
+            movements.FirstOrDefault()?.SiteName
+            ?? "Construction Site";
+
+        loading = false;
+
+        StateHasChanged();
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo("/stock-movements");
+
+    string GetBadge(string type) => type switch
+    {
+        "Receipt" => "badge bg-success",
+        "Issue" => "badge bg-warning text-dark",
+        "Transfer" => "badge bg-primary",
+        "Return" => "badge bg-info text-dark",
+        "Adjustment" => "badge bg-secondary",
+        _ => "badge bg-dark"
+    };
+}

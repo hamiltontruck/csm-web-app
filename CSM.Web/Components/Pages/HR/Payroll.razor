@@ -1,0 +1,206 @@
+@page "/hr/payroll"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using CSM.Web.Models.HRM
+@using CSM.Web.Services
+
+@inject IPayrollService PayrollService
+@inject NavigationManager Navigation
+
+<PageTitle>Payroll</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1">Payroll</h3>
+            <p class="text-muted mb-0">
+                Manage employee payroll records and payment processing.
+            </p>
+        </div>
+
+        <div>
+            <button class="btn btn-outline-secondary me-2"
+                    @onclick="Back">
+                <i class="bi bi-arrow-left me-1"></i>
+                Back
+            </button>
+
+            <button class="btn btn-primary"
+                    @onclick="CreatePayroll">
+                <i class="bi bi-plus-lg me-1"></i>
+                Create Payroll
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">
+            @_error
+        </div>
+    }
+    else if (_payroll.Count == 0)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="alert alert-info mb-0">
+                    No payroll records have been created yet.
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Period</th>
+                                <th>Gross Pay</th>
+                                <th>Deductions</th>
+                                <th>Net Pay</th>
+                                <th>Currency</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var payroll in _payroll)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@payroll.EmployeeNumber</strong>
+                                        <div class="text-muted small">
+                                            @payroll.EmployeeName
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        @payroll.PeriodStart.ToString("yyyy-MM-dd")
+                                        <span class="text-muted">to</span>
+                                        @payroll.PeriodEnd.ToString("yyyy-MM-dd")
+                                    </td>
+
+                                    <td>
+                                        @payroll.GrossPay.ToString("N2")
+                                    </td>
+
+                                    <td>
+                                        @payroll.TotalDeductions.ToString("N2")
+                                    </td>
+
+                                    <td>
+                                        <strong>
+                                            @payroll.NetPay.ToString("N2")
+                                        </strong>
+                                    </td>
+
+                                    <td>
+                                        @payroll.CurrencyCode
+                                    </td>
+
+                                    <td>
+                                        <span class="@GetStatusClass(payroll.Status)">
+                                            @payroll.Status
+                                        </span>
+                                    </td>
+
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="() => OpenPayroll(payroll.Id)">
+                                            <i class="bi bi-eye me-1"></i>
+                                            Open
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PayrollResponse> _payroll = [];
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPayroll();
+    }
+
+    private async Task LoadPayroll()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var payroll = await PayrollService.GetAllAsync();
+
+            _payroll = payroll.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load payroll: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void CreatePayroll()
+    {
+        Navigation.NavigateTo("/hr/payroll/create");
+    }
+
+    private void OpenPayroll(Guid payrollId)
+    {
+        Navigation.NavigateTo($"/hr/payroll/edit/{payrollId}");
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/hr");
+    }
+
+    private static string GetStatusClass(string status)
+    {
+        return status switch
+        {
+            "Draft" =>
+                "badge bg-secondary",
+
+            "Calculated" =>
+                "badge bg-info text-dark",
+
+            "Approved" =>
+                "badge bg-success",
+
+            "Paid" =>
+                "badge bg-primary",
+
+            "Cancelled" =>
+                "badge bg-danger",
+
+            _ =>
+                "badge bg-secondary"
+        };
+    }
+}

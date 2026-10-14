@@ -1,0 +1,386 @@
+@page "/projects/{Id:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Projects
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Project Details</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading project...</p>
+    </div>
+}
+else if (_project is null)
+{
+    <div class="alert alert-danger">
+        Project not found.
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+
+            <div>
+                <button class="btn btn-outline-secondary"
+                        @onclick="Back">
+                    ← Back to Site
+                </button>
+
+                <h2 class="mb-1">@_project.Name</h2>
+
+                <div class="text-muted">
+                    @_project.Code · @_project.ConstructionSiteName
+                </div>
+
+                <div class="mt-2">
+                    <span class="@StatusBadge(_project.Status)">
+                        @_project.Status
+                    </span>
+                </div>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="EditProject">
+                Edit Project
+            </button>
+
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="row g-3 mb-4">
+
+            <div class="col-lg-3 col-md-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <small class="text-muted">Status</small>
+                        <h4>@_project.Status</h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <small class="text-muted">Progress</small>
+                        <h3>@_project.ProgressPercentage%</h3>
+
+                        <div class="progress mt-2" style="height:8px">
+                            <div class="progress-bar bg-success"
+                                 style="width:@($"{_project.ProgressPercentage}%")">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <small class="text-muted">Project Code</small>
+                        <h4>@_project.Code</h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <small class="text-muted">Construction Site</small>
+                        <h6>@_project.ConstructionSiteName</h6>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="row g-4">
+
+            <!-- Left -->
+            <div class="col-lg-8">
+
+                <div class="card shadow-sm border-0 mb-4">
+
+                    <div class="card-header bg-white">
+                        <strong>Project Information</strong>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row">
+
+                            <div class="col-md-6 mb-3">
+                                <div class="text-muted small">Project Name</div>
+                                <strong>@_project.Name</strong>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="text-muted small">Project Code</div>
+                                <strong>@_project.Code</strong>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="text-muted small">Construction Site</div>
+                                <strong>@_project.ConstructionSiteName</strong>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="text-muted small">Status</div>
+                                <strong>@_project.Status</strong>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="text-muted small">Planned Start</div>
+                                <strong>@_project.PlannedStartDate</strong>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="text-muted small">Planned End</div>
+                                <strong>@_project.PlannedEndDate</strong>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="text-muted small mb-2">Description</div>
+
+                                @if (string.IsNullOrWhiteSpace(_project.Description))
+                                {
+                                    <span class="text-muted">
+                                        No description provided.
+                                    </span>
+                                }
+                                else
+                                {
+                                    <p class="mb-0">@_project.Description</p>
+                                }
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- Workspace -->
+                <div class="card shadow-sm border-0">
+
+                    <div class="card-header bg-white">
+                        <strong>Project Workspace</strong>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row g-3">
+
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-primary w-100 action-btn"
+                                        @onclick="OpenGantt">
+                                    Gantt
+                                </button>
+                            </div>
+
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-success w-100 action-btn"
+                                        @onclick="OpenPhases">
+                                    Phases
+                                </button>
+                            </div>
+
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-warning w-100 action-btn"
+                                        @onclick="OpenMilestones">
+                                    Milestones
+                                </button>
+                            </div>
+
+                            <div class="col-md-3">
+                                <button class="btn btn-primary w-100 action-btn"
+                                        @onclick="NewTask">
+                                    New Task
+                                </button>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Right -->
+            <div class="col-lg-4">
+
+                <div class="card shadow-sm border-0 mb-4">
+
+                    <div class="card-header bg-white">
+                        <strong>Project Status</strong>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="SelectedStatus">
+                                <option value="Planning">Planning</option>
+                                <option value="Active">Active</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Delayed">Delayed</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Progress (@Progress%)
+                            </label>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="Progress"/>
+                        </div>
+
+                        <button class="btn btn-primary w-100"
+                                @onclick="UpdateStatus">
+                            Update Status
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <div class="card shadow-sm border-0">
+
+                    <div class="card-header bg-white">
+                        <strong>Milestones</strong>
+                    </div>
+
+                    <div class="card-body text-center py-4">
+
+                        <h6 class="text-muted">
+                            Milestone module coming next
+                        </h6>
+
+                        <button class="btn btn-outline-primary mt-2"
+                                @onclick="OpenMilestones">
+                            Open Milestones
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private ProjectDetail? _project;
+    private bool _loading = true;
+    private bool _loaded;
+    private string SelectedStatus = "Planning";
+
+    private decimal Progress;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _project = await ProjectService.GetProjectAsync(Id);
+
+        SelectedStatus = _project?.Status ?? "Planning";
+        Progress = _project?.ProgressPercentage ?? 0;
+
+        _loading = false;
+
+        StateHasChanged();
+    }
+
+    private async Task UpdateStatus()
+    {
+        if (_project is null)
+            return;
+
+        var request = new UpdateProjectRequest
+        {
+            Name = _project.Name,
+            Description = _project.Description,
+            Status = SelectedStatus,
+            ProgressPercentage = Progress,
+            PlannedStartDate = _project.PlannedStartDate,
+            PlannedEndDate = _project.PlannedEndDate
+        };
+
+        var success = await ProjectService.UpdateProjectAsync(Id, request);
+
+        if (!success)
+            return;
+
+        _project = await ProjectService.GetProjectAsync(Id);
+
+        SelectedStatus = _project?.Status ?? "Draft";
+        Progress = _project?.ProgressPercentage ?? 0m;
+
+        StateHasChanged();
+    }
+
+    void Back()
+    {
+        if (_project is null)
+        {
+            Navigation.NavigateTo("/sites-management");
+            return;
+        }
+
+        Navigation.NavigateTo($"/sites/{_project.SiteId}", true);
+    }
+
+    void EditProject()
+        => Navigation.NavigateTo($"/projects/{Id}/edit");
+
+    void OpenGantt()
+        => Navigation.NavigateTo($"/projects/{Id}/gantt");
+
+    void OpenPhases()
+        => Navigation.NavigateTo($"/projects/{Id}/phases");
+
+    void OpenMilestones()
+        => Navigation.NavigateTo($"/projects/{Id}/milestones");
+
+    void NewTask()
+        => Navigation.NavigateTo($"/projects/{Id}/gantt");
+
+    static string StatusBadge(string status) => status switch
+    {
+        "Planning" => "badge bg-secondary",
+        "Active" => "badge bg-success",
+        "Completed" => "badge bg-primary",
+        "Delayed" => "badge bg-danger",
+        _ => "badge bg-dark"
+    };
+}
+
+<style>
+    .action-btn{
+        height:52px;
+        border-radius:12px;
+        font-weight:600;
+    }
+</style>

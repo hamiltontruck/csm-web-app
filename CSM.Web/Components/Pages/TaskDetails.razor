@@ -1,0 +1,301 @@
+@page "/projects/{ProjectId:guid}/tasks/{TaskId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Projects
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Task Details</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading task...</p>
+    </div>
+}
+else if (_task is null)
+{
+    <div class="container py-4">
+        <div class="alert alert-danger">
+            Task not found.
+        </div>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+
+            <div>
+                <button class="btn btn-outline-secondary mb-3"
+                        @onclick="Back">
+                    ← Phase Details
+                </button>
+
+                <h2 class="mb-1">@_task.Title</h2>
+
+                <div class="text-muted">
+                    @_task.TaskNumber
+                </div>
+            </div>
+
+            <button class="btn btn-success"
+                    @onclick="AddEntry">
+                + Daily Progress
+            </button>
+
+        </div>
+
+        <!-- KPI -->
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Status</div>
+                        <h5 class="mb-0">@_task.Status</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Priority</div>
+                        <h5 class="mb-0">@_task.Priority</h5>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Current Progress</div>
+                        <h3 class="text-success mb-0">
+                            @_task.ProgressPercentage.ToString("0")%
+                        </h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">Planned Finish</div>
+                        <strong>
+                            @(_task.PlannedEndDate?.ToString("dd MMM yyyy") ?? "-")
+                        </strong>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Progress -->
+        <div class="card border-0 shadow-sm mb-4">
+
+            <div class="card-header bg-white d-flex justify-content-between">
+                <strong>Execution Progress</strong>
+                <span class="fw-bold text-success">
+                    @_task.ProgressPercentage.ToString("0")%
+                </span>
+            </div>
+
+            <div class="card-body">
+
+                <div class="progress" style="height:20px;">
+                    <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                         role="progressbar"
+                         style="width:@($"{_task.ProgressPercentage}%")">
+                    </div>
+                </div>
+
+                <div class="mt-2 text-muted small">
+                    Progress is updated automatically from Daily Progress task entries.
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Description -->
+        <div class="card shadow-sm border-0 mb-4">
+
+            <div class="card-header bg-white">
+                <strong>Description</strong>
+            </div>
+
+            <div class="card-body">
+
+                @if (string.IsNullOrWhiteSpace(_task.Description))
+                {
+                    <span class="text-muted">
+                        No description.
+                    </span>
+                }
+                else
+                {
+                    @_task.Description
+                }
+
+            </div>
+
+        </div>
+
+        <!-- Resources -->
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <h3>@TotalLabour</h3>
+                        <div class="text-muted">Labour</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <h3>@TotalEquipmentCount</h3>
+                        <div class="text-muted">Equipment</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <h3>@TotalMaterials</h3>
+                        <div class="text-muted">Materials</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <h3>@TotalEquipmentHours.ToString("0.0")</h3>
+                        <div class="text-muted">Hours</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Daily Progress -->
+        <div class="card shadow-sm border-0">
+
+            <div class="card-header bg-white d-flex justify-content-between">
+
+                <strong>Daily Progress Log</strong>
+
+                <button class="btn btn-sm btn-primary"
+                        @onclick="OpenDailyProgress">
+                    Add Entry
+                </button>
+
+            </div>
+
+            <div class="card-body text-center py-5">
+
+                <h5>No Progress Recorded</h5>
+
+                <p class="text-muted">
+                    Site supervisors will submit daily production here.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+@code {
+
+    [Parameter] public Guid ProjectId { get; set; }
+
+    [Parameter] public Guid TaskId { get; set; }
+
+    private WorkTask? _task;
+
+    private List<DailyProgressLogResponse> _logs = new();
+
+    private List<DailyProgressTaskEntryResponse> _entries = new();
+
+    private bool _loading = true;
+    private bool _loaded;
+
+    private Guid _dailyLogId;
+
+    private int TotalLabour =>
+        _entries.Sum(x => x.LabourCount);
+
+    private int TotalEquipmentCount =>
+        _entries.Sum(x => x.EquipmentCount);
+
+    private decimal TotalEquipmentHours =>
+        _entries.Sum(x => x.EquipmentHours);
+
+    private int TotalMaterials => 0;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        var tasks = await ProjectService.GetWorkTasksAsync(ProjectId);
+        _task = tasks.FirstOrDefault(x => x.Id == TaskId);
+
+        _logs = await ProjectService.GetTaskDailyProgressAsync(ProjectId);
+
+        _logs = _logs
+            .OrderByDescending(x => x.LogDate)
+            .ToList();
+
+        var allEntries = new List<DailyProgressTaskEntryResponse>();
+
+        foreach (var log in _logs)
+        {
+            var entries = await ProjectService.GetTaskProgressEntriesAsync(log.Id);
+            allEntries.AddRange(entries);
+        }
+
+        _entries = allEntries
+            .Where(x => x.WorkTaskId == TaskId)
+            .ToList();
+
+        // Use the most recent log when adding another entry
+        _dailyLogId = _logs
+            .OrderByDescending(x => x.LogDate)
+            .FirstOrDefault()?.Id ?? Guid.Empty;
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    void AddEntry()
+    {
+        Navigation.NavigateTo(
+            $"/projects/{ProjectId}/daily-progress/create?taskId={TaskId}");
+    }
+
+    void Back()
+    {
+        Navigation.NavigateTo($"/projects/{ProjectId}/phases");
+    }
+
+    void OpenDailyProgress()
+    {
+        Navigation.NavigateTo($"/projects/{ProjectId}/daily-progress/create?taskId={TaskId}");
+    }
+
+}

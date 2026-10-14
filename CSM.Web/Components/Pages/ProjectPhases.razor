@@ -1,0 +1,272 @@
+@page "/projects/{ProjectId:guid}/phases"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Projects
+@using CSM.Web.Services
+
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Work Breakdown Structure</PageTitle>
+
+@if (_loading)
+{
+    <div class="container py-5 text-center">
+        <div class="spinner-border text-primary"></div>
+        <p class="mt-3">Loading Work Breakdown Structure...</p>
+    </div>
+}
+else
+{
+    <div class="container-fluid py-4">
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+
+            <div>
+                <button class="btn btn-outline-secondary mb-3"
+                        @onclick="Back">
+                    ← Project Details
+                </button>
+
+                <h2 class="mb-1">Work Breakdown Structure</h2>
+                <p class="text-muted mb-0">
+                    Organize the project into phases and track execution.
+                </p>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="OpenCreate">
+                + New Phase
+            </button>
+
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="row g-3 mb-4">
+
+            <div class="col-lg-3 col-md-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <small class="text-muted">Total Phases</small>
+                        <h2>@_phases.Count</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <small class="text-muted">Active</small>
+                        <h2>@_phases.Count(x => x.Status == "Active")</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <small class="text-muted">Completed</small>
+                        <h2>@_phases.Count(x => x.Status == "Completed")</h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body">
+                        <small class="text-muted">Overall Progress</small>
+                        <h2>
+                            @(_phases.Count == 0
+                                ? 0
+                                : Math.Round(_phases.Average(x => x.ProgressPercentage)))
+                            %
+                        </h2>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Phase Cards -->
+        @if (_phases.Count == 0)
+        {
+            <div class="card shadow-sm border-0">
+                <div class="card-body text-center py-5">
+
+                    <div class="display-6 mb-3">📋</div>
+
+                    <h4>No Phases Created</h4>
+
+                    <p class="text-muted mb-4">
+                        Begin planning this project by creating Phase 1.
+                    </p>
+
+                    <button class="btn btn-primary"
+                            @onclick="OpenCreate">
+                        Create First Phase
+                    </button>
+
+                </div>
+            </div>
+        }
+        else
+        {
+            @foreach (var item in _phases
+                .OrderBy(x => x.PlannedStartDate)
+                .Select((phase, index) => new { Phase = phase, Number = index + 1 }))
+            {
+                var phase = item.Phase;
+                <div class="card shadow-sm border-0 mb-3">
+
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between align-items-start">
+
+                            <div>
+                                <div class="text-primary fw-semibold mb-1">
+                                    Phase @item.Number
+                                </div>
+
+                                <h4 class="mb-1">
+                                    @phase.Name
+                                </h4>
+
+                                @if (!string.IsNullOrWhiteSpace(phase.Description))
+                                {
+                                    <p class="text-muted mb-0">
+                                        @phase.Description
+                                    </p>
+                                }
+                            </div>
+
+                            <div class="text-end">
+
+                                @if (phase.Status == "Completed")
+                                {
+                                    <span class="badge bg-primary">
+                                        Completed
+                                    </span>
+                                }
+                                else if (phase.Status == "Active")
+                                {
+                                    <span class="badge bg-success">
+                                        Active
+                                    </span>
+                                }
+                                else if (phase.Status == "Planning")
+                                {
+                                    <span class="badge bg-secondary">
+                                        Planning
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-dark">
+                                        @phase.Status
+                                    </span>
+                                }
+
+                                <h3 class="mt-2 mb-0 text-success">
+                                    @phase.ProgressPercentage.ToString("0")%
+                                </h3>
+
+                            </div>
+
+                        </div>
+
+                        <hr />
+
+                        <div class="row align-items-center mb-3">
+
+                            <div class="col-md-3">
+                                <div class="small text-muted">Planned Start</div>
+                                <strong>
+                                    @(phase.PlannedStartDate?.ToString("dd MMM yyyy") ?? "-")
+                                </strong>
+                            </div>
+
+                            <div class="col-md-3">
+                                <div class="small text-muted">Planned Finish</div>
+                                <strong>
+                                    @(phase.PlannedEndDate?.ToString("dd MMM yyyy") ?? "-")
+                                </strong>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="progress" style="height:10px;">
+                                    <div class="progress-bar bg-success"
+                                         role="progressbar"
+                                         style="width:@($"{phase.ProgressPercentage}%");">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-2 text-end">
+                                <strong>@phase.ProgressPercentage.ToString("0")%</strong>
+                            </div>
+
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+
+                            <button class="btn btn-sm btn-outline-primary"
+                                    @onclick='() => OpenPhase(phase.Id)'>
+                                Open
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-secondary">
+                                Edit
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            }
+        }
+
+    </div>
+}
+
+@code {
+
+    [Parameter]
+    public Guid ProjectId { get; set; }
+
+    private List<ProjectPhase> _phases = new();
+
+    private bool _loading = true;
+    private bool _loaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        _phases = await ProjectService.GetProjectPhasesAsync(ProjectId);
+
+        _loading = false;
+
+        StateHasChanged();
+    }
+
+    void Back()
+    {
+        Navigation.NavigateTo($"/projects/{ProjectId}", true);
+    }
+
+    void OpenCreate()
+    {
+        Navigation.NavigateTo($"/projects/{ProjectId}/phases/create");
+    }
+
+    void OpenPhase(Guid phaseId)
+    {
+        Navigation.NavigateTo($"/projects/{ProjectId}/phases/{phaseId}");
+    }
+
+}

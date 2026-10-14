@@ -1,0 +1,142 @@
+@page "/finance/company/invoices"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+<PageTitle>Company Invoices</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+            <button class="btn btn-outline-secondary mb-2"
+                    @onclick="Back">
+                ← Finance
+            </button>
+
+            <h2 class="mb-0">Company Invoices</h2>
+
+            <div class="text-muted">
+                Non-site invoices (Head Office)
+            </div>
+        </div>
+
+        <button class="btn btn-primary"
+                @onclick="CreateInvoice">
+            <i class="bi bi-plus-lg"></i>
+            New Invoice
+        </button>
+
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+        </div>
+    }
+    else if (_items.Count == 0)
+    {
+        <div class="alert alert-info">
+            No company invoices found.
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0">
+
+            <div class="table-responsive">
+
+                <table class="table table-hover mb-0">
+
+                    <thead class="table-light">
+                        <tr>
+                            <th>Invoice</th>
+                            <th>Vendor</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        @foreach (var invoice in _items)
+                        {
+                            <tr role="button"
+                                @onclick="() => Open(invoice.Id)">
+
+                                <td>
+                                    <strong>@invoice.InvoiceNumber</strong>
+                                </td>
+
+                                <td>@invoice.VendorName</td>
+
+                                <td>
+                                    @invoice.InvoiceDate.ToString("dd MMM yyyy")
+                                </td>
+
+                                <td>
+                                    <span class="badge bg-secondary">
+                                        @invoice.Status
+                                    </span>
+                                </td>
+
+                                <td class="text-end">
+                                    @invoice.CurrencyCode
+                                    @invoice.TotalAmount.ToString("N2")
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+    }
+
+</div>
+
+@code {
+
+    private bool _loading = true;
+
+    private List<InvoiceResponse> _items = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = await FinanceService.GetCompanyInvoicesAsync();
+
+        _loading = false;
+    }
+
+    private void RecordPayment(Guid invoiceId)
+    {
+        Navigation.NavigateTo($"/finance/payments/create?invoiceId={invoiceId}");
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/finance/sites");
+    }
+
+    private void Open(Guid id)
+    {
+        Navigation.NavigateTo($"/finance/invoices/{id}");
+    }
+
+    private void CreateInvoice()
+    {
+        Navigation.NavigateTo("/finance/company/invoices/create");
+    }
+
+}

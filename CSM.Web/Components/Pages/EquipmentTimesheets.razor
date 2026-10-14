@@ -1,0 +1,253 @@
+@page "/equipment/timesheet/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Equipment
+@using CSM.Web.Models.Sites
+@using CSM.Web.Services
+
+@inject IEquipmentService EquipmentService
+@inject IProjectService ProjectService
+@inject NavigationManager Navigation
+
+<PageTitle>Daily Equipment Timesheets</PageTitle>
+
+<div class="container py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+
+        <div class="d-flex align-items-center">
+
+            <button class="btn btn-outline-secondary me-3"
+                    @onclick="GoBack">
+                ← Back
+            </button>
+
+            <div>
+                <h2 class="mb-0">Daily Timesheets</h2>
+
+                @if (!string.IsNullOrWhiteSpace(siteName))
+                {
+                    <small class="text-muted">@siteName</small>
+                }
+            </div>
+
+        </div>
+
+        <div class="d-flex gap-2">
+
+            <button class="btn btn-outline-success"
+                    @onclick="OpenReport">
+                <i class="bi bi-file-earmark-text"></i>
+                Daily Report
+            </button>
+
+            <button class="btn btn-primary"
+                    @onclick="NewTimesheet">
+                + New Timesheet
+            </button>
+
+        </div>
+
+    </div>
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border"></div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (timesheets.Count == 0)
+    {
+        <div class="alert alert-info">
+            No daily timesheets found for this site.
+        </div>
+    }
+    else
+    {
+        @foreach (var item in timesheets.OrderByDescending(x => x.WorkDate))
+        {
+            <div class="card shadow-sm mb-3">
+
+                <div class="card-body">
+
+                    <div class="d-flex justify-content-between">
+
+                        <div>
+                            <h5 class="mb-1">
+                                @item.EquipmentCode — @item.EquipmentName
+                            </h5>
+
+                            <div class="text-muted">
+                                @item.Activity
+                            </div>
+                        </div>
+
+                        <div class="text-end">
+
+                            <div class="fw-bold">
+                                @item.WorkedHours.ToString("N2") hrs
+                            </div>
+
+                            <small class="text-muted d-block">
+                                @item.Shift Shift
+                            </small>
+
+                            <button class="btn btn-sm btn-outline-primary mt-2"
+                                    @onclick="() => EditTimesheet(item.Id)">
+                                <i class="bi bi-pencil"></i> Update
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                    <hr />
+
+                    <div class="row">
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Date
+                            </small>
+
+                            @item.WorkDate.ToString("dd/MM/yyyy")
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Operator
+                            </small>
+
+                            @item.OperatorName
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Start
+                            </small>
+
+                            @ToEthiopian(item.StartTime)
+                        </div>
+
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">
+                                Finish
+                            </small>
+
+                            @ToEthiopian(item.EndTime)
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private string siteName = "";
+
+    private List<EquipmentTimesheetResponse> timesheets = [];
+
+    private bool loading = true;
+
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            var sites = await ProjectService.GetSitesAsync();
+
+            var site = sites.FirstOrDefault(x => x.Id == SiteId);
+
+            if (site != null)
+                siteName = site.Name;
+
+            var assignments = await EquipmentService.GetAssignmentsAsync();
+
+            var equipmentIds = assignments
+                .Where(x =>
+                    x.ConstructionSiteId == SiteId &&
+                    x.ReleasedAtUtc == null)
+                .Select(x => x.EquipmentId)
+                .Distinct()
+                .ToHashSet();
+
+            var all = await EquipmentService.GetTimesheetsAsync();
+
+            timesheets = all
+                .Where(x => equipmentIds.Contains(x.EquipmentId))
+                .OrderByDescending(x => x.WorkDate)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static string ToEthiopian(TimeSpan time)
+    {
+        int gHour = time.Hours;
+        int minute = time.Minutes;
+
+        // Ethiopian hour
+        int eHour = gHour - 6;
+
+        if (eHour <= 0)
+            eHour += 12;
+        else if (eHour > 12)
+            eHour -= 12;
+
+        // 06:00–17:59 = Day, otherwise Night
+        string period = (gHour >= 6 && gHour < 18)
+            ? "Day"
+            : "Night";
+
+        return $"{eHour}:{minute:00} {period}";
+    }
+
+    private void NewTimesheet()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/timesheet/create/{SiteId}");
+    }
+
+    private void OpenReport()
+    {
+        Navigation.NavigateTo(
+            $"/equipment/timesheet/report/{SiteId}");
+    }
+
+    private void EditTimesheet(Guid id)
+    {
+        Navigation.NavigateTo(
+            $"/equipment/timesheet/edit/{id}");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/equipment/timesheet-sites");
+    }
+
+}

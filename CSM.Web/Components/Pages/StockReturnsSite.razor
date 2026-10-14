@@ -1,0 +1,143 @@
+@page "/stock-returns/site/{SiteId:guid}"
+@rendermode InteractiveServer
+
+@using CSM.Web.Models.Procurement
+@using CSM.Web.Services
+
+@inject IInventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>Site Stock Returns</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-4">
+        <h4>Loading...</h4>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+
+        <button class="btn btn-outline-secondary mb-3"
+                @onclick="GoBack">
+            <i class="bi bi-arrow-left"></i> Back
+        </button>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>@siteName</h2>
+                <div class="text-muted">Stock Returns</div>
+            </div>
+
+            <button class="btn btn-primary"
+                    @onclick="NewReturn">
+                <i class="bi bi-plus-lg"></i>
+                New Return
+            </button>
+        </div>
+
+        @if (returns.Count == 0)
+        {
+            <div class="alert alert-info">
+                No stock returns for this site.
+            </div>
+        }
+        else
+        {
+            @foreach (var item in returns)
+            {
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <div class="fw-bold">
+                                    @item.MaterialCode - @item.MaterialName
+                                </div>
+
+                                <small class="text-muted">
+                                    @item.ReturnDateUtc.ToString("dd MMM yyyy")
+                                </small>
+                            </div>
+
+                            <div class="text-end">
+                                <div class="fw-bold">
+                                    @item.ReturnedQuantity @item.UnitOfMeasure
+                                </div>
+
+                                <small class="text-muted">
+                                    @item.ReferenceNumber
+                                </small>
+                            </div>
+                        </div>
+
+                        <hr />
+
+                        <div class="row text-center">
+                            <div class="col">
+                                <small class="text-muted">Issued</small>
+                                <div>@item.OriginalIssuedQuantity</div>
+                            </div>
+
+                            <div class="col">
+                                <small class="text-muted">Previously Returned</small>
+                                <div>@item.PreviouslyReturnedQuantity</div>
+                            </div>
+
+                            <div class="col">
+                                <small class="text-muted">Remaining</small>
+                                <div>@item.RemainingReturnableQuantity</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            }
+        }
+
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid SiteId { get; set; }
+
+    private List<StockReturnResponse> returns = [];
+    private bool loading = true;
+    private bool loaded;
+    private string siteName = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || loaded)
+            return;
+
+        try
+        {
+            var all = await InventoryService.GetStockReturnsAsync();
+
+            returns = all
+                .Where(x => x.ConstructionSiteId == SiteId)
+                .OrderByDescending(x => x.ReturnDateUtc)
+                .ToList();
+
+            siteName = returns.FirstOrDefault()?.SiteName ?? "Construction Site";
+
+            loading = false;
+            loaded = true;
+
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            // Wait for JWT restoration.
+        }
+    }
+
+    void GoBack()
+        => Navigation.NavigateTo("/stock-returns");
+
+    void NewReturn()
+        => Navigation.NavigateTo($"/stock-returns/create/{SiteId}");
+}
