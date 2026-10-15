@@ -79,6 +79,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-await DatabaseInitializer.InitializeAsync(app.Services);
+await DatabaseInitializer.InitializeAsync(app.Services, app.Configuration);
 
 app.Run();
