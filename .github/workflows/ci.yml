@@ -45,7 +45,9 @@ jobs:
       - name: Build SQL Server migration bundles
         run: |
           mkdir -p artifacts/csm-db-migrate/linux artifacts/csm-db-migrate/windows
+          dotnet restore CSM.sln --runtime linux-x64
           dotnet ef migrations bundle --project CSM.Infrastructure/CSM.Infrastructure.csproj --startup-project CSM.Api/CSM.Api.csproj --configuration Release --self-contained --runtime linux-x64 --output artifacts/csm-db-migrate/linux/csm-db-migrate
+          dotnet restore CSM.sln --runtime win-x64
           dotnet ef migrations bundle --project CSM.Infrastructure/CSM.Infrastructure.csproj --startup-project CSM.Api/CSM.Api.csproj --configuration Release --self-contained --runtime win-x64 --output artifacts/csm-db-migrate/windows/csm-db-migrate.exe
 
       - name: Upload SQL migration bundles
