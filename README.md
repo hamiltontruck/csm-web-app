@@ -39,6 +39,33 @@ dotnet run --project CSM.Web --launch-profile https
 
 Open `https://localhost:7055`. The web app calls the API at `https://localhost:7051/api/`.
 
+## Database migrations and first administrator
+
+The API does not change the database schema automatically at startup. Build and run the EF migration bundle before starting the API against a new or upgraded database. The `CSM CI` workflow builds self-contained Linux and Windows bundles and uploads them as a workflow artifact named `csm-db-migration-bundles-<commit>`. Download the artifact from the successful workflow run, extract it, then run the matching bundle with a SQL Server connection string that has permission to apply schema changes:
+
+```bash
+./csm-db-migrate --connection "$CSM_CONNECTION_STRING"
+```
+
+On Windows PowerShell:
+
+```powershell
+.\csm-db-migrate.exe --connection $env:CSM_CONNECTION_STRING
+```
+
+Only run the migration bundle after confirming the target server and database. Keep the connection string private.
+
+On the first API start against an empty database, configure a bootstrap administrator. Supply the values through your secret store or environment variables `BootstrapAdmin__Email` and `BootstrapAdmin__Password`. The password must have at least 12 characters and include uppercase, lowercase, numeric, and special characters. Existing databases with a SuperAdmin role assignment are not reset by these settings.
+
+For local development, set User Secrets in the API project:
+
+```powershell
+dotnet user-secrets set "BootstrapAdmin:Email" "admin@example.com" --project CSM.Api
+dotnet user-secrets set "BootstrapAdmin:Password" "<your-private-password>" --project CSM.Api
+```
+
+The bootstrap account is created only if no SuperAdmin assignment exists. Choose a private password and change it after first sign-in if your deployment process requires rotation.
+
 ## Hosting configuration
 
 Host the API and web app as separate .NET 10 services. Use a reachable SQL Server database for the API. Set these environment variables in the hosting platform's secret/configuration panel:
@@ -46,6 +73,7 @@ Host the API and web app as separate .NET 10 services. Use a reachable SQL Serve
 ### API
 
 - `ConnectionStrings__DefaultConnection` — production SQL Server connection string
+- `BootstrapAdmin__Email` and `BootstrapAdmin__Password` — required only for the first API start when the database has no SuperAdmin; store them as secrets and remove them after the account is created
 - `Jwt__SecretKey` — random secret with at least 32 characters
 - `Jwt__Issuer` — JWT issuer, matching the configured client validation
 - `Jwt__Audience` — JWT audience, matching the configured client validation

@@ -3,6 +3,7 @@ using CSM.Domain.Constants;
 using CSM.Domain.Entities.Identity;
 using CSM.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CSM.Infrastructure.Persistence;
@@ -11,6 +12,7 @@ public static class DatabaseInitializer
 {
     public static async Task InitializeAsync(
         IServiceProvider serviceProvider,
+        IConfiguration configuration,
         CancellationToken cancellationToken = default)
     {
         using var scope = serviceProvider.CreateScope();
@@ -26,6 +28,7 @@ public static class DatabaseInitializer
         await SeedSuperAdminAsync(
             dbContext,
             passwordHasher,
+            configuration,
             cancellationToken);
 
         // Seed default RBAC permissions
@@ -68,9 +71,39 @@ public static class DatabaseInitializer
     private static async Task SeedSuperAdminAsync(
         ApplicationDbContext dbContext,
         IPasswordHasher passwordHasher,
+        IConfiguration configuration,
         CancellationToken cancellationToken)
     {
-        const string email = "admin@csm.local";
+        var superAdminRole = await dbContext.Roles.SingleAsync(
+            x => x.NormalizedName == AppRoles.SuperAdmin.ToUpperInvariant(),
+            cancellationToken);
+
+        // Do not create or reset a privileged account from a built-in password.
+        // Existing installations keep their configured super admin.
+        var existingSuperAdmin = await dbContext.UserRoles.AnyAsync(
+            x => x.RoleId == superAdminRole.Id,
+            cancellationToken);
+
+        if (existingSuperAdmin)
+            return;
+
+        var email = configuration["BootstrapAdmin:Email"]?.Trim();
+        var password = configuration["BootstrapAdmin:Password"];
+
+        if (string.IsNullOrWhiteSpace(email) ||
+            string.IsNullOrWhiteSpace(password))
+        {
+            throw new InvalidOperationException(
+                "No super administrator exists. Set BootstrapAdmin:Email and " +
+                "BootstrapAdmin:Password using environment variables or a " +
+                "secret store before starting the API for the first time.");
+        }
+
+        if (!System.Net.Mail.MailAddress.TryCreate(email, out _))
+            throw new InvalidOperationException(
+                "BootstrapAdmin:Email must be a valid email address.");
+
+        ValidateBootstrapPassword(password);
         var normalizedEmail = email.ToUpperInvariant();
 
         var user = await dbContext.Users
@@ -87,7 +120,7 @@ public static class DatabaseInitializer
                 NormalizedEmail = normalizedEmail,
                 FirstName = "System",
                 LastName = "Administrator",
-                PasswordHash = passwordHasher.Hash("ChangeMe123!"),
+                PasswordHash = passwordHasher.Hash(password),
                 IsActive = true,
                 MustChangePassword = true
             };
@@ -95,10 +128,6 @@ public static class DatabaseInitializer
             dbContext.Users.Add(user);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-
-        var superAdminRole = await dbContext.Roles.SingleAsync(
-            x => x.NormalizedName == AppRoles.SuperAdmin.ToUpperInvariant(),
-            cancellationToken);
 
         var assigned = await dbContext.UserRoles.AnyAsync(
             x => x.UserId == user.Id && x.RoleId == superAdminRole.Id,
@@ -113,6 +142,20 @@ public static class DatabaseInitializer
             });
 
             await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private static void ValidateBootstrapPassword(string password)
+    {
+        if (password.Length < 12 ||
+            !password.Any(char.IsUpper) ||
+            !password.Any(char.IsLower) ||
+            !password.Any(char.IsDigit) ||
+            !password.Any(character => !char.IsLetterOrDigit(character)))
+        {
+            throw new InvalidOperationException(
+                "BootstrapAdmin:Password must be at least 12 characters and " +
+                "include uppercase, lowercase, numeric, and special characters.");
         }
     }
 
