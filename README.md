@@ -1,6 +1,6 @@
 # CSM Web Application
 
-This repository contains a .NET 10 solution with a Blazor Server web app, ASP.NET Core API, and three supporting projects. The web interface already exists in `CSM.Web`; it talks to `CSM.Api`, which stores data in SQL Server.
+CSM is a .NET 10 solution with a Blazor Server web app and ASP.NET Core API. The API stores application data in PostgreSQL and can connect to the Neon project `csm-db`.
 
 ## Projects
 
@@ -8,18 +8,27 @@ This repository contains a .NET 10 solution with a Blazor Server web app, ASP.NE
 - `CSM.Api` — ASP.NET Core API
 - `CSM.Application` — use cases and application services
 - `CSM.Domain` — domain models and rules
-- `CSM.Infrastructure` — SQL Server, authentication, and persistence
+- `CSM.Infrastructure` — PostgreSQL persistence, authentication, and services
 
 ## Run locally on Windows
 
-Install the .NET 10 SDK and SQL Server Express. Open `CSM.sln` in Visual Studio, or use PowerShell from this folder.
+Install the .NET 10 SDK. In Visual Studio, open `CSM.sln`, or run these commands in PowerShell from this folder.
 
-1. Create the local database connection in `CSM.Api/appsettings.Development.json` if your SQL Server instance differs from `.`\SQLEXPRESS.
-2. Set a private local JWT key using User Secrets (do not commit the value):
+1. Store the Neon connection string as a local secret. Paste the `.NET` connection string copied from Neon into your PC terminal when prompted; do not put it in a source file or send it in chat:
+
+```powershell
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<paste-your-Neon-connection-string>" --project CSM.Api
+```
+
+2. Create a private JWT signing key and bootstrap administrator credentials:
 
 ```powershell
 dotnet user-secrets set "Jwt:SecretKey" ([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))) --project CSM.Api
+dotnet user-secrets set "BootstrapAdmin:Email" "<your-email>" --project CSM.Api
+dotnet user-secrets set "BootstrapAdmin:Password" "<a-private-strong-password>" --project CSM.Api
 ```
+
+The first API start applies the PostgreSQL migration and creates the database tables. The bootstrap password must have at least 12 characters and include uppercase, lowercase, numeric, and special characters. Keep all credentials private.
 
 3. Trust the local HTTPS development certificate:
 
@@ -39,45 +48,25 @@ dotnet run --project CSM.Web --launch-profile https
 
 Open `https://localhost:7055`. The web app calls the API at `https://localhost:7051/api/`.
 
-## Database migrations and first administrator
+## PostgreSQL migrations
 
-The API does not change the database schema automatically at startup. Build and run the EF migration bundle before starting the API against a new or upgraded database. The `CSM CI` workflow builds self-contained Linux and Windows bundles and uploads them as a workflow artifact named `csm-db-migration-bundles-<commit>`. Download the artifact from the successful workflow run, extract it, then run the matching bundle with a SQL Server connection string that has permission to apply schema changes:
+The API applies pending migrations at startup by default. Set `Database__ApplyMigrationsOnStartup=false` only when you plan to apply migrations through a separate release process. The CI workflow checks that the migration snapshot matches the current model.
 
-```bash
-./csm-db-migrate --connection "$CSM_CONNECTION_STRING"
-```
-
-On Windows PowerShell:
-
-```powershell
-.\csm-db-migrate.exe --connection $env:CSM_CONNECTION_STRING
-```
-
-Only run the migration bundle after confirming the target server and database. Keep the connection string private.
-
-On the first API start against an empty database, configure a bootstrap administrator. Supply the values through your secret store or environment variables `BootstrapAdmin__Email` and `BootstrapAdmin__Password`. The password must have at least 12 characters and include uppercase, lowercase, numeric, and special characters. Existing databases with a SuperAdmin role assignment are not reset by these settings.
-
-For local development, set User Secrets in the API project:
-
-```powershell
-dotnet user-secrets set "BootstrapAdmin:Email" "admin@example.com" --project CSM.Api
-dotnet user-secrets set "BootstrapAdmin:Password" "<your-private-password>" --project CSM.Api
-```
-
-The bootstrap account is created only if no SuperAdmin assignment exists. Choose a private password and change it after first sign-in if your deployment process requires rotation.
+The migration is a fresh PostgreSQL baseline for a new Neon database. The previous SQL Server migration source is retained in `SqlServerMigrationsArchive` for reference and is not used by the PostgreSQL app. It does not migrate data from SQL Server.
 
 ## Hosting configuration
 
-Host the API and web app as separate .NET 10 services. Use a reachable SQL Server database for the API. Set these environment variables in the hosting platform's secret/configuration panel:
+Host the API and web app as separate .NET 10 services. Configure these values in the hosting platform's secret/configuration panel.
 
 ### API
 
-- `ConnectionStrings__DefaultConnection` — production SQL Server connection string
-- `BootstrapAdmin__Email` and `BootstrapAdmin__Password` — required only for the first API start when the database has no SuperAdmin; store them as secrets and remove them after the account is created
+- `ConnectionStrings__DefaultConnection` — Neon PostgreSQL connection string
+- `BootstrapAdmin__Email` and `BootstrapAdmin__Password` — required only for first startup before a SuperAdmin exists; store as secrets
 - `Jwt__SecretKey` — random secret with at least 32 characters
 - `Jwt__Issuer` — JWT issuer, matching the configured client validation
 - `Jwt__Audience` — JWT audience, matching the configured client validation
 - `Cors__AllowedOrigins__0` — exact public web app origin, such as `https://csm.example.com`
+- `Database__ApplyMigrationsOnStartup` — defaults to true; the API applies pending migrations at startup
 - `ASPNETCORE_URLS` — listener address required by the hosting platform, commonly `http://0.0.0.0:8080` behind its TLS proxy
 - `ASPNETCORE_ENVIRONMENT=Production`
 
@@ -88,14 +77,18 @@ Host the API and web app as separate .NET 10 services. Use a reachable SQL Serve
 - `ASPNETCORE_URLS` — listener address required by the hosting platform
 - `ASPNETCORE_ENVIRONMENT=Production`
 
-Keep the API and web app on HTTPS in production. Configure the API CORS origin to match the browser origin exactly. The development SQL Server address and local API URL are stored only in development settings.
+Keep the API and web app on HTTPS in production. Configure the API CORS origin to match the browser origin exactly.
 
 ## Run with Docker
 
-Copy `.env.example` to `.env`, replace both secret values, and run:
+Copy `.env.example` to `.env`, set the Neon connection string, private JWT key, and bootstrap admin credentials, then run:
 
 ```powershell
 docker compose up --build
 ```
 
-Open `http://localhost:8080`. The public API is available at `http://localhost:5065/api/`. The SQL Server data is kept in the `csm_sql_data` volume.
+The first API start creates the schema in Neon. Open `http://localhost:8080`; the API is available at `http://localhost:5065/api/`.
+
+## Backup and restore
+
+The API backup endpoints use PostgreSQL's `pg_dump` and `pg_restore` client tools. Install those tools on the API host and set `Database__PostgresToolsPath` if they are not on `PATH`. Backups are written to the API host's `Backups` directory; configure durable storage before relying on local files for production recovery.

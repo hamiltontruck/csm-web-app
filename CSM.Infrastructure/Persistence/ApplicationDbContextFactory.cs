@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Design;
 namespace CSM.Infrastructure.Persistence;
 
 /// <summary>
-/// Creates the SQL Server model for EF tooling without starting the API host
-/// or connecting to a database. Migration bundles receive their real
-/// connection string when they are executed.
+/// Creates the PostgreSQL model for EF tooling without starting the API host
+/// or connecting to a database. The running API receives its real connection
+/// string from secrets or environment configuration.
 /// </summary>
 public sealed class ApplicationDbContextFactory
     : IDesignTimeDbContextFactory<ApplicationDbContext>
@@ -16,10 +16,10 @@ public sealed class ApplicationDbContextFactory
         var connectionString =
             Environment.GetEnvironmentVariable(
                 "ConnectionStrings__DefaultConnection")
-            ?? "Server=(local);Database=CSM_DesignTime;Trusted_Connection=True;TrustServerCertificate=True";
+            ?? "Host=localhost;Database=csm_design_time;Username=postgres;Password=postgres";
 
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer(connectionString)
+            .UseNpgsql(connectionString)
             .Options;
 
         return new ApplicationDbContext(options);

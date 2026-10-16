@@ -196,7 +196,7 @@ public sealed class DailyProgressLogService : IDailyProgressLogService
                 // Load the task for this daily report
                 var task = await _dbContext.WorkTasks
                     .Include(t => t.ProjectPhase)
-                        .ThenInclude(p => p.Tasks)
+                        .ThenInclude(p => p!.Tasks)
                     .FirstOrDefaultAsync(
                         t => t.Id == request.TaskId,
                         cancellationToken);
@@ -214,19 +214,20 @@ public sealed class DailyProgressLogService : IDailyProgressLogService
                     };
 
                     // Recalculate phase progress
-                    var phase = task.ProjectPhase;
-
-                    phase.ProgressPercentage =
-                        phase.Tasks.Any()
-                            ? phase.Tasks.Average(x => x.ProgressPercentage)
-                            : 0;
-
-                    phase.Status = phase.ProgressPercentage switch
+                    if (task.ProjectPhase is { } phase)
                     {
-                        0 => ProjectPhaseStatus.NotStarted,
-                        100 => ProjectPhaseStatus.Completed,
-                        _ => ProjectPhaseStatus.InProgress
-                    };
+                        phase.ProgressPercentage =
+                            phase.Tasks.Any()
+                                ? phase.Tasks.Average(x => x.ProgressPercentage)
+                                : 0;
+
+                        phase.Status = phase.ProgressPercentage switch
+                        {
+                            0 => ProjectPhaseStatus.NotStarted,
+                            100 => ProjectPhaseStatus.Completed,
+                            _ => ProjectPhaseStatus.InProgress
+                        };
+                    }
                 }
 
                 await _dbContext.SaveChangesAsync(cancellationToken);

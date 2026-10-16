@@ -20,6 +20,11 @@ public static class DatabaseInitializer
         var dbContext =
             scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        if (configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
+        {
+            await dbContext.Database.MigrateAsync(cancellationToken);
+        }
+
         var passwordHasher =
             scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
