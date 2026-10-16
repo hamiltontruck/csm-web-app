@@ -98,15 +98,12 @@ public static class DependencyInjection
                 "Connection string 'DefaultConnection' was not found.");
 
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(
+            options.UseNpgsql(
                 connectionString,
-                sqlOptions =>
-                {
-                    sqlOptions.EnableRetryOnFailure(
-                        maxRetryCount: 5,
-                        maxRetryDelay: TimeSpan.FromSeconds(10),
-                        errorNumbersToAdd: null);
-                }));
+                postgresOptions => postgresOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorCodesToAdd: null)));
 
         services.Configure<JwtSettings>(
             configuration.GetSection(JwtSettings.SectionName));

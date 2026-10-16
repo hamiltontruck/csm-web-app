@@ -1,7 +1,7 @@
 using CSM.Application.Common.Backup;
-using CSM.Infrastructure.Persistence;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
+using System.Diagnostics;
 
 namespace CSM.Infrastructure.Services;
 
@@ -22,7 +22,7 @@ public sealed class BackupService : IBackupService
     {
         Directory.CreateDirectory(BackupFolder);
 
-        var files = Directory.GetFiles(BackupFolder, "*.bak")
+        var files = Directory.GetFiles(BackupFolder, "*.dump")
             .Select(x => new FileInfo(x))
             .OrderByDescending(x => x.CreationTimeUtc)
             .Select(x => new BackupInfoDto
@@ -41,23 +41,11 @@ public sealed class BackupService : IBackupService
     {
         Directory.CreateDirectory(BackupFolder);
 
-        var builder = new SqlConnectionStringBuilder(
-            _configuration.GetConnectionString("DefaultConnection"));
-
-        var database = builder.InitialCatalog;
-
         var fileName =
-            $"CSM_{DateTime.UtcNow:yyyyMMdd_HHmmss}.bak";
+            $"CSM_{DateTime.UtcNow:yyyyMMdd_HHmmss}.dump";
 
         var path = Path.Combine(BackupFolder, fileName);
-
-        var sql = $"""
-BACKUP DATABASE [{database}]
-TO DISK = N'{path}'
-WITH INIT, COMPRESSION;
-""";
-
-        await ExecuteSqlAsync(sql, cancellationToken);
+        await RunPostgresToolAsync("pg_dump", path, cancellationToken);
 
         return fileName;
     }
@@ -66,53 +54,89 @@ WITH INIT, COMPRESSION;
         string backupFilePath,
         CancellationToken cancellationToken)
     {
-        var builder = new SqlConnectionStringBuilder(
-            _configuration.GetConnectionString("DefaultConnection"));
+        var safePath = Path.GetFullPath(backupFilePath);
+        var safeFolder = Path.GetFullPath(BackupFolder) + Path.DirectorySeparatorChar;
+        if (!safePath.StartsWith(safeFolder, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The backup file must be inside the backups folder.");
+        }
 
-        var database = builder.InitialCatalog;
-
-        builder.InitialCatalog = "master";
-
-        var sql = $"""
-ALTER DATABASE [{database}]
-SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-
-RESTORE DATABASE [{database}]
-FROM DISK = N'{backupFilePath}'
-WITH REPLACE;
-
-ALTER DATABASE [{database}]
-SET MULTI_USER;
-""";
-
-        await using var connection =
-            new SqlConnection(builder.ConnectionString);
-
-        await connection.OpenAsync(cancellationToken);
-
-        await using var command =
-            new SqlCommand(sql, connection);
-
-        command.CommandTimeout = 0;
-
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        await RunPostgresToolAsync("pg_restore", safePath, cancellationToken);
     }
 
-    private async Task ExecuteSqlAsync(
-        string sql,
+    private async Task RunPostgresToolAsync(
+        string toolName,
+        string backupPath,
         CancellationToken cancellationToken)
     {
-        await using var connection =
-            new SqlConnection(
-                _configuration.GetConnectionString("DefaultConnection"));
+        var rawConnectionString =
+            _configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(rawConnectionString))
+        {
+            throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
+        }
 
-        await connection.OpenAsync(cancellationToken);
+        var connection = new NpgsqlConnectionStringBuilder(rawConnectionString);
+        var configuredToolPath = _configuration["Database:PostgresToolsPath"];
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Path.Combine(configuredToolPath ?? string.Empty, toolName),
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        };
 
-        await using var command =
-            new SqlCommand(sql, connection);
+        if (toolName == "pg_dump")
+        {
+            startInfo.ArgumentList.Add("--format=custom");
+            startInfo.ArgumentList.Add("--no-owner");
+            startInfo.ArgumentList.Add("--no-privileges");
+            startInfo.ArgumentList.Add("--file");
+            startInfo.ArgumentList.Add(backupPath);
+        }
+        else
+        {
+            startInfo.ArgumentList.Add("--clean");
+            startInfo.ArgumentList.Add("--if-exists");
+            startInfo.ArgumentList.Add("--no-owner");
+            startInfo.ArgumentList.Add("--no-privileges");
+            startInfo.ArgumentList.Add("--dbname");
+            startInfo.ArgumentList.Add(connection.Database ?? string.Empty);
+            startInfo.ArgumentList.Add(backupPath);
+        }
 
-        command.CommandTimeout = 0;
+        startInfo.Environment["PGHOST"] = connection.Host;
+        startInfo.Environment["PGPORT"] = connection.Port.ToString();
+        startInfo.Environment["PGDATABASE"] = connection.Database;
+        startInfo.Environment["PGUSER"] = connection.Username;
+        startInfo.Environment["PGPASSWORD"] = connection.Password;
+        startInfo.Environment["PGSSLMODE"] = connection.SslMode == SslMode.Disable
+            ? "disable"
+            : "require";
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        try
+        {
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException($"Could not start {toolName}.");
+            var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            var error = await standardErrorTask;
+            _ = await standardOutputTask;
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException(
+                    $"{toolName} failed with exit code {process.ExitCode}: {error.Trim()}");
+            }
+        }
+        catch (System.ComponentModel.Win32Exception exception)
+        {
+            throw new InvalidOperationException(
+                "PostgreSQL client tools (pg_dump and pg_restore) are required for database backups. " +
+                "Install them on the API host or set Database:PostgresToolsPath.",
+                exception);
+        }
     }
 }

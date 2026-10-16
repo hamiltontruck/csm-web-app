@@ -52,6 +52,11 @@ public sealed class BackupController : ControllerBase
             });
         }
 
+        if (!Path.GetExtension(backupFile.FileName).Equals(".dump", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Please select a PostgreSQL .dump backup file." });
+        }
+
         var backupFolder = Path.Combine(
             AppContext.BaseDirectory,
             "Backups");
@@ -60,7 +65,7 @@ public sealed class BackupController : ControllerBase
 
         var filePath = Path.Combine(
             backupFolder,
-            backupFile.FileName);
+            Path.GetFileName(backupFile.FileName));
 
         using (var stream = System.IO.File.Create(filePath))
         {

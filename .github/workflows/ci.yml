@@ -39,27 +39,19 @@ jobs:
       - name: Build solution
         run: dotnet build CSM.sln --configuration Release --no-restore
 
+      - name: Run infrastructure tests
+        run: dotnet test CSM.Infrastructure.Tests/CSM.Infrastructure.Tests.csproj --configuration Release --no-restore
+
       - name: Install Entity Framework CLI
         run: dotnet tool install --global dotnet-ef --version 10.0.10
 
-      - name: Build SQL Server migration bundles
-        run: |
-          mkdir -p artifacts/csm-db-migrate/linux artifacts/csm-db-migrate/windows
-          dotnet restore CSM.sln --runtime linux-x64
-          dotnet ef migrations bundle --project CSM.Infrastructure/CSM.Infrastructure.csproj --startup-project CSM.Api/CSM.Api.csproj --configuration Release --self-contained --runtime linux-x64 --output artifacts/csm-db-migrate/linux/csm-db-migrate
-          dotnet restore CSM.sln --runtime win-x64
-          dotnet ef migrations bundle --project CSM.Infrastructure/CSM.Infrastructure.csproj --startup-project CSM.Api/CSM.Api.csproj --configuration Release --self-contained --runtime win-x64 --output artifacts/csm-db-migrate/windows/csm-db-migrate.exe
-
-      - name: Upload SQL migration bundles
-        uses: actions/upload-artifact@v4
-        with:
-          name: csm-db-migration-bundles-${{ github.sha }}
-          path: artifacts/csm-db-migrate/
-          if-no-files-found: error
-          retention-days: 14
+      - name: Check PostgreSQL migrations match the model
+        run: dotnet ef migrations has-pending-model-changes --project CSM.Infrastructure/CSM.Infrastructure.csproj --startup-project CSM.Api/CSM.Api.csproj
 
       - name: Validate Docker Compose
         run: docker compose config --quiet
         env:
-          CSM_SA_PASSWORD: CiOnly-StrongPassword-2026!
+          CSM_DATABASE_URL: Host=ep-ci.eu-central-1.aws.neon.tech;Database=neondb;Username=neondb_owner;Password=ci-only;SSL Mode=Require;Channel Binding=Require
           CSM_JWT_SECRET: ci-only-jwt-secret-with-more-than-32-characters
+          CSM_BOOTSTRAP_EMAIL: ci@example.com
+          CSM_BOOTSTRAP_PASSWORD: CiOnly-StrongPassword-2026!

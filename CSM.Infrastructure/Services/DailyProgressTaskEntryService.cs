@@ -28,7 +28,7 @@ public class DailyProgressTaskEntryService : IDailyProgressTaskEntryService
 
         var task = await _db.WorkTasks
             .Include(x => x.ProjectPhase)
-                .ThenInclude(x => x.Tasks)
+                .ThenInclude(x => x!.Tasks)
             .FirstOrDefaultAsync(x => x.Id == request.WorkTaskId, cancellationToken)
             ?? throw new DailyProgressLogManagementException("Task not found.");
 
@@ -56,18 +56,19 @@ public class DailyProgressTaskEntryService : IDailyProgressTaskEntryService
         };
 
         // Update phase
-        var phase = task.ProjectPhase;
-
-        phase.ProgressPercentage = phase.Tasks.Any()
-            ? phase.Tasks.Average(x => x.ProgressPercentage)
-            : 0;
-
-        phase.Status = phase.ProgressPercentage switch
+        if (task.ProjectPhase is { } phase)
         {
-            0 => ProjectPhaseStatus.NotStarted,
-            100 => ProjectPhaseStatus.Completed,
-            _ => ProjectPhaseStatus.InProgress
-        };
+            phase.ProgressPercentage = phase.Tasks.Any()
+                ? phase.Tasks.Average(x => x.ProgressPercentage)
+                : 0;
+
+            phase.Status = phase.ProgressPercentage switch
+            {
+                0 => ProjectPhaseStatus.NotStarted,
+                100 => ProjectPhaseStatus.Completed,
+                _ => ProjectPhaseStatus.InProgress
+            };
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
 

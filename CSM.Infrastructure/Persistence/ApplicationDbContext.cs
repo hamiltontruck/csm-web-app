@@ -274,21 +274,67 @@ public DbSet<RoleGranularPermission> RoleGranularPermissions { get; set; }
                     .HasForeignKey(x => x.EmployeeId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
+
+            modelBuilder.Entity<SafetyObservation>()
+                .Property(x => x.ObservationDate)
+                .HasColumnType("date");
+            modelBuilder.Entity<NonConformanceReport>()
+                .Property(x => x.ReportedDate)
+                .HasColumnType("date");
+            modelBuilder.Entity<NonConformanceReport>()
+                .Property(x => x.DueDate)
+                .HasColumnType("date");
+            modelBuilder.Entity<NonConformanceReport>()
+                .Property(x => x.ClosedDate)
+                .HasColumnType("date");
+            modelBuilder.Entity<ProjectDelay>()
+                .Property(x => x.DelayDate)
+                .HasColumnType("date");
+            modelBuilder.Entity<ProjectDelay>()
+                .Property(x => x.ResolvedDate)
+                .HasColumnType("date");
     }
 
 
     public override int SaveChanges()
 {
-    ApplyAuditInformation();
+    PrepareForSave();
     return base.SaveChanges();
 }
 
 public override Task<int> SaveChangesAsync(
     CancellationToken cancellationToken = default)
 {
-    ApplyAuditInformation();
+    PrepareForSave();
 
     return base.SaveChangesAsync(cancellationToken);
+}
+
+private void PrepareForSave()
+{
+    ApplyAuditInformation();
+    NormalizePostgresTimestamps();
+}
+
+private void NormalizePostgresTimestamps()
+{
+    foreach (var entry in ChangeTracker.Entries()
+                 .Where(x => x.State is EntityState.Added or EntityState.Modified))
+    {
+        foreach (var property in entry.Properties)
+        {
+            var clrType = Nullable.GetUnderlyingType(property.Metadata.ClrType)
+                ?? property.Metadata.ClrType;
+            if (clrType != typeof(DateTime) ||
+                property.Metadata.GetColumnType() == "date" ||
+                property.CurrentValue is not DateTime value)
+            {
+                continue;
+            }
+
+            property.CurrentValue = PostgresDateTimeNormalizer.Normalize(value);
+        }
+    }
 }
 
 private void ApplyAuditInformation()

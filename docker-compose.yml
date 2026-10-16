@@ -1,18 +1,4 @@
 services:
-  database:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${CSM_SA_PASSWORD:?Set CSM_SA_PASSWORD}
-    volumes:
-      - csm_sql_data:/var/opt/mssql
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-
   api:
     build:
       context: .
@@ -20,14 +6,14 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://0.0.0.0:8080
-      ConnectionStrings__DefaultConnection: Server=database,1433;Database=CSM_DB;User Id=sa;Password=${CSM_SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=True
+      ConnectionStrings__DefaultConnection: "${CSM_DATABASE_URL:?Set CSM_DATABASE_URL}"
+      Database__ApplyMigrationsOnStartup: "true"
+      BootstrapAdmin__Email: ${CSM_BOOTSTRAP_EMAIL:?Set CSM_BOOTSTRAP_EMAIL}
+      BootstrapAdmin__Password: ${CSM_BOOTSTRAP_PASSWORD:?Set CSM_BOOTSTRAP_PASSWORD}
       Jwt__Issuer: CSM.Api
       Jwt__Audience: CSM.Client
       Jwt__SecretKey: ${CSM_JWT_SECRET:?Set CSM_JWT_SECRET}
       Cors__AllowedOrigins__0: ${CSM_WEB_ORIGIN:-http://localhost:8080}
-    depends_on:
-      database:
-        condition: service_healthy
     ports:
       - "5065:8080"
 
@@ -44,6 +30,3 @@ services:
       - api
     ports:
       - "8080:8080"
-
-volumes:
-  csm_sql_data:
