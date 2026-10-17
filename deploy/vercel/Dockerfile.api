@@ -1,5 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+ENV DOTNET_PROCESSOR_COUNT=2
 
 COPY CSM.Domain/CSM.Domain.csproj CSM.Domain/
 COPY CSM.Application/CSM.Application.csproj CSM.Application/
@@ -10,6 +11,7 @@ RUN dotnet restore CSM.Api/CSM.Api.csproj
 COPY . .
 RUN dotnet publish CSM.Api/CSM.Api.csproj \
     --configuration Release \
+    -p:UseSharedCompilation=false \
     --no-restore \
     --output /app/publish
 

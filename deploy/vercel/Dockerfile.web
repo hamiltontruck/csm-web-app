@@ -1,5 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+ENV DOTNET_PROCESSOR_COUNT=2
 
 COPY CSM.Web/CSM.Web.csproj CSM.Web/
 RUN dotnet restore CSM.Web/CSM.Web.csproj
@@ -7,6 +8,7 @@ RUN dotnet restore CSM.Web/CSM.Web.csproj
 COPY CSM.Web/ CSM.Web/
 RUN dotnet publish CSM.Web/CSM.Web.csproj \
     --configuration Release \
+    -p:UseSharedCompilation=false \
     --no-restore \
     --output /app/publish
 
