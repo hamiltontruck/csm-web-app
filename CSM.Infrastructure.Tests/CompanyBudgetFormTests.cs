@@ -53,10 +53,25 @@ public sealed class CompanyBudgetFormTests
         Assert.Equal(CompanyId, request.CompanyId);
     }
 
+    [Fact]
+    public async Task Assigned_company_is_used_without_exposing_company_selection()
+    {
+        using var context = await CreateContext(cacheRoles: false);
+        ((AuthProxy)(object)context.Services.GetRequiredService<IAuthService>()).CompanyId = CompanyId;
+        var page = context.RenderComponent<BudgetCreateCompany>();
+        page.WaitForAssertion(() => Assert.False(page.Find("button[type=submit]").HasAttribute("disabled")));
+        Assert.Empty(page.FindAll("#budget-company"));
+        Fill(page);
+        page.Find("form").Submit();
+        var request = Assert.Single(((FinanceProxy)(object)context.Services.GetRequiredService<IFinanceService>()).Requests);
+        Assert.Equal(CompanyId, request.CompanyId);
+    }
+
     public class AuthProxy : DispatchProxy
     {
+        public Guid? CompanyId { get; set; }
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
-            Task.FromResult<Guid?>(null);
+            Task.FromResult(CompanyId);
     }
 
     private static void Fill(IRenderedComponent<BudgetCreateCompany> page)
