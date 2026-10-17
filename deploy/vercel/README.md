@@ -2,7 +2,10 @@
 
 Import `hamiltontruck/csm-web-app`, branch `main`, using root `./` and preset
 `Other`. Leave build/output commands unset. Root `vercel.json` defines two
-container services using the repository root as the Docker build context.
+container services. Both `Dockerfile.vercel.api` and `Dockerfile.vercel.web` live
+at the repository root because Vercel uses the Dockerfile directory as its build
+context. Moving either Dockerfile into a subdirectory would hide the source
+projects from COPY. CI builds with that same directory-as-context rule.
 The web service reaches the API through a deployment-specific service binding;
 no localhost URL or hard-coded production hostname is required.
 
