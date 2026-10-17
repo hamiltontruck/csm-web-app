@@ -1,10 +1,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY CSM.Web/CSM.Web.csproj CSM.Web/
-RUN dotnet restore CSM.Web/CSM.Web.csproj
-
+# Razor files must be present during restore so .NET includes the Blazor framework assets.
 COPY CSM.Web/ CSM.Web/
+RUN dotnet restore CSM.Web/CSM.Web.csproj
 RUN dotnet publish CSM.Web/CSM.Web.csproj \
     --configuration Release \
     --no-restore \
