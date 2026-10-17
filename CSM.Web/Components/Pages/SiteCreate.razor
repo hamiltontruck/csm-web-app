@@ -9,6 +9,9 @@
 @inject IJSRuntime JS
 @inject IProjectService ProjectService
 @inject NavigationManager Navigation
+@inject IExecutiveDashboardService DashboardService
+@inject IAuthService AuthService
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
 
 <PageTitle>New Construction Site</PageTitle>
 
@@ -27,7 +30,25 @@
 
         <div class="card-body">
 
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="alert alert-danger" role="alert">@_error</div>
+            }
+
             <div class="row g-3">
+                @if (_canSelectCompany)
+                {
+                    <div class="col-12">
+                        <label for="site-company" class="form-label">Company</label>
+                        <select id="site-company" class="form-select" @bind="_companyId" disabled="@_saving">
+                            <option value="">Select a company</option>
+                            @foreach (var company in _companies)
+                            {
+                                <option value="@company.Id">@company.Name</option>
+                            }
+                        </select>
+                    </div>
+                }
 
                 <div class="col-md-6">
                     <label class="form-label">Site Name</label>
@@ -163,8 +184,8 @@
                     Cancel
                 </button>
 
-                <button class="btn btn-primary" @onclick="Save">
-                    Save Site
+                <button class="btn btn-primary" @onclick="Save" disabled="@(_saving || _initializing)">
+                    @(_saving ? "Saving..." : "Save Site")
                 </button>
 
             </div>
@@ -197,8 +218,12 @@
 
     private DotNetObjectReference<SiteCreate>? mapReference;
 
-    private static readonly Guid HbgCompanyId =
-        Guid.Parse("3708FE16-825F-47DE-B136-D1AE4A3401DA");
+    private Guid? _companyId;
+    private bool _canSelectCompany;
+    private bool _initializing = true;
+    private bool _saving;
+    private string? _error;
+    private IReadOnlyList<CSM.Web.Models.Dashboard.DashboardCompany> _companies = [];
 
     private void setLatitude(decimal? value) => Latitude = value;
     private void setLongitude(decimal? value) => Longitude = value;
@@ -208,16 +233,35 @@
         if (!firstRender)
             return;
 
-        mapReference = DotNetObjectReference.Create(this);
+        try
+        {
+            var roles = await SessionStorage.GetAsync<List<string>>("roles");
+            _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
+            if (_canSelectCompany)
+            {
+                _companies = await DashboardService.GetCompaniesAsync();
+                if (_companies.Count == 1)
+                    _companyId = _companies[0].Id;
+            }
+            else
+            {
+                _companyId = await AuthService.GetCurrentCompanyIdAsync();
+            }
 
-
-
-        await JS.InvokeVoidAsync(
-            "siteMap.initialize",
-            "siteMap",
-            (double)Latitude!,
-            (double)Longitude!,
-            mapReference);
+            mapReference = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync(
+                "siteMap.initialize", "siteMap",
+                (double)Latitude!, (double)Longitude!, mapReference);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Unable to initialize the site form. {ex.Message}";
+        }
+        finally
+        {
+            _initializing = false;
+            StateHasChanged();
+        }
     }
 
     private async Task SearchLocation()
@@ -246,30 +290,64 @@
 
     private async Task Save()
     {
-        var request = new CreateSiteRequest
+        if (_saving || _initializing)
+            return;
+
+        _error = null;
+        if (string.IsNullOrWhiteSpace(SiteCode))
         {
-            CompanyId = HbgCompanyId,
+            _error = "Site code is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(Name))
+        {
+            _error = "Site name is required.";
+            return;
+        }
+        if (!_companyId.HasValue || _companyId == Guid.Empty)
+        {
+            _error = _canSelectCompany
+                ? "Select a company before saving the site."
+                : "Your account is not assigned to a company.";
+            return;
+        }
 
-            Name = Name,
-            SiteCode = SiteCode,
-            Address = Address,
-            City = City,
-            Region = Region,
-            Country = "Ethiopia",
-
-            Latitude = Latitude,
-            Longitude = Longitude,
-            GeofenceRadiusMeters = GeofenceRadiusMeters,
-
-            BusinessUnitId = BusinessUnitId,
-            Description = Description,
-
-            PlannedStartDate = PlannedStartDate,
-            PlannedEndDate = PlannedEndDate
-        };
-
-        await ProjectService.CreateSiteAsync(request);
-
-        Navigation.NavigateTo("/project-tracking", true);
+        _saving = true;
+        try
+        {
+            var request = new CreateSiteRequest
+            {
+                CompanyId = _companyId.Value,
+    
+                Name = Name.Trim(),
+                SiteCode = SiteCode.Trim(),
+                Address = Address,
+                City = City,
+                Region = Region,
+                Country = "Ethiopia",
+    
+                Latitude = Latitude,
+                Longitude = Longitude,
+                GeofenceRadiusMeters = GeofenceRadiusMeters,
+    
+                BusinessUnitId = BusinessUnitId,
+                Description = Description,
+    
+                PlannedStartDate = PlannedStartDate,
+                PlannedEndDate = PlannedEndDate
+            };
+    
+            await ProjectService.CreateSiteAsync(request);
+    
+            Navigation.NavigateTo("/project-tracking", true);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 }
