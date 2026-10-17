@@ -4,5 +4,6 @@ namespace CSM.Web.Services;
 
 public interface IExecutiveDashboardService
 {
-    Task<ExecutiveDashboard?> GetDashboardAsync();
+    Task<ExecutiveDashboard?> GetDashboardAsync(Guid? selectedCompanyId = null);
+    Task<IReadOnlyList<DashboardCompany>> GetCompaniesAsync();
 }
