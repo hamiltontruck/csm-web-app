@@ -657,7 +657,8 @@ public sealed class ReportingService : IReportingService
                 await GetSiteFinancialSummaryAsync(
                     currentUserId,
                     site.Id,
-                    cancellationToken);
+                    cancellationToken,
+                    selectedCompanyId);
 
             siteSummaries.Add(
                 new SiteFinancialSummaryResponse(

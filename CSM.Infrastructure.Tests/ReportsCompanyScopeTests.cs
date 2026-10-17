@@ -21,7 +21,12 @@ public sealed class ReportsCompanyScopeTests
         Assert.Equal(1, (await service.GetExecutiveDashboardAsync(ActorId, default, FirstCompany)).TotalProjects);
         Assert.Equal(2, (await service.GetExecutiveDashboardAsync(ActorId, default, SecondCompany)).TotalProjects);
         await service.GetFinancialSummaryAsync(ActorId, default, SecondCompany);
-        await service.GetAllFinancialSummariesAsync(ActorId, default, SecondCompany);
+        var summary = await service.GetAllFinancialSummariesAsync(ActorId, default, SecondCompany);
+        Assert.Single(summary.Sites);
+        Assert.Equal(1, (await service.GetSiteExecutiveDashboardAsync(ActorId, SecondSite, default, SecondCompany)).TotalSites);
+        await service.GetSiteFinancialSummaryAsync(ActorId, SecondSite, default, SecondCompany);
+        await Assert.ThrowsAsync<ReportingManagementException>(() =>
+            service.GetSiteExecutiveDashboardAsync(ActorId, FirstSite, default, SecondCompany));
     }
 
     [Fact]
@@ -70,6 +75,8 @@ public sealed class ReportsCompanyScopeTests
             service.GetExecutiveDashboardAsync(ActorId, default, SecondCompany));
     }
 
+    private static readonly Guid FirstSite = Guid.NewGuid();
+    private static readonly Guid SecondSite = Guid.NewGuid();
     private static readonly Guid ActorId = Guid.NewGuid();
     private static readonly Guid FirstCompany = Guid.NewGuid();
     private static readonly Guid SecondCompany = Guid.NewGuid();
@@ -96,6 +103,9 @@ public sealed class ReportsCompanyScopeTests
             Email = "test@example.test", NormalizedEmail = "TEST@EXAMPLE.TEST",
             UserRoles = [new UserRole { Id = Guid.NewGuid(), Role = role }]
         });
+        db.ConstructionSites.AddRange(
+            new ConstructionSite { Id = FirstSite, CompanyId = FirstCompany, SiteCode = "FIRST", Name = "First Site" },
+            new ConstructionSite { Id = SecondSite, CompanyId = SecondCompany, SiteCode = "SECOND", Name = "Second Site" });
         db.Projects.AddRange(
             new Project { Id = Guid.NewGuid(), CompanyId = FirstCompany, Name = "First" },
             new Project { Id = Guid.NewGuid(), CompanyId = SecondCompany, Name = "Second" },
