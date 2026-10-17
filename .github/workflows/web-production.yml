@@ -17,21 +17,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-      - name: Publish web application
-        run: dotnet publish CSM.Web/CSM.Web.csproj -c Release -o /tmp/csm-publish
+      - name: Build Render web container
+        run: docker build -f CSM.Web/Dockerfile -t csm-web-smoke .
       - name: Verify Blazor boot script in Production
         env:
           ASPNETCORE_ENVIRONMENT: Production
           ASPNETCORE_URLS: http://127.0.0.1:5080
           ApiSettings__BaseUrl: http://127.0.0.1:5999/api/
         run: |
-          cd /tmp/csm-publish
-          dotnet CSM.Web.dll > /tmp/csm-web.log 2>&1 &
-          web_pid=$!
-          trap 'kill "$web_pid" || true; cat /tmp/csm-web.log' EXIT
+          docker run -d --name csm-web-smoke -p 5080:8080 -e ASPNETCORE_ENVIRONMENT=Production -e ApiSettings__BaseUrl=http://127.0.0.1:5999/api/ csm-web-smoke
+          trap 'docker logs csm-web-smoke; docker rm -f csm-web-smoke' EXIT
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:5080/login -o /tmp/login.html; then break; fi
             sleep 1
