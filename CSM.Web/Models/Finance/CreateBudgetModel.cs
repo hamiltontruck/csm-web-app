@@ -2,6 +2,7 @@ namespace CSM.Web.Models.Finance;
 
 public sealed class CreateBudgetModel
 {
+    public Guid? CompanyId { get; set; }
     public Guid? ConstructionSiteId { get; set; }
     public Guid? ProjectId { get; set; }
 
