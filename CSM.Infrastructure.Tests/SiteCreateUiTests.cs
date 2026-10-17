@@ -30,7 +30,7 @@ public sealed class SiteCreateUiTests
         var page = context.RenderComponent<SiteCreate>();
         page.WaitForAssertion(() => Assert.Single(page.FindAll("#site-company")));
         page.Find("#site-company").Change(CompanyId.ToString());
-        var inputs = page.FindAll("input");
+        var inputs = page.FindAll("input").ToArray();
         inputs[0].Change("New Test Site");
         inputs[1].Change("TEST-001");
         await page.Find("button.btn-primary").ClickAsync(new());
@@ -49,13 +49,13 @@ public sealed class SiteCreateUiTests
         var page = context.RenderComponent<SiteCreate>();
         page.WaitForAssertion(() => Assert.Single(page.FindAll("#site-company")));
         page.Find("#site-company").Change(CompanyId.ToString());
-        var inputs = page.FindAll("input");
+        var inputs = page.FindAll("input").ToArray();
         inputs[0].Change("New Test Site");
         inputs[1].Change("TEST-001");
         await page.Find("button.btn-primary").ClickAsync(new());
         page.WaitForAssertion(() => Assert.Contains(proxy.Error, page.Find("[role=alert]").TextContent));
         Assert.False(page.Find("button.btn-primary").HasAttribute("disabled"));
-        Assert.Equal("TEST-001", page.FindAll("input")[1].GetAttribute("value"));
+        Assert.Equal("TEST-001", page.FindAll("input").ToArray()[1].GetAttribute("value"));
     }
 
     private static readonly Guid CompanyId = Guid.NewGuid();
