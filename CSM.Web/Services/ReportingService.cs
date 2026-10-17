@@ -37,13 +37,13 @@ public sealed class ReportingService : IReportingService
     }
 
     public async Task<ExecutiveDashboardResponse>
-        GetExecutiveDashboardAsync()
+        GetExecutiveDashboardAsync(Guid? selectedCompanyId = null)
     {
         var client = await ClientAsync();
 
         using var response =
             await client.GetAsync(
-                "Reports/executive-dashboard");
+                WithCompany("Reports/executive-dashboard", selectedCompanyId));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -62,13 +62,13 @@ public sealed class ReportingService : IReportingService
     }
 
     public async Task<FinancialSummaryResponse>
-        GetFinancialSummaryAsync()
+        GetFinancialSummaryAsync(Guid? selectedCompanyId = null)
     {
         var client = await ClientAsync();
 
         using var response =
             await client.GetAsync(
-                "Reports/financial-summary");
+                WithCompany("Reports/financial-summary", selectedCompanyId));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -87,13 +87,13 @@ public sealed class ReportingService : IReportingService
     }
 
     public async Task<AllFinancialSummaryResponse>
-        GetAllFinancialSummariesAsync()
+        GetAllFinancialSummariesAsync(Guid? selectedCompanyId = null)
     {
         var client = await ClientAsync();
 
         using var response =
             await client.GetAsync(
-                "Reports/financial-summary/all");
+                WithCompany("Reports/financial-summary/all", selectedCompanyId));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -113,13 +113,13 @@ public sealed class ReportingService : IReportingService
 
     public async Task<ExecutiveDashboardResponse>
         GetSiteExecutiveDashboardAsync(
-            Guid constructionSiteId)
+            Guid constructionSiteId, Guid? selectedCompanyId = null)
     {
         var client = await ClientAsync();
 
         using var response =
             await client.GetAsync(
-                $"Reports/site/{constructionSiteId}/executive-dashboard");
+                WithCompany($"Reports/site/{constructionSiteId}/executive-dashboard", selectedCompanyId));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -139,13 +139,13 @@ public sealed class ReportingService : IReportingService
 
     public async Task<FinancialSummaryResponse>
         GetSiteFinancialSummaryAsync(
-            Guid constructionSiteId)
+            Guid constructionSiteId, Guid? selectedCompanyId = null)
     {
         var client = await ClientAsync();
 
         using var response =
             await client.GetAsync(
-                $"Reports/site/{constructionSiteId}/financial-summary");
+                WithCompany($"Reports/site/{constructionSiteId}/financial-summary", selectedCompanyId));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -162,4 +162,6 @@ public sealed class ReportingService : IReportingService
                ?? throw new InvalidOperationException(
                    "The API returned an empty site financial summary response.");
     }
+    private static string WithCompany(string path, Guid? companyId)
+        => companyId.HasValue ? $"{path}?selectedCompanyId={companyId.Value:D}" : path;
 }

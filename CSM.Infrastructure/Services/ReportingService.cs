@@ -21,7 +21,8 @@ public sealed class ReportingService : IReportingService
 
     public async Task<ExecutiveDashboardResponse> GetExecutiveDashboardAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? selectedCompanyId = null)
     {
         var actor = await GetActorAsync(
             currentUserId,
@@ -31,7 +32,7 @@ public sealed class ReportingService : IReportingService
             actor,
             GranularPermission.Reports_View);
 
-        var companyId = GetCompanyId(actor);
+        var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
 
         var sites = _dbContext.ConstructionSites
             .AsNoTracking()
@@ -142,7 +143,8 @@ public sealed class ReportingService : IReportingService
 
     public async Task<FinancialSummaryResponse> GetFinancialSummaryAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Guid? selectedCompanyId = null)
     {
         var actor = await GetActorAsync(
             currentUserId,
@@ -152,7 +154,7 @@ public sealed class ReportingService : IReportingService
             actor,
             GranularPermission.Reports_FinancialSummary_View);
 
-        var companyId = GetCompanyId(actor);
+        var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
 
         var totalBudget = await _dbContext.Budgets
             .AsNoTracking()
@@ -375,7 +377,8 @@ public sealed class ReportingService : IReportingService
         GetSiteFinancialSummaryAsync(
             Guid currentUserId,
             Guid constructionSiteId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+        Guid? selectedCompanyId = null)
     {
         var actor = await GetActorAsync(
             currentUserId,
@@ -385,7 +388,7 @@ public sealed class ReportingService : IReportingService
             actor,
             GranularPermission.Reports_FinancialSummary_View);
 
-        var companyId = GetCompanyId(actor);
+        var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
 
         var site = await _dbContext.ConstructionSites
             .AsNoTracking()
@@ -603,7 +606,8 @@ public sealed class ReportingService : IReportingService
     public async Task<AllFinancialSummaryResponse>
         GetAllFinancialSummariesAsync(
             Guid currentUserId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+        Guid? selectedCompanyId = null)
     {
         var actor = await GetActorAsync(
             currentUserId,
@@ -613,13 +617,14 @@ public sealed class ReportingService : IReportingService
             actor,
             GranularPermission.Reports_FinancialSummary_View);
 
-        var companyId = GetCompanyId(actor);
+        var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
 
         // Preserve the existing Company Financial Report.
         var companySummary =
             await GetFinancialSummaryAsync(
                 currentUserId,
-                cancellationToken);
+                cancellationToken,
+                selectedCompanyId);
 
         // Get all active/non-deleted sites belonging to the company.
         var sites = await _dbContext.ConstructionSites
@@ -957,7 +962,8 @@ public sealed class ReportingService : IReportingService
         GetSiteExecutiveDashboardAsync(
             Guid currentUserId,
             Guid constructionSiteId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+        Guid? selectedCompanyId = null)
     {
         var actor = await GetActorAsync(
             currentUserId,
@@ -967,7 +973,7 @@ public sealed class ReportingService : IReportingService
             actor,
             GranularPermission.Reports_View);
 
-        var companyId = GetCompanyId(actor);
+        var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
 
         var site = await _dbContext.ConstructionSites
             .AsNoTracking()
@@ -1088,15 +1094,28 @@ public sealed class ReportingService : IReportingService
                        rolePermission.Permission == permission));
    }
 
-    private static Guid GetCompanyId(User actor)
+    private async Task<Guid> GetCompanyIdAsync(
+        User actor, Guid? selectedCompanyId, CancellationToken cancellationToken)
     {
-        if (!actor.CompanyId.HasValue)
+        var isSuperAdmin = HasRole(actor, AppRoles.SuperAdmin);
+        if (!isSuperAdmin && selectedCompanyId.HasValue && selectedCompanyId != actor.CompanyId)
         {
-            throw new ReportingManagementException(
-                "Current user is not assigned to a company.");
+            throw new ReportingManagementException("You are not authorized to view this company's reports.");
         }
 
-        return actor.CompanyId.Value;
+        var companyId = isSuperAdmin ? selectedCompanyId ?? actor.CompanyId : actor.CompanyId;
+        if (!companyId.HasValue || companyId == Guid.Empty)
+        {
+            throw new ReportingManagementException("Select a company to view its reports.");
+        }
+
+        if (!await _dbContext.Companies.AsNoTracking().AnyAsync(
+                x => x.Id == companyId.Value && !x.IsDeleted, cancellationToken))
+        {
+            throw new ReportingManagementException("The selected company is not available.");
+        }
+
+        return companyId.Value;
     }
 
     private static bool HasRole(

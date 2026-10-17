@@ -8,6 +8,8 @@
 
 @inject IReportingService ReportingService
 @inject IProjectService ProjectService
+@inject IExecutiveDashboardService DashboardService
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
 
 <PageTitle>Reports & Analytics</PageTitle>
 
@@ -24,6 +26,21 @@
         </div>
     </div>
 
+    @if (_canSelectCompany)
+    {
+        <div class="mb-3">
+            <label for="reports-company" class="form-label">Company</label>
+            <select id="reports-company" class="form-select" value="@_selectedCompanyId"
+                    @onchange="CompanyChanged" disabled="@_loading">
+                <option value="">Select a company</option>
+                @foreach (var company in _companies)
+                {
+                    <option value="@company.Id">@company.Name</option>
+                }
+            </select>
+        </div>
+    }
+
     @if (_loading)
     {
         <div class="text-center py-5">
@@ -35,6 +52,12 @@
     {
         <div class="alert alert-danger">
             @_error
+        </div>
+    }
+    else if (_canSelectCompany && !_selectedCompanyId.HasValue)
+    {
+        <div class="alert alert-info" role="status">
+            @(_companies.Count == 0 ? "No companies are available." : "Select a company to view its reports.")
         </div>
     }
     else
@@ -895,6 +918,10 @@
 
     private List<SiteResponse> _sites = [];
 
+    private bool _canSelectCompany;
+    private Guid? _selectedCompanyId;
+    private IReadOnlyList<CSM.Web.Models.Dashboard.DashboardCompany> _companies = [];
+
     private string _scope = "Company";
     private string _selectedSiteId = string.Empty;
 
@@ -912,6 +939,40 @@
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var roles = await SessionStorage.GetAsync<List<string>>("roles");
+            _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
+            if (_canSelectCompany)
+            {
+                _companies = await DashboardService.GetCompaniesAsync();
+                return;
+            }
+
+            await LoadSitesAsync();
+            await LoadReportsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CompanyChanged(ChangeEventArgs args)
+    {
+        _selectedCompanyId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        _selectedSiteId = string.Empty;
+        _scope = "Company";
+        _executive = null;
+        _financial = null;
+        _allFinancialSummary = null;
+        _error = null;
+        if (!_selectedCompanyId.HasValue)
+            return;
         await LoadSitesAsync();
         await LoadReportsAsync();
     }
@@ -922,6 +983,8 @@
         {
             _sites =
                 await ProjectService.GetSitesAsync();
+            if (_selectedCompanyId.HasValue)
+                _sites = _sites.Where(x => x.CompanyId == _selectedCompanyId.Value).ToList();
         }
         catch (Exception ex)
         {
@@ -972,15 +1035,15 @@
         {
             _executive =
                 await ReportingService
-                    .GetExecutiveDashboardAsync();
+                    .GetExecutiveDashboardAsync(_selectedCompanyId);
 
             _financial =
                 await ReportingService
-                    .GetFinancialSummaryAsync();
+                    .GetFinancialSummaryAsync(_selectedCompanyId);
 
             _allFinancialSummary =
                 await ReportingService
-                    .GetAllFinancialSummariesAsync();
+                    .GetAllFinancialSummariesAsync(_selectedCompanyId);
         }
         catch (Exception ex)
         {
@@ -1005,11 +1068,11 @@
         {
             _executive =
                 await ReportingService
-                    .GetSiteExecutiveDashboardAsync(siteId);
+                    .GetSiteExecutiveDashboardAsync(siteId, _selectedCompanyId);
 
             _financial =
                 await ReportingService
-                    .GetSiteFinancialSummaryAsync(siteId);
+                    .GetSiteFinancialSummaryAsync(siteId, _selectedCompanyId);
         }
         catch (Exception ex)
         {

@@ -24,14 +24,16 @@ public sealed class ReportsController : ControllerBase
     [HttpGet("executive-dashboard")]
     [Authorize(Policy = "Reports.View")]
     public async Task<ActionResult<ExecutiveDashboardResponse>> GetExecutiveDashboard(
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] Guid? selectedCompanyId = null)
     {
         try
         {
             var result =
                 await _reportingService.GetExecutiveDashboardAsync(
                     GetCurrentUserId(),
-                    cancellationToken);
+                    cancellationToken,
+                    selectedCompanyId);
 
             return Ok(result);
         }
@@ -44,14 +46,16 @@ public sealed class ReportsController : ControllerBase
     [HttpGet("financial-summary")]
     [Authorize(Policy = "Reports.FinancialSummary.View")]
     public async Task<ActionResult<FinancialSummaryResponse>> GetFinancialSummary(
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] Guid? selectedCompanyId = null)
     {
         try
         {
             var result =
                 await _reportingService.GetFinancialSummaryAsync(
                     GetCurrentUserId(),
-                    cancellationToken);
+                    cancellationToken,
+                    selectedCompanyId);
 
             return Ok(result);
         }
@@ -66,7 +70,8 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<ExecutiveDashboardResponse>>
         GetSiteExecutiveDashboard(
             Guid constructionSiteId,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+        [FromQuery] Guid? selectedCompanyId = null)
     {
         try
         {
@@ -74,7 +79,8 @@ public sealed class ReportsController : ControllerBase
                 await _reportingService.GetSiteExecutiveDashboardAsync(
                     GetCurrentUserId(),
                     constructionSiteId,
-                    cancellationToken);
+                    cancellationToken,
+                    selectedCompanyId);
 
             return Ok(result);
         }
@@ -89,7 +95,8 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<FinancialSummaryResponse>>
         GetSiteFinancialSummary(
             Guid constructionSiteId,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+        [FromQuery] Guid? selectedCompanyId = null)
     {
         try
         {
@@ -97,7 +104,8 @@ public sealed class ReportsController : ControllerBase
                 await _reportingService.GetSiteFinancialSummaryAsync(
                     GetCurrentUserId(),
                     constructionSiteId,
-                    cancellationToken);
+                    cancellationToken,
+                    selectedCompanyId);
 
             return Ok(result);
         }
@@ -111,7 +119,8 @@ public sealed class ReportsController : ControllerBase
     [Authorize(Policy = "Reports.FinancialSummary.View")]
     public async Task<ActionResult<AllFinancialSummaryResponse>>
         GetAllFinancialSummaries(
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+        [FromQuery] Guid? selectedCompanyId = null)
     {
         try
         {
@@ -119,7 +128,8 @@ public sealed class ReportsController : ControllerBase
                 await _reportingService
                     .GetAllFinancialSummariesAsync(
                         GetCurrentUserId(),
-                        cancellationToken);
+                        cancellationToken,
+                    selectedCompanyId);
 
             return Ok(result);
         }
