@@ -1,0 +1,28 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["fra1"],
+  "services": {
+    "api": {
+      "runtime": "container",
+      "root": ".",
+      "entrypoint": "deploy/vercel/Dockerfile.api"
+    },
+    "web": {
+      "runtime": "container",
+      "root": ".",
+      "entrypoint": "deploy/vercel/Dockerfile.web",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "api",
+          "format": "url",
+          "env": "CSM_API_SERVICE_URL"
+        }
+      ]
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "api" } },
+    { "source": "/(.*)", "destination": { "service": "web" } }
+  ]
+}

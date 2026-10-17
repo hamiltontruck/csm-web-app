@@ -1,0 +1,25 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY CSM.Domain/CSM.Domain.csproj CSM.Domain/
+COPY CSM.Application/CSM.Application.csproj CSM.Application/
+COPY CSM.Infrastructure/CSM.Infrastructure.csproj CSM.Infrastructure/
+COPY CSM.Api/CSM.Api.csproj CSM.Api/
+RUN dotnet restore CSM.Api/CSM.Api.csproj
+
+COPY . .
+RUN dotnet publish CSM.Api/CSM.Api.csproj \
+    --configuration Release \
+    --no-restore \
+    --output /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+ENV ASPNETCORE_URLS=http://0.0.0.0:80
+EXPOSE 80
+
+ENTRYPOINT ["dotnet", "CSM.Api.dll"]
