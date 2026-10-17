@@ -120,13 +120,18 @@
         {
             var roles = await SessionStorage.GetAsync<List<string>>("roles");
             _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
-            if (_canSelectCompany)
+            if (!_canSelectCompany)
+                _model.CompanyId = await AuthService.GetCurrentCompanyIdAsync();
+
+            // A companyless account still needs the server-authorized company lookup
+            // when optional browser role metadata is missing.
+            if (_canSelectCompany || !_model.CompanyId.HasValue || _model.CompanyId == Guid.Empty)
             {
                 _companies = await DashboardService.GetCompaniesAsync();
+                _canSelectCompany = true;
                 if (_companies.Count == 1) _model.CompanyId = _companies[0].Id;
             }
-            else
-                _model.CompanyId = await AuthService.GetCurrentCompanyIdAsync();
+
         }
         catch (Exception ex)
         {
