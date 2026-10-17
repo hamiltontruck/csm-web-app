@@ -123,7 +123,7 @@ public sealed class BudgetService : IBudgetService
             actor,
             cancellationToken);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ResolveCreateCompanyAsync(actor, request, cancellationToken);
 
         var budgetNumber = CleanRequired(
             request.BudgetNumber,
@@ -378,6 +378,37 @@ public sealed class BudgetService : IBudgetService
             throw new BudgetManagementException(
                 "You are not authorized to access this budget.");
         }
+    }
+
+    private async Task<Guid> ResolveCreateCompanyAsync(
+        User actor, CreateBudgetRequest request, CancellationToken cancellationToken)
+    {
+        var superAdmin = IsSuperAdmin(actor);
+        if (!superAdmin && request.CompanyId.HasValue && request.CompanyId != actor.CompanyId)
+            throw new BudgetManagementException("You are not authorized to create a budget for this company.");
+
+        var companyId = superAdmin ? request.CompanyId ?? actor.CompanyId : actor.CompanyId;
+        if (request.ConstructionSiteId.HasValue)
+        {
+            var siteCompanyId = await _dbContext.ConstructionSites.AsNoTracking()
+                .Where(x => x.Id == request.ConstructionSiteId.Value && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken);
+            if (!siteCompanyId.HasValue)
+                throw new BudgetManagementException("Construction site was not found.");
+            if (superAdmin && !companyId.HasValue)
+                companyId = siteCompanyId;
+            if (companyId != siteCompanyId)
+                throw new BudgetManagementException("The construction site does not belong to the selected company.");
+        }
+
+        if (!companyId.HasValue || companyId == Guid.Empty)
+            throw new BudgetManagementException("Select a company before creating a budget.");
+
+        if (!await _dbContext.Companies.AsNoTracking().AnyAsync(
+                x => x.Id == companyId.Value && !x.IsDeleted && x.IsActive, cancellationToken))
+            throw new BudgetManagementException("The selected company was not found or is inactive.");
+
+        return companyId.Value;
     }
 
     private static Guid GetActorCompanyId(User actor)

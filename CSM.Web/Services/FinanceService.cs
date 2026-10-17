@@ -408,10 +408,27 @@ public class FinanceService : IFinanceService
     public async Task CreateBudgetAsync(CreateBudgetModel model)
     {
         var client = await ClientAsync();
-
-        var response = await client.PostAsJsonAsync("Budgets", model);
-
-        response.EnsureSuccessStatusCode();
+        using var response = await client.PostAsJsonAsync("Budgets", model);
+        if (!response.IsSuccessStatusCode)
+        {
+            var message = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                ? "Your session has expired. Please sign in again."
+                : "The budget could not be saved. Please try again.";
+            if ((int)response.StatusCode >= 500)
+                message = "The budget service is temporarily unavailable. Please try again in a minute.";
+            else if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
+            {
+                try
+                {
+                    using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                    if (body.RootElement.TryGetProperty("message", out var value) &&
+                        value.ValueKind == System.Text.Json.JsonValueKind.String)
+                        message = value.GetString() ?? message;
+                }
+                catch (System.Text.Json.JsonException) { }
+            }
+            throw new HttpRequestException(message, null, response.StatusCode);
+        }
     }
 
     public async Task<List<BudgetResponse>> GetBudgetsAsync()

@@ -11,4 +11,5 @@ public sealed record CreateBudgetRequest(
     decimal TotalAmount,
     string CurrencyCode,
     DateOnly? EffectiveFrom,
-    DateOnly? EffectiveTo);
+    DateOnly? EffectiveTo,
+    Guid? CompanyId = null);

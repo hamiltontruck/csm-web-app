@@ -6,6 +6,9 @@
 
 @inject IFinanceService FinanceService
 @inject NavigationManager Navigation
+@inject IExecutiveDashboardService DashboardService
+@inject IAuthService AuthService
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
 
 <PageTitle>New Company Budget</PageTitle>
 
@@ -13,6 +16,25 @@
 
 <EditForm Model="_model" OnValidSubmit="Save">
     <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+    @if (_canSelectCompany)
+    {
+        <div class="mb-3">
+            <label for="budget-company" class="form-label">Company</label>
+            <select id="budget-company" class="form-select" @bind="_model.CompanyId" disabled="@_saving">
+                <option value="">Select a company</option>
+                @foreach (var company in _companies)
+                {
+                    <option value="@company.Id">@company.Name</option>
+                }
+            </select>
+        </div>
+    }
 
     <div class="row g-3">
 
@@ -70,8 +92,8 @@
     <div class="mt-4 d-flex gap-2">
 
         <button class="btn btn-primary"
-                type="submit">
-            Create Budget
+                type="submit" disabled="@(_initializing || _saving)">
+            @(_saving ? "Creating..." : "Create Budget")
         </button>
 
         <button class="btn btn-outline-secondary"
@@ -85,6 +107,37 @@
 
 @code {
     private readonly CreateBudgetModel _model = new();
+    private bool _initializing = true;
+    private bool _saving;
+    private bool _canSelectCompany;
+    private string? _error;
+    private IReadOnlyList<CSM.Web.Models.Dashboard.DashboardCompany> _companies = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var roles = await SessionStorage.GetAsync<List<string>>("roles");
+            _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
+            if (_canSelectCompany)
+            {
+                _companies = await DashboardService.GetCompaniesAsync();
+                if (_companies.Count == 1) _model.CompanyId = _companies[0].Id;
+            }
+            else
+                _model.CompanyId = await AuthService.GetCurrentCompanyIdAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Unable to load budget company. {ex.Message}";
+        }
+        finally
+        {
+            _initializing = false;
+            StateHasChanged();
+        }
+    }
 
     protected override void OnInitialized()
     {
@@ -97,10 +150,33 @@
 
     private async Task Save()
     {
-        await FinanceService.CreateBudgetAsync(_model);
+        if (_initializing || _saving) return;
+        _error = null;
+        if (!_model.CompanyId.HasValue || _model.CompanyId == Guid.Empty)
+        {
+            _error = "Select a company before creating a budget.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_model.BudgetNumber) || string.IsNullOrWhiteSpace(_model.Name))
+        {
+            _error = "Budget number and budget name are required.";
+            return;
+        }
 
-        Navigation.NavigateTo(
-            "/finance/company/budgets");
+        _saving = true;
+        try
+        {
+            await FinanceService.CreateBudgetAsync(_model);
+            Navigation.NavigateTo("/finance/company/budgets");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private void Back()
