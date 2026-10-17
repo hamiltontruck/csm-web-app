@@ -70,7 +70,7 @@ public sealed class ReportsCompanyScopeTests
         await Assert.ThrowsAsync<ReportingManagementException>(() =>
             service.GetExecutiveDashboardAsync(ActorId, default, Guid.NewGuid()));
         db.Companies.Single(x => x.Id == SecondCompany).IsDeleted = true;
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken: default);
         await Assert.ThrowsAsync<ReportingManagementException>(() =>
             service.GetExecutiveDashboardAsync(ActorId, default, SecondCompany));
     }
@@ -110,7 +110,8 @@ public sealed class ReportsCompanyScopeTests
             new Project { Id = Guid.NewGuid(), CompanyId = FirstCompany, Name = "First" },
             new Project { Id = Guid.NewGuid(), CompanyId = SecondCompany, Name = "Second" },
             new Project { Id = Guid.NewGuid(), CompanyId = SecondCompany, Name = "Third" });
-        db.SaveChanges();
+        // This fixture uses InMemory, so bypass the context's PostgreSQL-only timestamp normalizer.
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
         return db;
     }
 }
