@@ -7,8 +7,24 @@
 @inject IExecutiveDashboardService DashboardService
 @inject ProtectedSessionStorage SessionStorage
 @inject NavigationManager Navigation
+@inject ILogger<Dashboard> Logger
 
 <PageTitle>Executive Dashboard</PageTitle>
+
+@if (_canSelectCompany)
+{
+    <div class="container-fluid pt-4">
+        <label for="dashboard-company" class="form-label">Company</label>
+        <select id="dashboard-company" class="form-select" value="@_selectedCompanyId"
+                @onchange="SelectCompanyAsync" disabled="@_loading">
+            <option value="">Select a company</option>
+            @foreach (var company in _companies)
+            {
+                <option value="@company.Id">@company.Name</option>
+            }
+        </select>
+    </div>
+}
 
 @if (_loading)
 {
@@ -19,9 +35,11 @@
 else if (_dashboard is null)
 {
     <div class="container mt-5">
-        <div class="alert alert-danger">
-            Unable to load dashboard data.
+        <div class="alert alert-danger" role="alert">
+            @_errorMessage
         </div>
+        <button class="btn btn-outline-primary" @onclick="RetryAsync">Try again</button>
+        <a class="btn btn-link" href="/login">Sign in</a>
     </div>
 }
 else
@@ -157,30 +175,100 @@ else
     private ExecutiveDashboard? _dashboard;
 
     private bool _loading = true;
+    private bool _initialized;
+    private bool _canSelectCompany;
+    private Guid? _selectedCompanyId;
+    private IReadOnlyList<DashboardCompany> _companies = [];
 
     private string _userName = "";
+    private string _errorMessage = "Unable to load dashboard data.";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
             return;
 
-        var token = await SessionStorage.GetAsync<string>("jwt");
+        await LoadDashboardAsync();
+    }
 
-        if (!token.Success || string.IsNullOrWhiteSpace(token.Value))
+    private async Task LoadDashboardAsync()
+    {
+        _loading = true;
+        _dashboard = null;
+        try
         {
-            Navigation.NavigateTo("/login", true);
-            return;
+            var token = await SessionStorage.GetAsync<string>("jwt");
+            if (!token.Success || string.IsNullOrWhiteSpace(token.Value))
+            {
+                Navigation.NavigateTo("/login", true);
+                return;
+            }
+
+            var name = await SessionStorage.GetAsync<string>("userName");
+            _userName = name.Success ? name.Value ?? "" : "";
+            if (!_initialized)
+            {
+                var roles = await SessionStorage.GetAsync<List<string>>("roles");
+                _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
+                if (_canSelectCompany)
+                    _companies = await DashboardService.GetCompaniesAsync();
+                _initialized = true;
+            }
+
+            if (_canSelectCompany && !_selectedCompanyId.HasValue)
+            {
+                _errorMessage = _companies.Count == 0
+                    ? "No companies are available. Create a company before opening its dashboard."
+                    : "Select a company to view its dashboard.";
+                return;
+            }
+
+            _dashboard = await DashboardService.GetDashboardAsync(_selectedCompanyId);
+            _errorMessage = "No dashboard data was returned.";
         }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Dashboard API request failed with status {StatusCode}", ex.StatusCode);
+            _errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized =>
+                    "Your session has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden =>
+                    "A company must be assigned or selected to view this dashboard.",
+                System.Net.HttpStatusCode.NotFound =>
+                    "The selected company was not found. Please choose another company.",
+                System.Net.HttpStatusCode.InternalServerError =>
+                    "A server error prevented the dashboard from loading. Please try again.",
+                _ => "Unable to contact the dashboard API. Please try again."
+            };
+        }
+        catch (TaskCanceledException ex)
+        {
+            Logger.LogWarning(ex, "Dashboard request timed out");
+            _errorMessage = "The dashboard request timed out. Please try again.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load the executive dashboard");
+            _errorMessage = "Unable to load the dashboard. Please try again.";
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
 
-        var name = await SessionStorage.GetAsync<string>("userName");
-        _userName = name.Success ? name.Value ?? "" : "";
+    private async Task RetryAsync()
+    {
+        _initialized = false;
+        await LoadDashboardAsync();
+    }
 
-        _dashboard = await DashboardService.GetDashboardAsync();
-
-        _loading = false;
-
-        StateHasChanged();
+    private async Task SelectCompanyAsync(ChangeEventArgs args)
+    {
+        _selectedCompanyId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        await LoadDashboardAsync();
     }
 
     private static string Money(decimal value)

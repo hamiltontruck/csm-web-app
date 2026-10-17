@@ -18,19 +18,32 @@ public class ExecutiveDashboardService : IExecutiveDashboardService
         _storage = storage;
     }
 
-    public async Task<ExecutiveDashboard?> GetDashboardAsync()
+    public async Task<ExecutiveDashboard?> GetDashboardAsync(Guid? selectedCompanyId = null)
     {
         var token = await _storage.GetAsync<string>("jwt");
 
         if (!token.Success || string.IsNullOrWhiteSpace(token.Value))
             return null;
 
-        var client = _factory.CreateClient("CSM.Api");
+        using var client = _factory.CreateClient("CSM.Api");
 
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", token.Value);
 
-        return await client.GetFromJsonAsync<ExecutiveDashboard>(
-            "dashboard/executive");
+        var path = selectedCompanyId.HasValue
+            ? $"dashboard/executive?selectedCompanyId={selectedCompanyId.Value:D}"
+            : "dashboard/executive";
+        return await client.GetFromJsonAsync<ExecutiveDashboard>(path);
+    }
+    public async Task<IReadOnlyList<DashboardCompany>> GetCompaniesAsync()
+    {
+        var token = await _storage.GetAsync<string>("jwt");
+        if (!token.Success || string.IsNullOrWhiteSpace(token.Value))
+            return [];
+
+        using var client = _factory.CreateClient("CSM.Api");
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token.Value);
+        return await client.GetFromJsonAsync<List<DashboardCompany>>("companies/lookup") ?? [];
     }
 }
