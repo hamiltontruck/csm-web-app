@@ -1,0 +1,55 @@
+name: Web production smoke test
+on:
+  pull_request:
+    paths:
+      - 'CSM.Web/**'
+      - '.github/workflows/web-production.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'CSM.Web/**'
+      - '.github/workflows/web-production.yml'
+permissions:
+  contents: read
+jobs:
+  production-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish web application
+        run: dotnet publish CSM.Web/CSM.Web.csproj -c Release -o /tmp/csm-publish
+      - name: Verify Blazor boot script in Production
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          ASPNETCORE_URLS: http://127.0.0.1:5080
+          ApiSettings__BaseUrl: http://127.0.0.1:5999/api/
+        run: |
+          cd /tmp/csm-publish
+          dotnet CSM.Web.dll > /tmp/csm-web.log 2>&1 &
+          web_pid=$!
+          trap 'kill "$web_pid" || true; cat /tmp/csm-web.log' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5080/login -o /tmp/login.html; then break; fi
+            sleep 1
+          done
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from urllib.request import urlopen
+          class Scripts(HTMLParser):
+              def handle_starttag(self, tag, attrs):
+                  if tag == "script":
+                      for key, value in attrs:
+                          if key == "src" and "blazor.web" in value:
+                              self.boot = value
+          parser = Scripts()
+          parser.feed(open("/tmp/login.html").read())
+          assert hasattr(parser, "boot"), "Login must reference the Blazor boot script"
+          print("Boot script:", parser.boot)
+          with urlopen("http://127.0.0.1:5080/" + parser.boot.lstrip("/")) as response:
+              assert "javascript" in response.headers["Content-Type"], response.headers
+              assert len(response.read()) > 1000, "Blazor script must not be empty"
+          PY
