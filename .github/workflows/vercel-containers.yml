@@ -1,0 +1,36 @@
+name: Vercel container builds
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'CSM.*/**'
+      - 'deploy/vercel/**'
+      - 'vercel.json'
+      - '.dockerignore'
+      - '.github/workflows/vercel-containers.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'CSM.*/**'
+      - 'deploy/vercel/**'
+      - 'vercel.json'
+      - '.dockerignore'
+      - '.github/workflows/vercel-containers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Vercel ${{ matrix.service }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        service: [api, web]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build container without production secrets
+        run: docker build --file deploy/vercel/Dockerfile.${{ matrix.service }} --tag csm-vercel-${{ matrix.service }}:check .
