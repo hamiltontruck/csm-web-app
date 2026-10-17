@@ -1,16 +1,18 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["fra1"],
+  "regions": [
+    "fra1"
+  ],
   "services": {
     "api": {
       "runtime": "container",
       "root": ".",
-      "entrypoint": "deploy/vercel/Dockerfile.api"
+      "entrypoint": "Dockerfile.vercel.api"
     },
     "web": {
       "runtime": "container",
       "root": ".",
-      "entrypoint": "deploy/vercel/Dockerfile.web",
+      "entrypoint": "Dockerfile.vercel.web",
       "bindings": [
         {
           "type": "service",
@@ -22,7 +24,17 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": { "service": "api" } },
-    { "source": "/(.*)", "destination": { "service": "web" } }
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "api"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "web"
+      }
+    }
   ]
 }

@@ -6,6 +6,7 @@ on:
     paths:
       - 'CSM.*/**'
       - 'deploy/vercel/**'
+      - 'Dockerfile.vercel.*'
       - 'vercel.json'
       - '.dockerignore'
       - '.github/workflows/vercel-containers.yml'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'CSM.*/**'
       - 'deploy/vercel/**'
+      - 'Dockerfile.vercel.*'
       - 'vercel.json'
       - '.dockerignore'
       - '.github/workflows/vercel-containers.yml'
@@ -32,5 +34,9 @@ jobs:
         service: [api, web]
     steps:
       - uses: actions/checkout@v4
-      - name: Build container without production secrets
-        run: docker build --file deploy/vercel/Dockerfile.${{ matrix.service }} --tag csm-vercel-${{ matrix.service }}:check .
+      - name: Build with the Dockerfile directory as context, matching Vercel
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          dockerfile=$(python3 -c 'import json, os; print(json.load(open("vercel.json"))["services"][os.environ["SERVICE"]]["entrypoint"])')
+          docker build --file "$dockerfile" --tag "csm-vercel-${SERVICE}:check" "$(dirname "$dockerfile")"
