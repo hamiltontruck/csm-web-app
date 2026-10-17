@@ -41,6 +41,39 @@ public sealed class CompanyBudgetFormTests
         Assert.Equal(CompanyId, json.GetProperty("CompanyId").GetGuid());
     }
 
+    [Fact]
+    public async Task Companyless_admin_can_select_company_when_browser_roles_are_missing()
+    {
+        using var context = await CreateContext(cacheRoles: false);
+        var page = context.RenderComponent<BudgetCreateCompany>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("#budget-company")));
+        Fill(page);
+        page.Find("form").Submit();
+        var request = Assert.Single(((FinanceProxy)(object)context.Services.GetRequiredService<IFinanceService>()).Requests);
+        Assert.Equal(CompanyId, request.CompanyId);
+    }
+
+    [Fact]
+    public async Task Assigned_company_is_used_without_exposing_company_selection()
+    {
+        using var context = await CreateContext(cacheRoles: false);
+        ((AuthProxy)(object)context.Services.GetRequiredService<IAuthService>()).CompanyId = CompanyId;
+        var page = context.RenderComponent<BudgetCreateCompany>();
+        page.WaitForAssertion(() => Assert.False(page.Find("button[type=submit]").HasAttribute("disabled")));
+        Assert.Empty(page.FindAll("#budget-company"));
+        Fill(page);
+        page.Find("form").Submit();
+        var request = Assert.Single(((FinanceProxy)(object)context.Services.GetRequiredService<IFinanceService>()).Requests);
+        Assert.Equal(CompanyId, request.CompanyId);
+    }
+
+    public class AuthProxy : DispatchProxy
+    {
+        public Guid? CompanyId { get; set; }
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            Task.FromResult(CompanyId);
+    }
+
     private static void Fill(IRenderedComponent<BudgetCreateCompany> page)
     {
         page.Find("input").Change("HBG-BUD-001");
@@ -51,7 +84,7 @@ public sealed class CompanyBudgetFormTests
 
     private static readonly Guid CompanyId = Guid.NewGuid();
 
-    private static async Task<TestContext> CreateContext()
+    private static async Task<TestContext> CreateContext(bool cacheRoles = true)
     {
         var context = new TestContext();
         context.Services.AddLogging();
@@ -59,9 +92,10 @@ public sealed class CompanyBudgetFormTests
         context.Services.AddScoped<ProtectedSessionStorage>();
         context.Services.AddSingleton<IExecutiveDashboardService>(new Companies());
         context.Services.AddSingleton(DispatchProxy.Create<IFinanceService, FinanceProxy>());
-        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, SiteCreateUiTests.AuthProxy>());
+        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, AuthProxy>());
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         var storage = context.Services.GetRequiredService<ProtectedSessionStorage>();
+        if (!cacheRoles) return context;
         await storage.SetAsync("roles", new List<string> { "SuperAdmin" });
         var encrypted = (string)context.JSInterop.Invocations["sessionStorage.setItem"].Last().Arguments[1]!;
         context.JSInterop.Setup<string>("sessionStorage.getItem", "roles").SetResult(encrypted);
