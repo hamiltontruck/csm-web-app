@@ -34,8 +34,18 @@ public class AuthService : IAuthService
 
         var response = await client.PostAsJsonAsync("auth/login", request);
 
-        if (!response.IsSuccessStatusCode)
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             return null;
+
+        if ((int)response.StatusCode >= 500)
+        {
+            throw new HttpRequestException(
+                "Sign-in service is temporarily unavailable. Please try again in a minute.",
+                null,
+                response.StatusCode);
+        }
+
+        response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
 
