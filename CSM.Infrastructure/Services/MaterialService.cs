@@ -102,7 +102,7 @@ public sealed class MaterialService : IMaterialService
 
         EnsureCanAccess(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ResolveCreateCompanyAsync(actor, request.CompanyId, cancellationToken);
 
         var materialCode = Clean(request.MaterialCode);
         var name = Clean(request.Name);
@@ -461,6 +461,25 @@ public sealed class MaterialService : IMaterialService
 
         throw new MaterialManagementException(
             "You are not authorized to manage materials.");
+    }
+
+    private async Task<Guid> ResolveCreateCompanyAsync(
+        User actor,
+        Guid? selectedCompanyId,
+        CancellationToken cancellationToken)
+    {
+        if (!IsSuperAdmin(actor) && selectedCompanyId.HasValue && selectedCompanyId != actor.CompanyId)
+            throw new MaterialManagementException("You are not authorized to create materials for this company.");
+
+        var companyId = selectedCompanyId ?? actor.CompanyId;
+        if (!companyId.HasValue || companyId == Guid.Empty)
+            throw new MaterialManagementException("Select a company before creating a material.");
+
+        if (!await _dbContext.Companies.AnyAsync(
+                x => x.Id == companyId.Value && !x.IsDeleted && x.IsActive, cancellationToken))
+            throw new MaterialManagementException("The selected company is invalid or inactive.");
+
+        return companyId.Value;
     }
 
     private static Guid GetActorCompanyId(
