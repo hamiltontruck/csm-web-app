@@ -64,7 +64,7 @@ public sealed class CompanyCostCodeFormTests
         Fill(page);
         page.Find("form").Submit();
         var request = Assert.Single(((FinanceProxy)(object)context.Services.GetRequiredService<IFinanceService>()).Requests);
-        Assert.Equal(CompanyId, request.CompanyId);
+        Assert.Equal(CompanyId, System.Text.Json.JsonSerializer.SerializeToElement(request).GetProperty("CompanyId").GetGuid());
     }
 
     public class AuthProxy : DispatchProxy
