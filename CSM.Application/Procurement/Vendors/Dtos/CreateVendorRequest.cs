@@ -2,6 +2,8 @@ namespace CSM.Application.Procurement.Vendors.Dtos;
 
 public sealed class CreateVendorRequest
 {
+    public Guid? CompanyId { get; set; }
+
     public string VendorCode { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;
