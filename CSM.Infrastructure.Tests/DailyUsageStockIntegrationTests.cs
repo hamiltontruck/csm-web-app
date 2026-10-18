@@ -1,3 +1,5 @@
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.DailyMaterialUsage.Dtos;
 using CSM.Application.Inventory.StockIssues.Dtos;
@@ -74,6 +76,19 @@ public sealed class DailyUsageStockIntegrationTests
         Assert.Empty(await fixture.Db.DailyMaterialUsages.ToListAsync());
     }
 
+    // The runtime model still carries one SQL Server filtered-index expression.
+    // Translate that DDL only while creating this disposable PostgreSQL schema.
+    private sealed class IndexSyntax : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            command.CommandText = command.CommandText.Replace("[IsDeleted] = 0", "\"IsDeleted\" = FALSE");
+            return ValueTask.FromResult(result);
+        }
+    }
+
     private sealed class Notifications : ILowStockNotificationService
     {
         public Task NotifyIfLowStockAsync(Guid stockItemId, Guid actorUserId, CancellationToken cancellationToken = default)
@@ -104,10 +119,10 @@ public sealed class DailyUsageStockIntegrationTests
                 "Host=localhost;Port=5432;Username=postgres;Password=postgres");
             connection.Database = "csm_usage_test_" + Guid.NewGuid().ToString("N");
             var fixture = new Fixture(new ApplicationDbContext(
-                new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).Options));
+                new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).AddInterceptors(new IndexSyntax()).Options));
             try
             {
-                await fixture.Db.Database.MigrateAsync();
+                await fixture.Db.Database.EnsureCreatedAsync();
                 var company = new Company { Id = Guid.NewGuid(), Code = "TEST", Name = "Test Company" };
                 var site = new ConstructionSite { Id = fixture.SiteId, CompanyId = company.Id, Company = company,
                     SiteCode = "SITE", Name = "Test Site" };
