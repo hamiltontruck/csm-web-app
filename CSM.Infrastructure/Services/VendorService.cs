@@ -108,7 +108,7 @@ public sealed class VendorService : IVendorService
 
         EnsureCanManage(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ResolveCreateCompanyAsync(actor, request.CompanyId, cancellationToken);
 
         Validate(
             request.VendorCode,
@@ -269,6 +269,25 @@ public sealed class VendorService : IVendorService
             throw new VendorManagementException(
                 "You are not authorized to access this vendor.");
         }
+    }
+
+    private async Task<Guid> ResolveCreateCompanyAsync(
+        User actor,
+        Guid? selectedCompanyId,
+        CancellationToken cancellationToken)
+    {
+        if (!IsSuperAdmin(actor) && selectedCompanyId.HasValue && selectedCompanyId != actor.CompanyId)
+            throw new VendorManagementException("You are not authorized to create vendors for this company.");
+
+        var companyId = selectedCompanyId ?? actor.CompanyId;
+        if (!companyId.HasValue || companyId == Guid.Empty)
+            throw new VendorManagementException("Select a company before creating a vendor.");
+
+        if (!await _dbContext.Companies.AnyAsync(
+                x => x.Id == companyId.Value && !x.IsDeleted && x.IsActive, cancellationToken))
+            throw new VendorManagementException("The selected company is invalid or inactive.");
+
+        return companyId.Value;
     }
 
     private static Guid GetActorCompanyId(

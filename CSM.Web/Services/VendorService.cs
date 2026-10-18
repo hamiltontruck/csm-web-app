@@ -38,7 +38,19 @@ public class VendorService : IVendorService
 
         var response = await _http.PostAsJsonAsync("Vendors", request);
 
-        return response.IsSuccessStatusCode;
+        if (!response.IsSuccessStatusCode)
+        {
+            var message = "Unable to save vendor. Please try again.";
+            try
+            {
+                var error = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+                if (error.TryGetProperty("message", out var detail) && detail.ValueKind == System.Text.Json.JsonValueKind.String)
+                    message = detail.GetString() ?? message;
+            }
+            catch (System.Text.Json.JsonException) { }
+            throw new HttpRequestException(message, null, response.StatusCode);
+        }
+        return true;
     }
 
     public async Task<bool> UpdateVendorAsync(
