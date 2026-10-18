@@ -25,6 +25,11 @@
     {
         <p>Loading stock balance...</p>
     }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        <button id="retry-stock-balances" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+    }
     else if (balances.Count == 0)
     {
         <div class="alert alert-info">
@@ -86,24 +91,34 @@
     private bool loading = true;
     private bool loaded;
 
+    private string? errorMessage;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || loaded)
-            return;
-
+        if (!firstRender || loaded) return;
         loaded = true;
+        await LoadAsync();
+    }
 
-        balances = await InventoryService.GetStockBySiteAsync(SiteId);
-
-        var sites = await ProjectService.GetSitesAsync();
-
-        siteName = sites
-            .FirstOrDefault(x => x.Id == SiteId)?.Name
-            ?? "Construction Site";
-
-        loading = false;
-
-        StateHasChanged();
+    private async Task LoadAsync()
+    {
+        loading = true;
+        errorMessage = null;
+        try
+        {
+            balances = await InventoryService.GetStockBySiteAsync(SiteId);
+            var sites = await ProjectService.GetSitesAsync();
+            siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? "Construction Site";
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load stock balances. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
     }
 
     void GoBack()

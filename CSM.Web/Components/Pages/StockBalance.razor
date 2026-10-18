@@ -27,6 +27,11 @@
     {
         <p>Loading sites...</p>
     }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        <button id="retry-stock-balances" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+    }
     else
     {
         @foreach (var site in sites)
@@ -60,11 +65,34 @@
     private List<StockBalanceResponse> balances = [];
     private bool loading = true;
 
-    protected override async Task OnInitializedAsync()
+    private bool loaded;
+    private string? errorMessage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        sites = await ProjectService.GetSitesAsync();
-        balances = await InventoryService.GetStockBalancesAsync();
-        loading = false;
+        if (!firstRender || loaded) return;
+        loaded = true;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (!loading) loading = true;
+        errorMessage = null;
+        try
+        {
+            sites = await ProjectService.GetSitesAsync();
+            balances = await InventoryService.GetStockBalancesAsync();
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load stock balances. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
     }
 
     private int GetMaterialCount(Guid siteId)
