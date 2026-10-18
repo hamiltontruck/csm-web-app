@@ -22,6 +22,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -40,6 +54,8 @@ jobs:
         run: dotnet build CSM.sln --configuration Release --no-restore
 
       - name: Run infrastructure tests
+        env:
+          CSM_TEST_POSTGRES: Host=localhost;Port=5432;Username=postgres;Password=postgres
         run: dotnet test CSM.Infrastructure.Tests/CSM.Infrastructure.Tests.csproj --configuration Release --no-restore
 
       - name: Install Entity Framework CLI
