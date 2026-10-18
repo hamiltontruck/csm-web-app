@@ -79,8 +79,6 @@ public sealed class BudgetLineService : IBudgetLineService
 
         EnsureCanModify(actor);
 
-        var companyId = GetActorCompanyId(actor);
-
         ValidateAmounts(
             request.BudgetedAmount,
             request.RevisedAmount);
@@ -93,11 +91,7 @@ public sealed class BudgetLineService : IBudgetLineService
             actor,
             budget.CompanyId);
 
-        if (budget.CompanyId != companyId)
-        {
-            throw new BudgetLineManagementException(
-                "Budget does not belong to the current company.");
-        }
+        var companyId = budget.CompanyId;
 
         EnsureBudgetEditable(budget);
 
@@ -266,17 +260,6 @@ public sealed class BudgetLineService : IBudgetLineService
             throw new BudgetLineManagementException(
                 "You are not authorized to access this budget line.");
         }
-    }
-
-    private static Guid GetActorCompanyId(User actor)
-    {
-        if (!actor.CompanyId.HasValue)
-        {
-            throw new BudgetLineManagementException(
-                "Current user is not assigned to a company.");
-        }
-
-        return actor.CompanyId.Value;
     }
 
     private async Task<Budget> GetBudgetAsync(
