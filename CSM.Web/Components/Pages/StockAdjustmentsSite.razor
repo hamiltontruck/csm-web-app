@@ -34,6 +34,11 @@
     {
         <p>Loading adjustments...</p>
     }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        <button id="retry-stock-adjustments" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+    }
     else if (adjustments.Count == 0)
     {
         <div class="alert alert-info">
@@ -99,29 +104,36 @@
     private bool loading = true;
     private bool loaded;
 
+    private string? errorMessage;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || loaded)
-            return;
-
+        if (!firstRender || loaded) return;
         loaded = true;
+        await LoadAsync();
+    }
 
-        var all = await InventoryService.GetStockAdjustmentsAsync();
-
-        adjustments = all
-            .Where(x => x.ConstructionSiteId == SiteId)
-            .OrderByDescending(x => x.AdjustmentDateUtc)
-            .ToList();
-
-        var sites = await ProjectService.GetSitesAsync();
-
-        siteName = sites
-            .FirstOrDefault(x => x.Id == SiteId)?.Name
-            ?? "Construction Site";
-
-        loading = false;
-
-        StateHasChanged();
+    private async Task LoadAsync()
+    {
+        loading = true;
+        errorMessage = null;
+        try
+        {
+            var all = await InventoryService.GetStockAdjustmentsAsync();
+            adjustments = all.Where(x => x.ConstructionSiteId == SiteId)
+                .OrderByDescending(x => x.AdjustmentDateUtc).ToList();
+            var sites = await ProjectService.GetSitesAsync();
+            siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? "Construction Site";
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load stock adjustments. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
     }
 
     void GoBack()
