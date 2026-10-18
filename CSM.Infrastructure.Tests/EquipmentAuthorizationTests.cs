@@ -25,7 +25,7 @@ public sealed class EquipmentAuthorizationTests
         using var provider = services.BuildServiceProvider();
         var policy = await AuthorizationPolicy.CombineAsync(
             provider.GetRequiredService<IAuthorizationPolicyProvider>(),
-            typeof(EquipmentsController).GetCustomAttributes(true).OfType<IAuthorizeData>());
+            typeof(EquipmentController).GetCustomAttributes(true).OfType<IAuthorizeData>());
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
         var result = await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!);
         Assert.Equal(expected, result.Succeeded);
