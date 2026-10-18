@@ -146,7 +146,7 @@ public sealed class ExpenseService : IExpenseService
 
         EnsureCanSubmit(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ResolveCreateCompanyAsync(actor, request.CostCodeId, cancellationToken);
 
         await EnsureSiteAccess(
             actor,
@@ -465,6 +465,23 @@ public sealed class ExpenseService : IExpenseService
     }
 
 
+
+    private async Task<Guid> ResolveCreateCompanyAsync(
+        User actor,
+        Guid costCodeId,
+        CancellationToken cancellationToken)
+    {
+        if (!IsSuperAdmin(actor))
+            return GetActorCompanyId(actor);
+
+        // The required cost code identifies the selected expense company.
+        // All remaining references are validated against this company.
+        return await _dbContext.CostCodes
+            .Where(x => x.Id == costCodeId && !x.IsDeleted)
+            .Select(x => (Guid?)x.CompanyId)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ExpenseManagementException("Cost code was not found.");
+    }
 
     private static Guid GetActorCompanyId(
         User actor)
