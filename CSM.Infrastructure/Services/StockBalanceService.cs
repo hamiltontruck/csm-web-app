@@ -155,9 +155,8 @@ public sealed class StockBalanceService : IStockBalanceService
 
     private static bool IsSuperAdmin(User actor)
     {
-        return HasRole(
-            actor,
-            AppRoles.Administrator);
+        return HasRole(actor, AppRoles.SuperAdmin) ||
+            HasRole(actor, AppRoles.Administrator);
     }
 
     private static bool HasRole(
