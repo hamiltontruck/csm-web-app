@@ -6,6 +6,9 @@
 
 @inject IProcurementService ProcurementService
 @inject NavigationManager Navigation
+@inject IExecutiveDashboardService DashboardService
+@inject IAuthService AuthService
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
 
 <PageTitle>New Material</PageTitle>
 
@@ -19,12 +22,26 @@
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">@_error</div>
+        <div class="alert alert-danger" role="alert">@_error</div>
     }
 
     <EditForm Model="_model" OnValidSubmit="Save">
         <DataAnnotationsValidator />
         <ValidationSummary />
+
+        @if (_canSelectCompany)
+        {
+            <div class="mb-3">
+                <label for="material-company" class="form-label">Company</label>
+                <select id="material-company" class="form-select" @bind="_model.CompanyId" disabled="@_saving">
+                    <option value="">Select a company</option>
+                    @foreach (var company in _companies)
+                    {
+                        <option value="@company.Id">@company.Name</option>
+                    }
+                </select>
+            </div>
+        }
 
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
@@ -111,8 +128,8 @@
                 </div>
 
                 <div class="d-flex gap-2">
-                    <button class="btn btn-primary px-4" type="submit">
-                        Save Material
+                    <button class="btn btn-primary px-4" type="submit" disabled="@(_initializing || _saving)">
+                        @(_saving ? "Saving..." : "Save Material")
                     </button>
 
                     <button class="btn btn-outline-secondary"
@@ -139,6 +156,10 @@
    private List<MaterialLookupDto> _types = [];
 
     private bool _loaded;
+    private bool _initializing = true;
+    private bool _saving;
+    private bool _canSelectCompany;
+    private IReadOnlyList<CSM.Web.Models.Dashboard.DashboardCompany> _companies = [];
     private string? _error;
     private string? _costCode;
     private string _selectedMaterialType = "Bulk";
@@ -150,33 +171,66 @@
 
         _loaded = true;
 
-        _categories = await ProcurementService.GetCategoriesAsync();
-
-        _units = await ProcurementService.GetUnitsAsync();
-        _types = await ProcurementService.GetMaterialTypesAsync();
-
-        StateHasChanged();
+        try
+        {
+            var roles = await SessionStorage.GetAsync<List<string>>("roles");
+            _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
+            if (!_canSelectCompany)
+                _model.CompanyId = await AuthService.GetCurrentCompanyIdAsync();
+            if (_canSelectCompany || !_model.CompanyId.HasValue || _model.CompanyId == Guid.Empty)
+            {
+                _companies = await DashboardService.GetCompaniesAsync();
+                _canSelectCompany = true;
+                if (_companies.Count == 1) _model.CompanyId = _companies[0].Id;
+            }
+            _categories = await ProcurementService.GetCategoriesAsync();
+            _units = await ProcurementService.GetUnitsAsync();
+            _types = await ProcurementService.GetMaterialTypesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Unable to load material options. {ex.Message}";
+        }
+        finally
+        {
+            _initializing = false;
+            StateHasChanged();
+        }
     }
 
     private async Task Save()
     {
-        _model.MaterialType = Enum.TryParse<MaterialType>(
-            _selectedMaterialType,
-            true,
-            out var type)
-                ? type
-                : MaterialType.Bulk;
+        if (_initializing || _saving) return;
         _error = null;
-
-        var ok = await ProcurementService.CreateMaterialAsync(_model);
-
-        if (!ok)
+        if (!_model.CompanyId.HasValue || _model.CompanyId == Guid.Empty)
         {
-            _error = "Unable to create material.";
+            _error = "Select a company before creating a material.";
             return;
         }
-
-        Navigation.NavigateTo("/materials", true);
+        if (string.IsNullOrWhiteSpace(_model.MaterialCode) || string.IsNullOrWhiteSpace(_model.Name) ||
+            string.IsNullOrWhiteSpace(_model.Category) || string.IsNullOrWhiteSpace(_model.UnitOfMeasure))
+        {
+            _error = "Material code, name, category and unit are required.";
+            return;
+        }
+        _model.MaterialType = Enum.TryParse<MaterialType>(
+            _selectedMaterialType, true, out var type) ? type : MaterialType.Bulk;
+        _saving = true;
+        try
+        {
+            if (await ProcurementService.CreateMaterialAsync(_model))
+                Navigation.NavigateTo("/materials", true);
+            else
+                _error = "Unable to create material.";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private void Cancel()

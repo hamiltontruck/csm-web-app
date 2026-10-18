@@ -72,11 +72,34 @@ public class ProcurementService : IProcurementService
     public async Task<bool> CreateMaterialAsync(CreateMaterialRequest request)
     {
         var client = await GetClientAsync();
-        if (client is null) return false;
+        if (client is null)
+            throw new HttpRequestException("Your session has expired. Please sign in again.",
+                null, System.Net.HttpStatusCode.Unauthorized);
 
-        var response = await client.PostAsJsonAsync("materials", request);
+        using var response = await client.PostAsJsonAsync("materials", request);
+        if (response.IsSuccessStatusCode) return true;
 
-        return response.IsSuccessStatusCode;
+        var message = response.StatusCode switch
+        {
+            System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+            System.Net.HttpStatusCode.Forbidden => "You do not have permission to create materials.",
+            _ => "The material could not be saved. Please try again."
+        };
+        if ((int)response.StatusCode >= 500)
+            message = "The material service is temporarily unavailable. Please try again in a minute.";
+        else if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
+        {
+            try
+            {
+                using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                if (body.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                    body.RootElement.TryGetProperty("message", out var value) &&
+                    value.ValueKind == System.Text.Json.JsonValueKind.String)
+                    message = value.GetString() ?? message;
+            }
+            catch (System.Text.Json.JsonException) { }
+        }
+        throw new HttpRequestException(message, null, response.StatusCode);
     }
 
     public async Task<bool> UpdateMaterialAsync(

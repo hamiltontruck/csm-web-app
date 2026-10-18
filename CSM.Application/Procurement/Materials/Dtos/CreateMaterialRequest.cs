@@ -4,6 +4,8 @@ namespace CSM.Application.Procurement.Materials.Dtos;
 
 public sealed class CreateMaterialRequest
 {
+    public Guid? CompanyId { get; set; }
+
     public string MaterialCode { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;
