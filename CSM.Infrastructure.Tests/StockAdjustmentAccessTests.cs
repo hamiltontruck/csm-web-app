@@ -1,0 +1,166 @@
+using System.Reflection;
+using System.Security.Claims;
+using Bunit;
+using CSM.Api.Controllers;
+using CSM.Application.Common.Exceptions;
+using CSM.Application.Inventory.StockAdjustments;
+using CSM.Application.Inventory.StockAdjustments.Dtos;
+using CSM.Domain.Constants;
+using CSM.Domain.Entities.Identity;
+using CSM.Domain.Entities.Organization;
+using CSM.Domain.Entities.Procurement;
+using CSM.Infrastructure.Persistence;
+using CSM.Infrastructure.Services;
+using CSM.Web.Components.Pages;
+using CSM.Web.Models.Sites;
+using CSM.Web.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+
+namespace CSM.Infrastructure.Tests;
+
+public sealed class StockAdjustmentAccessTests
+{
+    [Theory]
+    [InlineData(AppRoles.SuperAdmin)]
+    [InlineData(AppRoles.Administrator)]
+    public async Task Admin_can_correct_six_to_eight_with_audited_movement(string role)
+    {
+        using var db = Database(role);
+        var service = new StockAdjustmentService(db);
+        var result = await service.CreateAsync(ActorId, Request());
+        Assert.Equal(8m, db.StockItems.Single().QuantityOnHand);
+        Assert.Equal(6m, result.QuantityBefore);
+        Assert.Equal(8m, result.QuantityAfter);
+        var record = Assert.Single(await service.GetAllAsync(ActorId));
+        Assert.Equal("ADJ-001", record.AdjustmentNumber);
+        Assert.Contains("Duplicate daily usage deduction", record.Remarks);
+        Assert.Equal(6m, record.QuantityBefore);
+        Assert.Equal(8m, record.QuantityAfter);
+        Assert.Equal("StockAdjustment", db.StockMovements.Single().ReferenceType);
+    }
+
+    [Theory]
+    [InlineData(AppRoles.Storekeeper)]
+    [InlineData(AppRoles.Employee)]
+    public async Task Unauthorized_user_cannot_adjust_other_company_stock(string role)
+    {
+        using var db = Database(role);
+        await Assert.ThrowsAsync<StockAdjustmentManagementException>(() =>
+            new StockAdjustmentService(db).CreateAsync(ActorId, Request()));
+        Assert.Equal(6m, db.StockItems.Single().QuantityOnHand);
+        Assert.Empty(db.StockMovements);
+    }
+
+    [Fact]
+    public async Task Duplicate_adjustment_does_not_add_stock_twice()
+    {
+        using var db = Database(AppRoles.SuperAdmin);
+        var service = new StockAdjustmentService(db);
+        await service.CreateAsync(ActorId, Request());
+        await Assert.ThrowsAsync<StockAdjustmentManagementException>(() => service.CreateAsync(ActorId, Request()));
+        Assert.Equal(8m, db.StockItems.Single().QuantityOnHand);
+        Assert.Single(db.StockMovements);
+    }
+
+    [Fact]
+    public async Task Decrease_cannot_exceed_available_stock()
+    {
+        using var db = Database(AppRoles.SuperAdmin);
+        var request = Request();
+        request.Increase = false;
+        request.Quantity = 7m;
+        var error = await Assert.ThrowsAsync<StockAdjustmentManagementException>(() =>
+            new StockAdjustmentService(db).CreateAsync(ActorId, request));
+        Assert.Contains("Insufficient", error.Message);
+        Assert.Equal(6m, db.StockItems.Single().QuantityOnHand);
+    }
+
+    [Fact]
+    public void Site_page_can_retry_loading_without_crashing()
+    {
+        using var context = new TestContext();
+        context.Services.AddSingleton(DispatchProxy.Create<IInventoryService, InventoryProxy>());
+        context.Services.AddSingleton(DispatchProxy.Create<IProjectService, ProjectProxy>());
+        var proxy = (InventoryProxy)(object)context.Services.GetRequiredService<IInventoryService>();
+        proxy.Fail = true;
+        var page = context.RenderComponent<StockAdjustmentsSite>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.DoesNotContain("Loading adjustments...", page.Markup);
+        proxy.Fail = false;
+        page.Find("#retry-stock-adjustments").Click();
+        page.WaitForAssertion(() => Assert.Contains("Cement", page.Markup));
+        Assert.Contains("Hamilton Test Site", page.Markup);
+        Assert.Empty(page.FindAll("[role=alert]"));
+    }
+
+    [Fact]
+    public async Task Controller_returns_validation_response_for_service_rejection()
+    {
+        var service = DispatchProxy.Create<IStockAdjustmentService, RejectingService>();
+        var controller = new StockAdjustmentsController(service) {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, ActorId.ToString())], "test"))
+            }}
+        };
+        var response = await controller.GetAll(default);
+        Assert.IsType<BadRequestObjectResult>(response.Result);
+    }
+
+    private static readonly Guid ActorId = Guid.NewGuid();
+    private static readonly Guid SiteId = Guid.NewGuid();
+    private static readonly Guid MaterialId = Guid.NewGuid();
+    private static CreateStockAdjustmentRequest Request() => new() {
+        ConstructionSiteId = SiteId, MaterialId = MaterialId, Increase = true, Quantity = 2m,
+        AdjustmentDateUtc = DateTime.UtcNow, AdjustmentNumber = "ADJ-001",
+        Reason = "Count Correction", Remarks = "Duplicate daily usage deduction"
+    };
+
+    private static TestDatabase Database(string role)
+    {
+        var db = new TestDatabase(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning)).Options);
+        var companyId = Guid.NewGuid();
+        db.Users.Add(new User { Id = ActorId, IsActive = true,
+            CompanyId = role == AppRoles.Storekeeper ? Guid.NewGuid() : null,
+            UserRoles = [new UserRole { Id = Guid.NewGuid(), Role = new Role { Id = Guid.NewGuid(), Name = role } }] });
+        db.StockItems.Add(new StockItem { Id = Guid.NewGuid(), CompanyId = companyId, MaterialId = MaterialId,
+            ConstructionSiteId = SiteId, ConstructionSite = new ConstructionSite { Id = SiteId, CompanyId = companyId, Name = "Hamilton Test Site" },
+            Material = new Material { Id = MaterialId, CompanyId = companyId, MaterialCode = "MAT-001", Name = "Cement", Category = "Cement", UnitOfMeasure = "Bag" },
+            QuantityOnHand = 6m, QuantityReserved = 0m, AverageUnitCost = 1000m });
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        return db;
+    }
+
+    private sealed class TestDatabase(DbContextOptions<ApplicationDbContext> options) : ApplicationDbContext(options)
+    {
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            base.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken);
+    }
+
+    public class RejectingService : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Task.FromException<List<StockAdjustmentResponse>>(new StockAdjustmentManagementException("Not permitted."));
+    }
+
+    public class ProjectProxy : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Task.FromResult(new List<SiteResponse> { new() { Id = SiteId, Name = "Hamilton Test Site" } });
+    }
+
+    public class InventoryProxy : DispatchProxy
+    {
+        public bool Fail { get; set; }
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Fail ? Task.FromException<List<CSM.Web.Models.Procurement.StockAdjustmentResponse>>(new HttpRequestException("500")) :
+            Task.FromResult(new List<CSM.Web.Models.Procurement.StockAdjustmentResponse> {
+                new() { ConstructionSiteId = SiteId, MaterialName = "Cement", Quantity = 2m, QuantityBefore = 6m, QuantityAfter = 8m } });
+    }
+}
