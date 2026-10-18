@@ -6,6 +6,9 @@
 
 @inject IVendorService VendorService
 @inject NavigationManager Navigation
+@inject IExecutiveDashboardService DashboardService
+@inject IAuthService AuthService
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
 
 <PageTitle>New Vendor</PageTitle>
 
@@ -20,11 +23,25 @@
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
     }
 
     <div class="card shadow-sm">
         <div class="card-body">
+
+            @if (_canSelectCompany)
+            {
+                <div class="mb-3">
+                    <label for="vendor-company" class="form-label">Company</label>
+                    <select id="vendor-company" class="form-select" @bind="model.CompanyId" disabled="@(saving || _initializing)">
+                        <option value="">Select a company</option>
+                        @foreach (var company in _companies)
+                        {
+                            <option value="@company.Id">@company.Name</option>
+                        }
+                    </select>
+                </div>
+            }
 
             <div class="row g-3">
 
@@ -103,7 +120,7 @@
 
                 <button class="btn btn-primary"
                         @onclick="Save"
-                        disabled="@saving">
+                        disabled="@(saving || _initializing)">
                     @(saving ? "Saving..." : "Save Vendor")
                 </button>
             </div>
@@ -122,9 +139,52 @@
     private bool saving;
     private string? errorMessage;
 
+    private bool _loaded;
+    private bool _initializing = true;
+    private bool _canSelectCompany;
+    private IReadOnlyList<CSM.Web.Models.Dashboard.DashboardCompany> _companies = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _loaded)
+            return;
+
+        _loaded = true;
+
+        try
+        {
+            var roles = await SessionStorage.GetAsync<List<string>>("roles");
+            _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
+            if (!_canSelectCompany)
+                model.CompanyId = await AuthService.GetCurrentCompanyIdAsync();
+            if (_canSelectCompany || !model.CompanyId.HasValue || model.CompanyId == Guid.Empty)
+            {
+                _companies = await DashboardService.GetCompaniesAsync();
+                _canSelectCompany = true;
+                if (_companies.Count == 1) model.CompanyId = _companies[0].Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load vendor options. {ex.Message}";
+        }
+        finally
+        {
+            _initializing = false;
+            StateHasChanged();
+        }
+    }
+
+
     async Task Save()
     {
+        if (_initializing || saving) return;
         errorMessage = null;
+        if (!model.CompanyId.HasValue || model.CompanyId == Guid.Empty)
+        {
+            errorMessage = "Select a company before creating a vendor.";
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(model.VendorCode))
         {
@@ -139,15 +199,21 @@
         }
 
         saving = true;
-
-        var success = await VendorService.CreateVendorAsync(model);
-
-        saving = false;
-
-        if (success)
-            Navigation.NavigateTo("/vendors");
-        else
-            errorMessage = "Unable to save vendor.";
+        try
+        {
+            if (await VendorService.CreateVendorAsync(model))
+                Navigation.NavigateTo("/vendors");
+            else
+                errorMessage = "Unable to save vendor.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
     }
 
     void GoBack()

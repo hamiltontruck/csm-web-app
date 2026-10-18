@@ -2,6 +2,8 @@ namespace CSM.Web.Models.Procurement;
 
 public class CreateVendorRequest
 {
+    public Guid? CompanyId { get; set; }
+
     public string VendorCode { get; set; } = "";
 
     public string Name { get; set; } = "";
