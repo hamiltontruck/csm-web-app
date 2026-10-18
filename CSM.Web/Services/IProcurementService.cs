@@ -26,6 +26,10 @@ public interface IProcurementService
 
     Task<MaterialRequestResponse?> GetMaterialRequestAsync(Guid id);
 
+    Task<MaterialRequestResponse> SubmitMaterialRequestAsync(Guid id);
+
+    Task<MaterialRequestResponse> ApproveMaterialRequestAsync(Guid id, ApproveMaterialRequestRequest request);
+
     Task<List<PurchaseOrderResponse>> GetPurchaseOrdersAsync();
     Task<PurchaseOrderResponse?> GetPurchaseOrderAsync(Guid id);
     Task CreatePurchaseOrderAsync(CreatePurchaseOrderRequest request);

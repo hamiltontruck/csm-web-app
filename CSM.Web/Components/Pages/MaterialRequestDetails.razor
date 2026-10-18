@@ -6,8 +6,16 @@
 
 @inject IProcurementService ProcurementService
 @inject NavigationManager Navigation
+@inject IAuthService AuthService
 
 <PageTitle>Material Request Details</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="container pt-4">
+        <div class="alert alert-danger" role="alert">@_error</div>
+    </div>
+}
 
 @if (loading)
 {
@@ -42,7 +50,7 @@ else
                 <div class="text-muted">@request.SiteName</div>
             </div>
 
-            <span class="badge bg-primary">@request.Status</span>
+            <span id="request-status" class="badge bg-primary">@request.Status</span>
         </div>
 
         <div class="card shadow-sm mb-4">
@@ -98,6 +106,7 @@ else
                             <th>Material</th>
                             <th>Unit</th>
                             <th class="text-end">Qty</th>
+                            <th class="text-end">Approved Qty</th>
                             <th>Remarks</th>
                         </tr>
                     </thead>
@@ -109,6 +118,18 @@ else
                             <td>@line.MaterialName</td>
                             <td>@line.UnitOfMeasure</td>
                             <td class="text-end">@line.RequestedQuantity</td>
+                            <td class="text-end">
+                                @if (request.Status == "Submitted" && _canApprove)
+                                {
+                                    <input type="number" class="form-control" min="0" max="@line.RequestedQuantity"
+                                           step="any" @bind="line.ApprovedQuantity" disabled="@_busy"
+                                           aria-label="@($"Approved quantity for {line.MaterialName}")" />
+                                }
+                                else
+                                {
+                                    @line.ApprovedQuantity
+                                }
+                            </td>
                             <td>@line.Remarks</td>
                         </tr>
                     }
@@ -118,6 +139,22 @@ else
             </div>
         </div>
 
+        @if (request.Status == "Draft" && _canSubmit)
+        {
+            <div class="mt-3">
+                <button id="submit-material-request" class="btn btn-primary" disabled="@_busy"
+                        @onclick="Submit">Submit Request</button>
+            </div>
+        }
+        @if (request.Status == "Submitted" && _canApprove)
+        {
+            <div class="mt-3">
+                <label for="approval-remarks" class="form-label">Approval Remarks (optional)</label>
+                <textarea id="approval-remarks" class="form-control mb-3" @bind="_approvalRemarks" disabled="@_busy"></textarea>
+                <button id="approve-material-request" class="btn btn-success" disabled="@_busy"
+                        @onclick="Approve">Approve Request</button>
+            </div>
+        }
     </div>
 }
 
@@ -126,6 +163,11 @@ else
     public Guid Id { get; set; }
 
     private bool loading = true;
+    private bool _busy;
+    private bool _canSubmit;
+    private bool _canApprove;
+    private string? _error;
+    private string? _approvalRemarks;
     private MaterialRequestResponse? request;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -133,11 +175,93 @@ else
         if (!firstRender)
             return;
 
-        request = await ProcurementService.GetMaterialRequestAsync(Id);
+        try
+        {
+            var permissions = await AuthService.GetPermissionsAsync();
+            _canSubmit = permissions.Contains("Procurement_MaterialRequest_Submit");
+            _canApprove = permissions.Contains("Procurement_MaterialRequest_Approve");
+            request = await ProcurementService.GetMaterialRequestAsync(Id);
+            PrepareApproval();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
-        loading = false;
+    private void PrepareApproval()
+    {
+        if (request?.Status != "Submitted") return;
+        foreach (var line in request.Lines)
+            line.ApprovedQuantity = line.RequestedQuantity;
+    }
 
-        await InvokeAsync(StateHasChanged);
+    private async Task Submit()
+    {
+        if (_busy || !_canSubmit || request?.Status != "Draft") return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            request = await ProcurementService.SubmitMaterialRequestAsync(Id);
+            PrepareApproval();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Approve()
+    {
+        if (_busy || !_canApprove || request?.Status != "Submitted") return;
+        _error = null;
+        if (request.Lines.Any(x => x.ApprovedQuantity < 0))
+        {
+            _error = "Approved quantity cannot be negative.";
+            return;
+        }
+        if (request.Lines.Any(x => x.ApprovedQuantity > x.RequestedQuantity))
+        {
+            _error = "Approved quantity cannot exceed requested quantity.";
+            return;
+        }
+        if (!request.Lines.Any(x => x.ApprovedQuantity > 0))
+        {
+            _error = "At least one material must have an approved quantity.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            request = await ProcurementService.ApproveMaterialRequestAsync(Id, new ApproveMaterialRequestRequest
+            {
+                Remarks = _approvalRemarks,
+                Lines = request.Lines.Select(x => new MaterialRequestApprovalLine
+                {
+                    MaterialRequestLineId = x.Id,
+                    ApprovedQuantity = x.ApprovedQuantity
+                }).ToList()
+            });
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     void Back()
