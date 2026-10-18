@@ -1,4 +1,5 @@
 @page "/material-requests/create"
+@page "/material-requests/create/{SiteId:guid}"
 @rendermode InteractiveServer
 
 @using CSM.Web.Models.Procurement
@@ -126,6 +127,15 @@
 </div>
 
 @code {
+
+    [Parameter]
+    public Guid? SiteId { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (SiteId.HasValue)
+            request.ConstructionSiteId = SiteId.Value;
+    }
 
     private bool saving;
     private bool _loaded;
