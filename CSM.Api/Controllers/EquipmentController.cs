@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CSM.Domain.Constants;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
 using CSM.Application.Procurement.Equipment;
@@ -11,7 +12,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
 public sealed class EquipmentController : ControllerBase
 {
     private readonly IEquipmentService _equipmentService;
