@@ -10,6 +10,9 @@
 @inject IOfflineSyncService OfflineSyncService
 @inject IJSRuntime JSRuntime
 @inject NavigationManager Navigation
+@inject IExecutiveDashboardService DashboardService
+@inject IAuthService AuthService
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
 
 <PageTitle>New Cost Code</PageTitle>
 
@@ -26,6 +29,25 @@
 
         <DataAnnotationsValidator />
         <ValidationSummary />
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
+        @if (_canSelectCompany)
+        {
+            <div class="mb-3">
+                <label for="cost-code-company" class="form-label">Company</label>
+                <select id="cost-code-company" class="form-select" @bind="_model.CompanyId"
+                        @bind:after="CompanyChanged" disabled="@_saving">
+                    <option value="">Select a company</option>
+                    @foreach (var company in _companies)
+                    {
+                        <option value="@company.Id">@company.Name</option>
+                    }
+                </select>
+            </div>
+        }
 
         <div class="card shadow-sm border-0">
             <div class="card-body">
@@ -78,8 +100,8 @@
 
         <div class="mt-3 d-flex gap-2">
 
-            <button class="btn btn-primary" type="submit">
-                Save
+            <button class="btn btn-primary" type="submit" disabled="@(_initializing || _saving)">
+                @(_saving ? "Saving..." : "Save")
             </button>
 
             <button class="btn btn-secondary"
@@ -100,9 +122,46 @@
 
     private List<CostCodeResponse> _parents = [];
 
-    protected override async Task OnInitializedAsync()
+    private List<CostCodeResponse> _allParents = [];
+    private IReadOnlyList<CSM.Web.Models.Dashboard.DashboardCompany> _companies = [];
+    private bool _initializing = true;
+    private bool _saving;
+    private bool _canSelectCompany;
+    private string? _error;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _parents = (await FinanceService.GetActiveCostCodesAsync()).ToList();
+        if (!firstRender) return;
+        try
+        {
+            var roles = await SessionStorage.GetAsync<List<string>>("roles");
+            _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
+            if (!_canSelectCompany)
+                _model.CompanyId = await AuthService.GetCurrentCompanyIdAsync();
+            if (_canSelectCompany || !_model.CompanyId.HasValue || _model.CompanyId == Guid.Empty)
+            {
+                _companies = await DashboardService.GetCompaniesAsync();
+                _canSelectCompany = true;
+                if (_companies.Count == 1) _model.CompanyId = _companies[0].Id;
+            }
+            _allParents = (await FinanceService.GetActiveCostCodesAsync()).ToList();
+            CompanyChanged();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Unable to load cost code options. {ex.Message}";
+        }
+        finally
+        {
+            _initializing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CompanyChanged()
+    {
+        _model.ParentCostCodeId = null;
+        _parents = _allParents.Where(x => x.CompanyId == _model.CompanyId).ToList();
     }
 
     private async Task QueueCostCodeInBrowserAsync()
@@ -111,6 +170,7 @@
             "csmOfflineSync.queueCostCodeCreate",
             new
             {
+                companyId = _model.CompanyId,
                 code = _model.Code,
                 name = _model.Name,
                 description = _model.Description,
@@ -121,20 +181,37 @@
 
     private async Task Save()
     {
-        var isOnline =
-            await OfflineSyncService.IsOnlineAsync();
-
-        if (isOnline)
+        if (_initializing || _saving) return;
+        _error = null;
+        if (!_model.CompanyId.HasValue || _model.CompanyId == Guid.Empty)
         {
-            await FinanceService.CreateCostCodeAsync(_model);
+            _error = "Select a company before creating a cost code.";
+            return;
         }
-        else
+        if (string.IsNullOrWhiteSpace(_model.Code) || string.IsNullOrWhiteSpace(_model.Name))
         {
-            await QueueCostCodeInBrowserAsync();
+            _error = "Cost code and name are required.";
+            return;
         }
 
-        Navigation.NavigateTo(
-            "/finance/company/cost-codes");
+        _saving = true;
+        try
+        {
+            if (await OfflineSyncService.IsOnlineAsync())
+                await FinanceService.CreateCostCodeAsync(_model);
+            else
+                await QueueCostCodeInBrowserAsync();
+
+            Navigation.NavigateTo("/finance/company/cost-codes");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private void Back()

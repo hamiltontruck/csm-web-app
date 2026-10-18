@@ -108,7 +108,7 @@ public sealed class CostCodeService : ICostCodeService
 
         EnsureCanModify(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ResolveCreateCompanyAsync(actor, request.CompanyId, cancellationToken);
 
         var code = CleanRequired(
             request.Code,
@@ -315,6 +315,30 @@ public sealed class CostCodeService : ICostCodeService
             throw new CostCodeManagementException(
                 "You are not authorized to access this cost code.");
         }
+    }
+
+    private async Task<Guid> ResolveCreateCompanyAsync(
+        User actor,
+        Guid? selectedCompanyId,
+        CancellationToken cancellationToken)
+    {
+        if (!IsSuperAdmin(actor) && selectedCompanyId.HasValue &&
+            selectedCompanyId != actor.CompanyId)
+            throw new CostCodeManagementException(
+                "You are not authorized to create cost codes for this company.");
+
+        var companyId = selectedCompanyId ?? actor.CompanyId;
+        if (!companyId.HasValue || companyId == Guid.Empty)
+            throw new CostCodeManagementException(
+                "Select a company before creating a cost code.");
+
+        if (!await _dbContext.Companies.AnyAsync(
+                x => x.Id == companyId.Value && !x.IsDeleted && x.IsActive,
+                cancellationToken))
+            throw new CostCodeManagementException(
+                "The selected company is invalid or inactive.");
+
+        return companyId.Value;
     }
 
     private static Guid GetActorCompanyId(User actor)
