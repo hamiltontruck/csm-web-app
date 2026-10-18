@@ -107,7 +107,7 @@ public sealed class DailyUsageStockIntegrationTests
                 new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).Options));
             try
             {
-                await fixture.Db.Database.EnsureCreatedAsync();
+                await fixture.Db.Database.MigrateAsync();
                 var company = new Company { Id = Guid.NewGuid(), Code = "TEST", Name = "Test Company" };
                 var site = new ConstructionSite { Id = fixture.SiteId, CompanyId = company.Id, Company = company,
                     SiteCode = "SITE", Name = "Test Site" };
