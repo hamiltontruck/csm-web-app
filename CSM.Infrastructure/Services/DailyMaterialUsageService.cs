@@ -133,30 +133,8 @@ public sealed class DailyMaterialUsageService :
 
                 try
                 {
-                    var stockItem =
-                        await _dbContext.StockItems
-                            .SingleOrDefaultAsync(
-                                x =>
-                                    x.CompanyId ==
-                                        site.CompanyId &&
-                                    x.ConstructionSiteId ==
-                                        site.Id &&
-                                    x.MaterialId ==
-                                        material.Id,
-                                cancellationToken)
-                        ?? throw new DailyMaterialUsageManagementException(
-                            "Stock item was not found for the selected site and material.");
-                    stockItem.QuantityOnHand -=
-                        request.QuantityUsed;
-
-                    stockItem.QuantityOnHand +=
-                        request.QuantityReturned;
-
-                    if (stockItem.QuantityOnHand < 0m)
-                    {
-                        throw new DailyMaterialUsageManagementException(
-                            "Daily material usage would result in negative stock.");
-                    }
+                    // Usage reconciles material already issued. Physical stock changes
+                    // are recorded by Stock Issues and Stock Returns, not this report.
 
                     var quantityVariance =
                         request.QuantityIssued -
@@ -219,84 +197,6 @@ public sealed class DailyMaterialUsageService :
 
                     _dbContext.DailyMaterialUsages.Add(
                         usage);
-
-                    if (request.QuantityUsed > 0m)
-                    {
-                        _dbContext.StockMovements.Add(
-                            new StockMovement
-                            {
-                                CompanyId =
-                                    site.CompanyId,
-
-                                StockItemId =
-                                    stockItem.Id,
-
-                                MovementType =
-                                    Domain.Enums.StockMovementType.Issue,
-
-                                MovementDateUtc =
-                                    DateTime.UtcNow,
-
-                                Quantity =
-                                    request.QuantityUsed,
-
-                                UnitCost =
-                                    stockItem.AverageUnitCost,
-
-                                ReferenceType =
-                                    "DailyMaterialUsage",
-
-                                ReferenceId =
-                                    usage.Id,
-
-                                ReferenceNumber =
-                                    usage.Id.ToString(),
-
-                                Remarks =
-                                    $"Daily material usage. " +
-                                    $"Used: {request.QuantityUsed} " +
-                                    $"{request.Unit}."
-                            });
-                    }
-
-                    if (request.QuantityReturned > 0m)
-                    {
-                        _dbContext.StockMovements.Add(
-                            new StockMovement
-                            {
-                                CompanyId =
-                                    site.CompanyId,
-
-                                StockItemId =
-                                    stockItem.Id,
-
-                                MovementType =
-                                    Domain.Enums.StockMovementType.Return,
-
-                                MovementDateUtc =
-                                    DateTime.UtcNow,
-
-                                Quantity =
-                                    request.QuantityReturned,
-
-                                UnitCost =
-                                    stockItem.AverageUnitCost,
-
-                                ReferenceType =
-                                    "DailyMaterialUsage",
-
-                                ReferenceId =
-                                    usage.Id,
-
-                                ReferenceNumber =
-                                    usage.Id.ToString(),
-
-                                Remarks =
-                                    $"Daily material return. " +
-                                    $"Returned: {request.QuantityReturned} " +
-                                    $"{request.Unit}."
-                            });
-                    }
 
                     await _dbContext.SaveChangesAsync(
                         cancellationToken);
