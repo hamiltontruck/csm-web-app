@@ -250,7 +250,7 @@ quantityAfter =
 
     private static void EnsureCanManage(User actor)
     {
-        if (HasRole(actor, AppRoles.Administrator) ||
+        if (IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.Storekeeper) ||
             HasRole(actor, AppRoles.ProcurementOfficer))
         {
@@ -293,9 +293,8 @@ quantityAfter =
     private static bool IsSuperAdmin(
         User user)
     {
-        return HasRole(
-            user,
-            AppRoles.Administrator);
+        return HasRole(user, AppRoles.SuperAdmin) ||
+            HasRole(user, AppRoles.Administrator);
     }
 
     private static bool HasRole(

@@ -26,11 +26,16 @@ public sealed class StockAdjustmentsController : ControllerBase
     public async Task<ActionResult<List<StockAdjustmentResponse>>> GetAll(
         CancellationToken cancellationToken)
     {
-        var result = await _stockAdjustmentService.GetAllAsync(
-            GetCurrentUserId(),
-            cancellationToken);
-
-        return Ok(result);
+        try
+        {
+            var result = await _stockAdjustmentService.GetAllAsync(
+                GetCurrentUserId(), cancellationToken);
+            return Ok(result);
+        }
+        catch (StockAdjustmentManagementException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost]
