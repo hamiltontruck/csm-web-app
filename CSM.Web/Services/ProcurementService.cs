@@ -196,6 +196,49 @@ public class ProcurementService : IProcurementService
        }
    }
 
+    public Task<MaterialRequestResponse> SubmitMaterialRequestAsync(Guid id) =>
+        ChangeMaterialRequestAsync(id, "submit", new { });
+
+    public Task<MaterialRequestResponse> ApproveMaterialRequestAsync(Guid id, ApproveMaterialRequestRequest request) =>
+        ChangeMaterialRequestAsync(id, "approve", request);
+
+    private async Task<MaterialRequestResponse> ChangeMaterialRequestAsync(Guid id, string action, object payload)
+    {
+        var client = await GetClientAsync();
+        if (client is null)
+            throw new HttpRequestException("Your session has expired. Please sign in again.",
+                null, System.Net.HttpStatusCode.Unauthorized);
+
+        using var response = await client.PutAsJsonAsync($"materialrequests/{id}/{action}", payload);
+        if (!response.IsSuccessStatusCode)
+        {
+            var message = response.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to perform this action.",
+                _ => "The request could not be updated. Please try again."
+            };
+            if ((int)response.StatusCode >= 500)
+                message = "The material request service is temporarily unavailable. Please try again in a minute.";
+            else if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
+            {
+                try
+                {
+                    using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                    if (body.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                        body.RootElement.TryGetProperty("message", out var value) &&
+                        value.ValueKind == System.Text.Json.JsonValueKind.String)
+                        message = value.GetString() ?? message;
+                }
+                catch (System.Text.Json.JsonException) { }
+            }
+            throw new HttpRequestException(message, null, response.StatusCode);
+        }
+
+        return await response.Content.ReadFromJsonAsync<MaterialRequestResponse>()
+            ?? throw new HttpRequestException("The updated request could not be read. Refresh the page to check its status.");
+    }
+
    public async Task<MaterialRequestResponse?> GetMaterialRequestAsync(Guid id)
    {
        var client = await GetClientAsync();
