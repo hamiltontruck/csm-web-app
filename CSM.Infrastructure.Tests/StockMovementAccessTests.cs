@@ -60,7 +60,7 @@ public sealed class StockMovementAccessTests
     {
         using var db = Database(AppRoles.SuperAdmin);
         var service = new StockMovementService(db);
-        Assert.Single(await service.GetAllAsync(ActorId, SiteId, MaterialId, StockMovementType.Receipt));
+        Assert.Single(await service.GetAllAsync(ActorId, SiteId, MaterialId, StockMovementType.GoodsReceipt));
         Assert.Empty(await service.GetAllAsync(ActorId, Guid.NewGuid()));
         await Assert.ThrowsAsync<StockMovementManagementException>(() =>
             service.GetAllAsync(ActorId, fromUtc: DateTime.UtcNow, toUtc: DateTime.UtcNow.AddDays(-1)));
@@ -102,7 +102,7 @@ public sealed class StockMovementAccessTests
             QuantityOnHand = 8m };
         db.StockItems.Add(stock);
         var rows = new[] {
-            (StockMovementType.Receipt, "GoodsReceipt", "GR-001", 10m, 0m, 10m),
+            (StockMovementType.GoodsReceipt, "GoodsReceipt", "GR-001", 10m, 0m, 10m),
             (StockMovementType.Issue, "StockIssue", "ISS-001", 2m, 10m, 8m),
             (StockMovementType.Issue, "DailyMaterialUsage", "DMU-001", 2m, 8m, 6m),
             (StockMovementType.AdjustmentIncrease, "StockAdjustment", "ADJ-CORR-001", 2m, 6m, 8m)
