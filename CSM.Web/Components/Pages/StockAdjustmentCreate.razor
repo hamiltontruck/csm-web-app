@@ -67,9 +67,9 @@
                 <div class="col-md-6">
                     <label class="form-label">Adjustment Type</label>
 
-                    <select class="form-select" @bind="model.Increase">
-                        <option value="true">Increase</option>
-                        <option value="false">Decrease</option>
+                    <select class="form-select" @bind="AdjustmentType">
+                        <option value="Increase">Increase</option>
+                        <option value="Decrease">Decrease</option>
                     </select>
                 </div>
 
@@ -153,6 +153,12 @@
     [Parameter]
     public Guid? SiteId { get; set; }
     private AdjustmentModel model = new();
+
+    private string AdjustmentType
+    {
+        get => model.Increase ? "Increase" : "Decrease";
+        set => model.Increase = value == "Increase";
+    }
 
     private List<SiteResponse> sites = [];
     private List<StockBalanceResponse> materials = [];
