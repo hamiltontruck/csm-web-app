@@ -15,6 +15,13 @@
         <h4>Loading stock movements...</h4>
     </div>
 }
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="container py-4">
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        <button id="retry-stock-movements" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+    </div>
+}
 else
 {
     <div class="container py-4">
@@ -117,28 +124,35 @@ else
 
     private string siteName = "";
 
+    private string? errorMessage;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || loaded)
-            return;
-
+        if (!firstRender || loaded) return;
         loaded = true;
+        await LoadAsync();
+    }
 
-        var all =
-            await InventoryService.GetStockMovementsAsync();
-
-        movements = all
-            .Where(x => x.ConstructionSiteId == SiteId)
-            .OrderByDescending(x => x.MovementDateUtc)
-            .ToList();
-
-        siteName =
-            movements.FirstOrDefault()?.SiteName
-            ?? "Construction Site";
-
-        loading = false;
-
-        StateHasChanged();
+    private async Task LoadAsync()
+    {
+        loading = true;
+        errorMessage = null;
+        try
+        {
+            var all = await InventoryService.GetStockMovementsAsync();
+            movements = all.Where(x => x.ConstructionSiteId == SiteId)
+                .OrderByDescending(x => x.MovementDateUtc).ToList();
+            siteName = movements.FirstOrDefault()?.SiteName ?? "Construction Site";
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load stock movements. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
     }
 
     void GoBack()
