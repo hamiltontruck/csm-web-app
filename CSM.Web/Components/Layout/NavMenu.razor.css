@@ -146,7 +146,7 @@
     .sidebar{position:relative;top:auto;width:100%;height:auto;min-height:0;overflow:visible;z-index:20;}
     .top-row{height:58px;padding:0 18px;background:#102f25;}
     .navbar-brand{font-size:1.15rem;}
-    .navbar-toggler{display:block;appearance:none;position:absolute;right:18px;top:19px;width:28px;height:24px;margin:0;border:1px solid rgba(255,255,255,.24);border-radius:7px;background:rgba(255,255,255,.08);cursor:pointer;}
+    .navbar-toggler{display:block;appearance:auto;accent-color:#55b68c;position:absolute;right:20px;top:19px;width:20px;height:20px;margin:0;cursor:pointer;}
     .navbar-toggler:checked{background:#326b51;}
     .nav-scrollable{display:none;position:absolute;top:58px;left:0;right:0;max-height:calc(100vh - 58px);background:#102f25;overflow-y:auto;box-shadow:0 12px 20px rgba(17,42,32,.2);z-index:30;}
     .navbar-toggler:checked~.nav-scrollable{display:block;}
