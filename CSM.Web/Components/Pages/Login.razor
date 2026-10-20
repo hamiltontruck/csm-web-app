@@ -10,60 +10,125 @@
 @inject NavigationManager Navigation
 @inject ILogger<Login> Logger
 
+<PageTitle>Sign in | CSM</PageTitle>
 
-<PageTitle>CSM Login</PageTitle>
+<main class="csm-login-shell">
+    <section class="csm-login-visual" aria-label="Construction Site Management">
+        <header class="csm-login-brand-row">
+            <div class="csm-brand">
+                <span class="csm-brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="csm-brand-name">HAMILTON<span>BUSINESS GROUP</span></span>
+            </div>
+            <span class="csm-secure-label"><i></i> SECURE WORKSPACE</span>
+        </header>
 
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-5">
+        <div class="csm-login-story">
+            <p class="csm-eyebrow"><span></span> BUILT FOR THE FIELD</p>
+            <h1>Build with<br /><em>confidence.</em></h1>
+            <p class="csm-story-copy">
+                One clear view of your projects, people, equipment, and costs — from the site to the office.
+            </p>
 
-            <div class="card shadow">
-                <div class="card-body p-4">
-
-                    <h3 class="text-center mb-1">
-                        Hamilton Business Group
-                    </h3>
-
-                    <p class="text-center text-muted mb-4">
-                        Construction Site Management
-                    </p>
-
-                    <EditForm Model="_model" OnValidSubmit="LoginAsync">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary />
-
-                        <div class="mb-3">
-                            <label class="form-label">Email</label>
-                            <InputText class="form-control"
-                                       @bind-Value="_model.Email" />
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Password</label>
-                            <InputText class="form-control"
-                                       type="password"
-                                       @bind-Value="_model.Password" />
-                        </div>
-
-                        @if (!string.IsNullOrWhiteSpace(_error))
-                        {
-                            <div class="alert alert-danger">
-                                @_error
-                            </div>
-                        }
-
-                        <button class="btn btn-primary w-100"
-                                disabled="@_loading">
-                            @(_loading ? "Signing in..." : "Sign In")
-                        </button>
-                    </EditForm>
-
+            <div class="csm-project-card" aria-hidden="true">
+                <div class="csm-project-card-head">
+                    <span>PROJECT OPERATIONS</span>
+                    <span class="csm-project-live"><i></i> LIVE</span>
+                </div>
+                <div class="csm-construction-art">
+                    <span class="csm-art-sun"></span>
+                    <span class="csm-art-building csm-art-building-back"></span>
+                    <span class="csm-art-building csm-art-building-front"></span>
+                    <span class="csm-art-crane"><i></i><b></b></span>
+                    <span class="csm-art-ground"></span>
+                    <span class="csm-art-grid"></span>
+                </div>
+                <div class="csm-project-card-foot">
+                    <span><strong>Everything moving together.</strong><small>Projects · People · Resources</small></span>
+                    <span class="csm-project-arrow">↗</span>
                 </div>
             </div>
-
         </div>
-    </div>
-</div>
+
+        <footer class="csm-visual-footer">
+            <span>PLAN CLEARLY. BUILD BETTER.</span>
+            <span>© 2026 HAMILTON BUSINESS GROUP</span>
+        </footer>
+    </section>
+
+    <section class="csm-login-panel">
+        <header class="csm-login-panel-head">
+            <span class="csm-mobile-brand">HAMILTON<span>BUSINESS GROUP</span></span>
+            <span class="csm-help-text">Need help? Contact your administrator.</span>
+        </header>
+
+        <div class="csm-login-form-wrap">
+            <div class="csm-login-heading">
+                <span class="csm-login-icon" aria-hidden="true">H</span>
+                <p class="csm-form-eyebrow">CONSTRUCTION SITE MANAGEMENT</p>
+                <h2>Welcome back</h2>
+                <p>Sign in to continue to your workspace.</p>
+            </div>
+
+            <EditForm Model="_model" OnValidSubmit="LoginAsync" class="csm-login-form">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="csm-form-field">
+                    <label for="csm-email">Work email</label>
+                    <div class="csm-input-frame">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="m4.5 7 7.5 5.5L19.5 7"></path></svg>
+                        <InputText id="csm-email"
+                                   class="csm-input"
+                                   type="email"
+                                   autocomplete="username"
+                                   placeholder="you@company.com"
+                                   @bind-Value="_model.Email" />
+                    </div>
+                </div>
+
+                <div class="csm-form-field">
+                    <div class="csm-field-heading">
+                        <label for="csm-password">Password</label>
+                        <span class="csm-password-hint">Use your account password</span>
+                    </div>
+                    <div class="csm-input-frame">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="10" rx="2"></rect><path d="M8 10V7.5a4 4 0 0 1 8 0V10"></path><path d="M12 14v2.5"></path></svg>
+                        <InputText id="csm-password"
+                                   class="csm-input"
+                                   type="password"
+                                   autocomplete="current-password"
+                                   placeholder="Enter your password"
+                                   @bind-Value="_model.Password" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="csm-login-error" role="alert">@_error</div>
+                }
+
+                <button class="csm-submit-button" type="submit" disabled="@_loading">
+                    <span>@(_loading ? "Signing in..." : "Sign in")</span>
+                    @if (!_loading)
+                    {
+                        <span class="csm-submit-arrow" aria-hidden="true">→</span>
+                    }
+                    else
+                    {
+                        <span class="csm-submit-spinner" aria-hidden="true"></span>
+                    }
+                </button>
+
+                <p class="csm-security-note"><span aria-hidden="true">▣</span> Your account is protected with secure sign-in.</p>
+            </EditForm>
+        </div>
+
+        <footer class="csm-login-panel-footer">
+            <span>HAMILTON BUSINESS GROUP</span>
+            <span>CONSTRUCTION SITE MANAGEMENT</span>
+        </footer>
+    </section>
+</main>
 
 @code {
     private readonly LoginRequest _model = new();
