@@ -1,7 +1,7 @@
 /* ===== SIDEBAR ===== */
 
 .sidebar{
-    width:280px;
+    width:100%;
     height:100vh;
     min-height:100vh;
     position:sticky;
@@ -10,7 +10,7 @@
     display:flex;
     flex-direction:column;
 
-    background:linear-gradient(180deg,#001B5C 0%,#32005C 100%);
+    background:#102f25;
     overflow:hidden;
 }
 
@@ -21,7 +21,7 @@
     display:flex;
     align-items:center;
     padding:0 22px;
-    background:#001B5C;
+    background:#102f25;
     flex-shrink:0;
 }
 
@@ -66,7 +66,7 @@
     padding:0 16px;
     border-radius:10px;
 
-    color:#2990FF;
+    color:#bed0c7;
     font-size:18px;
     font-weight:500;
     text-decoration:none;
@@ -127,7 +127,7 @@
 .submenu-level2 ::deep .nav-link{
     height:38px;
     font-size:16px;
-    color:#7EC0FF;
+    color:#aac8ba;
 }
 
 /* ===== SIGN OUT ===== */
@@ -139,5 +139,22 @@
 }
 
 .signout ::deep .nav-link{
-    color:#FF5A5A;
+    color:#f2a397;
+}
+/* Responsive navigation */
+@media (max-width:640.98px){
+    .sidebar{position:relative;top:auto;width:100%;height:auto;min-height:0;overflow:visible;z-index:20;}
+    .top-row{height:58px;padding:0 18px;background:#102f25;}
+    .navbar-brand{font-size:1.15rem;}
+    .navbar-toggler{display:block;appearance:none;position:absolute;right:18px;top:19px;width:28px;height:24px;margin:0;border:1px solid rgba(255,255,255,.24);border-radius:7px;background:rgba(255,255,255,.08);cursor:pointer;}
+    .navbar-toggler:checked{background:#326b51;}
+    .nav-scrollable{display:none;position:absolute;top:58px;left:0;right:0;max-height:calc(100vh - 58px);background:#102f25;overflow-y:auto;box-shadow:0 12px 20px rgba(17,42,32,.2);z-index:30;}
+    .navbar-toggler:checked~.nav-scrollable{display:block;}
+    .nav-scrollable nav{padding:10px 0 14px;}
+    .nav-item{margin:2px 12px;}
+    .nav-item ::deep .nav-link{height:42px;font-size:14px;}
+    .section-title{padding:13px 24px 7px;}
+    .submenu{margin-left:12px;}
+    .signout{display:none;background:#102f25;margin:0;padding:0 12px 14px;border-top:0;}
+    .navbar-toggler:checked~.signout{display:block;}
 }
