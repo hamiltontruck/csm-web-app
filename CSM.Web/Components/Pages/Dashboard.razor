@@ -107,14 +107,9 @@ else
                     <span style="width:@($"{Math.Clamp(_dashboard.BudgetUtilization, 0, 100)}%")"></span>
                 </div>
                 <div class="budget-foot"><span>Remaining budget</span><strong>@Money(_dashboard.TotalBudget - _dashboard.TotalExpenses)</strong></div>
-                <div class="budget-chart" aria-hidden="true">
-                    <div class="chart-grid"></div>
-                    <svg viewBox="0 0 600 104" preserveAspectRatio="none">
-                        <defs><linearGradient id="budgetFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#b6e6d1" stop-opacity=".72"/><stop offset="100%" stop-color="#b6e6d1" stop-opacity="0"/></linearGradient></defs>
-                        <path d="M0 78 C45 75 50 52 95 59 S145 73 188 48 S250 56 290 43 S355 51 390 29 S452 45 490 24 S550 31 600 9 L600 104 L0 104Z" fill="url(#budgetFill)"/>
-                        <path d="M0 78 C45 75 50 52 95 59 S145 73 188 48 S250 56 290 43 S355 51 390 29 S452 45 490 24 S550 31 600 9" fill="none" stroke="#258767" stroke-width="3"/>
-                    </svg>
-                    <div class="chart-months"><span>Jan</span><span>Mar</span><span>May</span><span>Jul</span><span>Sep</span><span>Nov</span></div>
+                <div class="budget-note">
+                    <span class="budget-note-mark">↗</span>
+                    <span>Actual spend is <strong>@Money(_dashboard.TotalExpenses)</strong> of <strong>@Money(_dashboard.TotalBudget)</strong> approved.</span>
                 </div>
             </article>
 
