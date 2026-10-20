@@ -14,38 +14,56 @@
 <PageTitle>Sign in | CSM</PageTitle>
 
 <main class="csm-login-shell">
-    <section class="csm-login-visual" aria-label="Construction Site Management">
+    <section class="csm-login-visual" aria-label="Hamilton Construction Site Management">
+        <div class="csm-login-visual-glow" aria-hidden="true"></div>
         <header class="csm-login-brand-row">
             <div class="csm-brand">
                 <span class="csm-brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
                 <span class="csm-brand-name">HAMILTON<span>BUSINESS GROUP</span></span>
             </div>
-            <span class="csm-secure-label"><i></i> SECURE WORKSPACE</span>
+            <span class="csm-secure-label"><i aria-hidden="true"></i> SECURE WORKSPACE</span>
         </header>
 
         <div class="csm-login-story">
-            <p class="csm-eyebrow"><span></span> BUILT FOR THE FIELD</p>
-            <h1>Build with<br /><em>confidence.</em></h1>
+            <p class="csm-eyebrow"><span></span> CONSTRUCTION SITE MANAGEMENT</p>
+            <h1>Every site.<br /><em>One clear plan.</em></h1>
             <p class="csm-story-copy">
-                One clear view of your projects, people, equipment, and costs — from the site to the office.
+                Keep project progress, teams, equipment, and costs moving in the same direction.
             </p>
-
             <div class="csm-project-card" aria-hidden="true">
-                <div class="csm-project-card-head">
-                    <span>CSM WORKSPACE</span>
-                    <span class="csm-project-live"><i></i> FIELD READY</span>
-                </div>
-                <div class="csm-construction-art">
-                    <span class="csm-art-sun"></span>
-                    <span class="csm-art-building csm-art-building-back"></span>
-                    <span class="csm-art-building csm-art-building-front"></span>
-                    <span class="csm-art-crane"><i></i><b></b></span>
-                    <span class="csm-art-ground"></span>
-                    <span class="csm-art-grid"></span>
-                </div>
-                <div class="csm-project-card-foot">
-                    <span><strong>Everything moving together.</strong><small>Projects · People · Resources</small></span>
-                    <span class="csm-project-arrow">↗</span>
+                <div class="csm-project-card-label">BUILT FOR THE FIELD</div>
+                <svg class="csm-project-art" viewBox="0 0 560 230" role="presentation">
+                    <defs>
+                        <linearGradient id="csm-sky" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#d6e6ce"></stop>
+                            <stop offset="1" stop-color="#829b7b"></stop>
+                        </linearGradient>
+                        <linearGradient id="csm-building" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0" stop-color="#899780"></stop>
+                            <stop offset=".5" stop-color="#d5d5bb"></stop>
+                            <stop offset="1" stop-color="#9aa48d"></stop>
+                        </linearGradient>
+                    </defs>
+                    <rect width="560" height="230" fill="url(#csm-sky)"></rect>
+                    <circle cx="448" cy="48" r="24" fill="#f1f0c7" opacity=".78"></circle>
+                    <g stroke="#edf3e6" stroke-opacity=".27" stroke-width="1">
+                        <path d="M0 48h560M0 96h560M0 144h560M0 192h560"></path>
+                        <path d="M70 0v230M140 0v230M210 0v230M280 0v230M350 0v230M420 0v230M490 0v230"></path>
+                    </g>
+                    <path d="M0 176 98 155l86 14 111-25 98 20 85-24 82 17v73H0z" fill="#50684e" opacity=".72"></path>
+                    <path d="M117 93 293 79v120H117z" fill="url(#csm-building)"></path>
+                    <path d="m293 79 108 24v96H293z" fill="#9aa58e"></path>
+                    <path d="M136 108h139M136 132h139M136 156h139M136 180h139" stroke="#788574" stroke-width="5" opacity=".7"></path>
+                    <path d="M310 105h70M310 128h70M310 151h70M310 174h70" stroke="#788574" stroke-width="5" opacity=".65"></path>
+                    <path d="M84 20v182m0-174 280 0m-34 0v72m-246-72 24 20m-12-20 21 18" fill="none" stroke="#263e32" stroke-width="3"></path>
+                    <path d="M357 20h20v54" fill="none" stroke="#263e32" stroke-width="2"></path>
+                    <circle cx="84" cy="20" r="5" fill="#d4e2c1"></circle>
+                    <path d="M0 202h560" stroke="#243a2d" stroke-width="3"></path>
+                    <path d="M0 209h560" stroke="#d2d8bb" stroke-opacity=".34" stroke-width="1"></path>
+                </svg>
+                <div class="csm-project-card-footer">
+                    <span>Projects <i></i> People <i></i> Resources</span>
+                    <span class="csm-project-arrow" aria-hidden="true">↗</span>
                 </div>
             </div>
         </div>
@@ -56,17 +74,17 @@
         </footer>
     </section>
 
-    <section class="csm-login-panel">
+    <section class="csm-login-panel" aria-labelledby="csm-login-title">
         <header class="csm-login-panel-head">
-            <span class="csm-mobile-brand">HAMILTON<span>BUSINESS GROUP</span></span>
+            <span class="csm-panel-label">TEAM ACCESS</span>
             <span class="csm-help-text">Need help? Contact your administrator.</span>
         </header>
 
         <div class="csm-login-form-wrap">
             <div class="csm-login-heading">
                 <span class="csm-login-icon" aria-hidden="true">H</span>
-                <p class="csm-form-eyebrow">CONSTRUCTION SITE MANAGEMENT</p>
-                <h2>Welcome back</h2>
+                <p class="csm-form-eyebrow">YOUR WORKSPACE, READY</p>
+                <h2 id="csm-login-title">Welcome back</h2>
                 <p>Sign in to continue to your workspace.</p>
             </div>
 
@@ -77,29 +95,34 @@
                 <div class="csm-form-field">
                     <label for="csm-email">Work email</label>
                     <div class="csm-input-frame">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect><path d="m4.5 7 7.5 5.5L19.5 7"></path></svg>
-                        <InputText id="csm-email"
-                                   class="csm-input"
-                                   type="email"
-                                   autocomplete="username"
-                                   placeholder="you@company.com"
-                                   @bind-Value="_model.Email" />
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3.5" y="5.5" width="17" height="13" rx="2"></rect>
+                            <path d="m4.5 7 7.5 5.5L19.5 7"></path>
+                        </svg>
+                        <InputText id="csm-email" class="csm-input" type="email"
+                                   autocomplete="username" placeholder="you@company.com"
+                                   required @bind-Value="_model.Email" />
                     </div>
                 </div>
 
                 <div class="csm-form-field">
-                    <div class="csm-field-heading">
-                        <label for="csm-password">Password</label>
-                        <span class="csm-password-hint">Use your account password</span>
-                    </div>
+                    <label for="csm-password">Password</label>
                     <div class="csm-input-frame">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="10" rx="2"></rect><path d="M8 10V7.5a4 4 0 0 1 8 0V10"></path><path d="M12 14v2.5"></path></svg>
-                        <InputText id="csm-password"
-                                   class="csm-input"
-                                   type="password"
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="4.5" y="10" width="15" height="10" rx="2"></rect>
+                            <path d="M8 10V7.5a4 4 0 0 1 8 0V10"></path>
+                            <path d="M12 14v2.5"></path>
+                        </svg>
+                        <InputText id="csm-password" class="csm-input"
+                                   type="@(_showPassword ? "text" : "password")"
                                    autocomplete="current-password"
-                                   placeholder="Enter your password"
+                                   placeholder="Enter your password" required
                                    @bind-Value="_model.Password" />
+                        <button type="button" class="csm-show-password"
+                                @onclick="TogglePassword"
+                                aria-label="@(_showPassword ? "Hide password" : "Show password")">
+                            @(_showPassword ? "Hide" : "Show")
+                        </button>
                     </div>
                 </div>
 
@@ -120,7 +143,7 @@
                     }
                 </button>
 
-                <p class="csm-security-note"><span aria-hidden="true">▣</span> Your account is protected with secure sign-in.</p>
+                <p class="csm-security-note"><span aria-hidden="true">▣</span> Secure access for your project team.</p>
             </EditForm>
         </div>
 
@@ -135,7 +158,10 @@
     private readonly LoginRequest _model = new();
 
     private bool _loading;
+    private bool _showPassword;
     private string? _error;
+
+    private void TogglePassword() => _showPassword = !_showPassword;
 
     private async Task LoginAsync()
     {
