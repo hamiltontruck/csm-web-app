@@ -61,7 +61,7 @@ else
             </div>
             <div class="dashboard-header-meta">
                 <span class="dashboard-date">@DateTime.Now.ToString("dddd, dd MMMM yyyy")</span>
-                <span class="dashboard-live"><span class="status-dot"></span> Live workspace</span>
+                <span class="dashboard-live"><span class="status-dot"></span> Workspace ready</span>
             </div>
         </header>
 
@@ -70,7 +70,7 @@ else
                 <div class="metric-top"><span class="metric-icon">▦</span><span class="metric-kicker">IN PROGRESS</span></div>
                 <div class="metric-value">@_dashboard.ActiveProjects</div>
                 <div class="metric-label">Active projects</div>
-                <div class="metric-foot"><span class="metric-mini-bar"><i style="width:72%"></i></span><span>Across your portfolio</span></div>
+                <div class="metric-foot"><span>Portfolio-wide</span></div>
             </article>
             <article class="metric-card">
                 <div class="metric-top"><span class="metric-icon metric-icon-green">✓</span><span class="metric-kicker">DELIVERED</span></div>
@@ -82,7 +82,7 @@ else
                 <div class="metric-top"><span class="metric-icon metric-icon-blue">♙</span><span class="metric-kicker">YOUR PEOPLE</span></div>
                 <div class="metric-value">@_dashboard.TotalEmployees</div>
                 <div class="metric-label">Team members</div>
-                <div class="metric-foot"><span class="metric-foot-avatars"><b>H</b><b>B</b><b>G</b></span><span>Across all active sites</span></div>
+                <div class="metric-foot"><span>Across your organization</span></div>
             </article>
             <article class="metric-card metric-card-alert">
                 <div class="metric-top"><span class="metric-icon metric-icon-amber">↗</span><span class="metric-kicker">NEEDS ATTENTION</span></div>
@@ -103,7 +103,7 @@ else
                     <div class="budget-spend"><span class="budget-caption">Expenses to date</span><strong>@Money(_dashboard.TotalExpenses)</strong></div>
                 </div>
                 <div class="budget-progress-label"><span>Budget utilization</span><strong>@_dashboard.BudgetUtilization.ToString("0.0")%</strong></div>
-                <div class="budget-progress" role="progressbar" aria-label="Budget utilization" aria-valuenow="@_dashboard.BudgetUtilization" aria-valuemin="0" aria-valuemax="100">
+                <div class="budget-progress" role="progressbar" aria-label="Budget utilization" aria-valuenow="@Math.Clamp(_dashboard.BudgetUtilization, 0, 100)" aria-valuemin="0" aria-valuemax="100">
                     <span style="width:@($"{Math.Clamp(_dashboard.BudgetUtilization, 0, 100)}%")"></span>
                 </div>
                 <div class="budget-foot"><span>Remaining budget</span><strong>@Money(_dashboard.TotalBudget - _dashboard.TotalExpenses)</strong></div>
@@ -116,7 +116,7 @@ else
             <article class="dashboard-panel operations-panel">
                 <div class="panel-heading">
                     <div><p class="panel-overline">SITE OPERATIONS</p><h2>Daily pulse</h2></div>
-                    <span class="pulse-indicator"><i></i> Today</span>
+                    <span class="pulse-indicator"><i></i> Action needed</span>
                 </div>
                 <div class="operation-row">
                     <span class="operation-symbol operation-symbol-red">!</span>
