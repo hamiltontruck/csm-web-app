@@ -21,7 +21,7 @@
     <div class="card shadow-sm">
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
-            <div class="alert alert-danger mb-3">
+            <div class="alert alert-danger mb-3" role="alert">
                 @errorMessage
             </div>
         }
@@ -186,6 +186,8 @@
     }
 private async Task SaveReturn()
 {
+    if (saving) return;
+
     errorMessage = null;
 
     if (model.OriginalIssueMovementId == null)
@@ -201,28 +203,41 @@ private async Task SaveReturn()
     }
 
     saving = true;
-
-    var success = await InventoryService.CreateStockReturnAsync(
-        new CreateStockReturnRequest
-        {
-            OriginalIssueMovementId = model.OriginalIssueMovementId.Value,
-            Quantity = model.Quantity,
-            ReturnDateUtc = model.ReturnDate,
-            ReferenceNumber = model.ReferenceNumber,
-            ReturnedBy = model.ReturnedBy,
-            Reason = model.Reason,
-            Remarks = model.Remarks
-        });
-
-    saving = false;
-
-    if (success)
+    try
     {
-        Navigation.NavigateTo($"/stock-returns/site/{SiteId}");
+        var success = await InventoryService.CreateStockReturnAsync(
+            new CreateStockReturnRequest
+            {
+                OriginalIssueMovementId = model.OriginalIssueMovementId.Value,
+                Quantity = model.Quantity,
+                ReturnDateUtc = model.ReturnDate,
+                ReferenceNumber = model.ReferenceNumber,
+                ReturnedBy = model.ReturnedBy,
+                Reason = model.Reason,
+                Remarks = model.Remarks
+            });
+        if (success)
+            Navigation.NavigateTo($"/stock-returns/site/{SiteId}");
+        else
+            errorMessage = "Unable to create stock return.";
     }
-    else
+    catch (HttpRequestException ex)
     {
-        errorMessage = "Unable to create stock return.";
+        errorMessage = ex.StatusCode.HasValue
+            ? ex.Message
+            : "Unable to reach the inventory service. Please try again.";
+    }
+    catch (TaskCanceledException)
+    {
+        errorMessage = "The inventory request timed out. Check the saved records before trying again.";
+    }
+    catch (Exception)
+    {
+        errorMessage = "Unable to save the stock return. Please check the saved records before trying again.";
+    }
+    finally
+    {
+        saving = false;
     }
 }
 }

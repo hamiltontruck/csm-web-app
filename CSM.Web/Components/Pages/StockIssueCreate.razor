@@ -110,14 +110,7 @@
 
             @if (!string.IsNullOrWhiteSpace(errorMessage))
             {
-                <div class="alert alert-danger">
-                    @errorMessage
-                </div>
-            }
-
-            @if (!string.IsNullOrWhiteSpace(errorMessage))
-            {
-                <div class="alert alert-danger mb-3">
+                <div class="alert alert-danger mb-3" role="alert">
                     @errorMessage
                 </div>
             }
@@ -218,6 +211,8 @@
 
 private async Task SaveIssue()
 {
+    if (saving) return;
+
     errorMessage = null;
 
     if (model.SiteId == null || model.MaterialId == null)
@@ -233,25 +228,42 @@ private async Task SaveIssue()
     }
 
     saving = true;
-
-    var success = await InventoryService.CreateStockIssueAsync(
-        new CreateStockIssueRequest
-        {
-            ConstructionSiteId = model.SiteId.Value,
-            MaterialId = model.MaterialId.Value,
-            Quantity = model.Quantity,
-            IssueDateUtc = model.IssueDate.ToUniversalTime(),
-            ReferenceNumber = model.ReferenceNumber,
-            IssuedTo = string.IsNullOrWhiteSpace(model.IssuedTo) ? null : model.IssuedTo,
-            Purpose = string.IsNullOrWhiteSpace(model.Purpose) ? null : model.Purpose,
-            Remarks = string.IsNullOrWhiteSpace(model.Remarks) ? null : model.Remarks
-        });
-
-    saving = false;
-
-    if (success)
-        Navigation.NavigateTo($"/stock-issues/site/{model.SiteId}");
-    else
-        errorMessage = "Unable to create stock issue.";
+    try
+    {
+        var success = await InventoryService.CreateStockIssueAsync(
+            new CreateStockIssueRequest
+            {
+                ConstructionSiteId = model.SiteId.Value,
+                MaterialId = model.MaterialId.Value,
+                Quantity = model.Quantity,
+                IssueDateUtc = model.IssueDate.ToUniversalTime(),
+                ReferenceNumber = model.ReferenceNumber,
+                IssuedTo = string.IsNullOrWhiteSpace(model.IssuedTo) ? null : model.IssuedTo,
+                Purpose = string.IsNullOrWhiteSpace(model.Purpose) ? null : model.Purpose,
+                Remarks = string.IsNullOrWhiteSpace(model.Remarks) ? null : model.Remarks
+            });
+        if (success)
+            Navigation.NavigateTo($"/stock-issues/site/{model.SiteId}");
+        else
+            errorMessage = "Unable to create stock issue.";
+    }
+    catch (HttpRequestException ex)
+    {
+        errorMessage = ex.StatusCode.HasValue
+            ? ex.Message
+            : "Unable to reach the inventory service. Please try again.";
+    }
+    catch (TaskCanceledException)
+    {
+        errorMessage = "The inventory request timed out. Check the saved records before trying again.";
+    }
+    catch (Exception)
+    {
+        errorMessage = "Unable to save the stock issue. Please check the saved records before trying again.";
+    }
+    finally
+    {
+        saving = false;
+    }
 }
 }
