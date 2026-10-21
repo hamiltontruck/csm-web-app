@@ -15,6 +15,14 @@
         <h4>Loading...</h4>
     </div>
 }
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="container py-4">
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        <button id="retry-stock-returns" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        <button class="btn btn-outline-secondary ms-2" @onclick="GoBack">Back</button>
+    </div>
+}
 else
 {
     <div class="container py-4">
@@ -108,30 +116,34 @@ else
     private bool loaded;
     private string siteName = "";
 
+    private string? errorMessage;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || loaded)
-            return;
+        if (!firstRender || loaded) return;
+        loaded = true;
+        await LoadAsync();
+    }
 
+    private async Task LoadAsync()
+    {
+        loading = true;
+        errorMessage = null;
         try
         {
             var all = await InventoryService.GetStockReturnsAsync();
-
-            returns = all
-                .Where(x => x.ConstructionSiteId == SiteId)
-                .OrderByDescending(x => x.ReturnDateUtc)
-                .ToList();
-
+            returns = all.Where(x => x.ConstructionSiteId == SiteId)
+                .OrderByDescending(x => x.ReturnDateUtc).ToList();
             siteName = returns.FirstOrDefault()?.SiteName ?? "Construction Site";
-
-            loading = false;
-            loaded = true;
-
-            StateHasChanged();
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        catch (Exception)
         {
-            // Wait for JWT restoration.
+            errorMessage = "Unable to load stock returns. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
         }
     }
 

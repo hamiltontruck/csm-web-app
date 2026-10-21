@@ -491,7 +491,7 @@ public sealed class StockReturnService : IStockReturnService
 
     private static void EnsureCanManage(User actor)
     {
-        if (HasRole(actor, AppRoles.Administrator) ||
+        if (IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.Storekeeper) ||
             HasRole(actor, AppRoles.ProcurementOfficer))
         {
@@ -522,9 +522,8 @@ public sealed class StockReturnService : IStockReturnService
     private static bool IsSuperAdmin(
         User actor)
     {
-        return HasRole(
-            actor,
-            AppRoles.Administrator);
+        return HasRole(actor, AppRoles.SuperAdmin) ||
+            HasRole(actor, AppRoles.Administrator);
     }
 
     private static bool HasRole(
