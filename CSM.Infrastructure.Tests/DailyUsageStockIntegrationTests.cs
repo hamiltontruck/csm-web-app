@@ -52,6 +52,48 @@ public sealed class DailyUsageStockIntegrationTests
         Assert.Equal(saved.Id, result.Id);
     }
 
+    [Theory]
+    [InlineData(DateTimeKind.Local)]
+    [InlineData(DateTimeKind.Unspecified)]
+    [InlineData(DateTimeKind.Utc)]
+    public async Task Stock_return_accepts_browser_date_and_updates_stock_once(DateTimeKind kind)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var db = fixture.Db;
+        await new StockIssueService(db, new Notifications()).CreateAsync(fixture.ActorId, new CreateStockIssueRequest
+        {
+            ConstructionSiteId = fixture.SiteId, MaterialId = fixture.MaterialId,
+            IssueDateUtc = DateTime.UtcNow, ReferenceNumber = "ISS-002", Quantity = 2m
+        });
+        db.ChangeTracker.Clear();
+        var issue = await db.StockMovements.SingleAsync();
+        var date = new DateTime(2026, 10, 21, 0, 0, 0, kind);
+        var request = new CSM.Application.Inventory.StockReturns.Dtos.CreateStockReturnRequest
+        {
+            OriginalIssueMovementId = issue.Id, Quantity = 1m, ReturnDateUtc = date,
+            ReferenceNumber = "RET-001", ReturnedBy = "Test Construction Team", Reason = "Unused material"
+        };
+
+        var service = new StockReturnService(db);
+        var result = await service.CreateAsync(fixture.ActorId, request);
+        db.ChangeTracker.Clear();
+        var saved = await db.StockMovements.SingleAsync(x => x.MovementType == CSM.Domain.Enums.StockMovementType.Return);
+        Assert.Equal(DateTimeKind.Utc, saved.MovementDateUtc.Kind);
+        Assert.Equal(kind == DateTimeKind.Local ? date.ToUniversalTime() : DateTime.SpecifyKind(date, DateTimeKind.Utc),
+            saved.MovementDateUtc);
+        Assert.Equal(DateTimeKind.Utc, result.ReturnDateUtc.Kind);
+        Assert.Equal(saved.MovementDateUtc, result.ReturnDateUtc);
+        Assert.Equal(8m, saved.StockBalanceBefore);
+        Assert.Equal(9m, saved.StockBalanceAfter);
+        Assert.Equal(9m, (await db.StockItems.SingleAsync()).QuantityOnHand);
+        Assert.Equal(issue.Id, saved.ReferenceId);
+
+        await Assert.ThrowsAsync<StockReturnManagementException>(() => service.CreateAsync(fixture.ActorId, request));
+        db.ChangeTracker.Clear();
+        Assert.Equal(9m, (await db.StockItems.SingleAsync()).QuantityOnHand);
+        Assert.Equal(2, await db.StockMovements.CountAsync());
+    }
+
     [Fact]
     public async Task Invalid_reconciliation_does_not_write_usage_or_move_stock()
     {

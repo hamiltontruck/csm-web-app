@@ -93,6 +93,8 @@ public sealed class StockReturnService : IStockReturnService
 
         ValidateRequest(request);
 
+        var returnDateUtc = PostgresDateTimeNormalizer.Normalize(request.ReturnDateUtc);
+
         var normalizedReferenceNumber =
             request.ReferenceNumber
                 .Trim()
@@ -268,7 +270,7 @@ public sealed class StockReturnService : IStockReturnService
                                 StockMovementType.Return,
 
                             MovementDateUtc =
-                                request.ReturnDateUtc,
+                                returnDateUtc,
 
                             Quantity =
                                 request.Quantity,
@@ -367,7 +369,7 @@ public sealed class StockReturnService : IStockReturnService
                 quantityAfter,
 
             ReturnDateUtc =
-                request.ReturnDateUtc,
+                returnDateUtc,
 
             ReferenceNumber =
                 normalizedReferenceNumber,
