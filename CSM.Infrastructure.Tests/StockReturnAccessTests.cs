@@ -98,6 +98,62 @@ public sealed class StockReturnAccessTests
             Task.FromResult(new List<CSM.Web.Models.Sites.SiteResponse> { new() { Id = SiteId, Name = "Hamilton Test Site" } });
     }
 
+    [Theory]
+    [InlineData(AppRoles.Storekeeper)]
+    [InlineData(AppRoles.ProcurementOfficer)]
+    public async Task Inventory_role_can_manage_own_company_but_cannot_read_or_write_another_company(string role)
+    {
+        using var db = Database(role);
+        var actor = db.Users.Single();
+        actor.CompanyId = db.StockItems.Single().CompanyId;
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        var service = new StockReturnService(db);
+        var result = await service.CreateAsync(ActorId, Request());
+        Assert.Single(await service.GetAllAsync(ActorId));
+        Assert.NotNull(await service.GetByIdAsync(ActorId, result.Id));
+        var balance = db.StockItems.Single().QuantityOnHand;
+        var movements = db.StockMovements.Count();
+
+        actor.CompanyId = Guid.NewGuid();
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        Assert.Empty(await service.GetAllAsync(ActorId));
+        await Assert.ThrowsAsync<StockReturnManagementException>(() => service.GetByIdAsync(ActorId, result.Id));
+        var request = Request();
+        request.ReferenceNumber = "OTHER-COMPANY-TEST";
+        await Assert.ThrowsAsync<StockReturnManagementException>(() => service.CreateAsync(ActorId, request));
+        Assert.Equal(balance, db.StockItems.Single().QuantityOnHand);
+        Assert.Equal(movements, db.StockMovements.Count());
+    }
+
+    [Theory]
+    [InlineData(AppRoles.Storekeeper)]
+    [InlineData(AppRoles.ProcurementOfficer)]
+    public async Task Inventory_role_without_company_cannot_write_stock(string role)
+    {
+        using var db = Database(role);
+        db.Users.Single().CompanyId = null;
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        var service = new StockReturnService(db);
+        var balance = db.StockItems.Single().QuantityOnHand;
+        var movements = db.StockMovements.Count();
+        await Assert.ThrowsAsync<StockReturnManagementException>(() => service.CreateAsync(ActorId, Request()));
+        Assert.Equal(balance, db.StockItems.Single().QuantityOnHand);
+        Assert.Equal(movements, db.StockMovements.Count());
+    }
+
+    [Fact]
+    public async Task Company_membership_alone_does_not_grant_inventory_management()
+    {
+        using var db = Database(AppRoles.Employee);
+        db.Users.Single().CompanyId = db.StockItems.Single().CompanyId;
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        var service = new StockReturnService(db);
+        var balance = db.StockItems.Single().QuantityOnHand;
+        await Assert.ThrowsAsync<StockReturnManagementException>(() => service.CreateAsync(ActorId, Request()));
+        await Assert.ThrowsAsync<StockReturnManagementException>(() => service.GetAllAsync(ActorId));
+        Assert.Equal(balance, db.StockItems.Single().QuantityOnHand);
+    }
+
     private static readonly Guid IssueId = Guid.NewGuid();
     private static readonly Guid ActorId = Guid.NewGuid();
     private static readonly Guid SiteId = Guid.NewGuid();

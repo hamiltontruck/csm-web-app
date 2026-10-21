@@ -77,6 +77,62 @@ public sealed class StockIssueAccessTests
         Assert.DoesNotContain("Other site material", page.Markup);
     }
 
+    [Theory]
+    [InlineData(AppRoles.Storekeeper)]
+    [InlineData(AppRoles.ProcurementOfficer)]
+    public async Task Inventory_role_can_manage_own_company_but_cannot_read_or_write_another_company(string role)
+    {
+        using var db = Database(role);
+        var actor = db.Users.Single();
+        actor.CompanyId = db.StockItems.Single().CompanyId;
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        var service = new StockIssueService(db, new Notifications());
+        var result = await service.CreateAsync(ActorId, Request());
+        Assert.Single(await service.GetAllAsync(ActorId));
+        Assert.NotNull(await service.GetByIdAsync(ActorId, result.StockMovementId));
+        var balance = db.StockItems.Single().QuantityOnHand;
+        var movements = db.StockMovements.Count();
+
+        actor.CompanyId = Guid.NewGuid();
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        Assert.Empty(await service.GetAllAsync(ActorId));
+        await Assert.ThrowsAsync<StockIssueManagementException>(() => service.GetByIdAsync(ActorId, result.StockMovementId));
+        var request = Request();
+        request.ReferenceNumber = "OTHER-COMPANY-TEST";
+        await Assert.ThrowsAsync<StockIssueManagementException>(() => service.CreateAsync(ActorId, request));
+        Assert.Equal(balance, db.StockItems.Single().QuantityOnHand);
+        Assert.Equal(movements, db.StockMovements.Count());
+    }
+
+    [Theory]
+    [InlineData(AppRoles.Storekeeper)]
+    [InlineData(AppRoles.ProcurementOfficer)]
+    public async Task Inventory_role_without_company_cannot_write_stock(string role)
+    {
+        using var db = Database(role);
+        db.Users.Single().CompanyId = null;
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        var service = new StockIssueService(db, new Notifications());
+        var balance = db.StockItems.Single().QuantityOnHand;
+        var movements = db.StockMovements.Count();
+        await Assert.ThrowsAsync<StockIssueManagementException>(() => service.CreateAsync(ActorId, Request()));
+        Assert.Equal(balance, db.StockItems.Single().QuantityOnHand);
+        Assert.Equal(movements, db.StockMovements.Count());
+    }
+
+    [Fact]
+    public async Task Company_membership_alone_does_not_grant_inventory_management()
+    {
+        using var db = Database(AppRoles.Employee);
+        db.Users.Single().CompanyId = db.StockItems.Single().CompanyId;
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        var service = new StockIssueService(db, new Notifications());
+        var balance = db.StockItems.Single().QuantityOnHand;
+        await Assert.ThrowsAsync<StockIssueManagementException>(() => service.CreateAsync(ActorId, Request()));
+        await Assert.ThrowsAsync<StockIssueManagementException>(() => service.GetAllAsync(ActorId));
+        Assert.Equal(balance, db.StockItems.Single().QuantityOnHand);
+    }
+
     private static readonly Guid ActorId = Guid.NewGuid();
     private static readonly Guid SiteId = Guid.NewGuid();
     private static readonly Guid MaterialId = Guid.NewGuid();

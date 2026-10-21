@@ -176,16 +176,11 @@ public sealed class InventoryService : IInventoryService
     {
         await _authService.ApplyAuthenticationAsync(_http);
 
-        var response = await _http.PostAsJsonAsync(
+        using var response = await _http.PostAsJsonAsync(
             "StockIssues",
             request);
 
-        var body = await response.Content.ReadAsStringAsync();
-
-        Console.WriteLine($"STATUS: {response.StatusCode}");
-        Console.WriteLine(body);
-
-        return response.IsSuccessStatusCode;
+        return await ReadInventorySaveResultAsync(response, "stock issue");
     }
 
     public async Task<bool> CreateDailyMaterialUsageAsync(
@@ -225,10 +220,63 @@ public sealed class InventoryService : IInventoryService
     {
         await _authService.ApplyAuthenticationAsync(_http);
 
-        var response = await _http.PostAsJsonAsync(
+        using var response = await _http.PostAsJsonAsync(
             "StockReturns",
             request);
 
-        return response.IsSuccessStatusCode;
+        return await ReadInventorySaveResultAsync(response, "stock return");
+    }
+
+    private static async Task<bool> ReadInventorySaveResultAsync(HttpResponseMessage response, string recordName)
+    {
+        if (response.IsSuccessStatusCode)
+            return true;
+
+        var message = response.StatusCode switch
+        {
+            System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+            System.Net.HttpStatusCode.Forbidden => $"You do not have permission to create {recordName}s.",
+            _ => $"Unable to create {recordName}."
+        };
+
+        if ((int)response.StatusCode >= 500)
+        {
+            message = "The inventory service is temporarily unavailable. Please try again in a minute.";
+        }
+        else if (response.StatusCode is System.Net.HttpStatusCode.BadRequest
+                 or System.Net.HttpStatusCode.Conflict
+                 or System.Net.HttpStatusCode.UnprocessableEntity)
+        {
+            try
+            {
+                using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                if (body.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    if (body.RootElement.TryGetProperty("message", out var value) &&
+                        value.ValueKind == JsonValueKind.String &&
+                        !string.IsNullOrWhiteSpace(value.GetString()))
+                    {
+                        message = value.GetString()!;
+                    }
+                    else if (body.RootElement.TryGetProperty("errors", out var errors) &&
+                             errors.ValueKind == JsonValueKind.Object)
+                    {
+                        var messages = errors.EnumerateObject()
+                            .Where(x => x.Value.ValueKind == JsonValueKind.Array)
+                            .SelectMany(x => x.Value.EnumerateArray())
+                            .Where(x => x.ValueKind == JsonValueKind.String)
+                            .Select(x => x.GetString())
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Distinct();
+                        var validationMessage = string.Join(" ", messages);
+                        if (!string.IsNullOrWhiteSpace(validationMessage))
+                            message = validationMessage;
+                    }
+                }
+            }
+            catch (JsonException) { }
+        }
+
+        throw new HttpRequestException(message, null, response.StatusCode);
     }
 }
