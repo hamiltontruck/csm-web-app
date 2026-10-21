@@ -90,7 +90,7 @@ public sealed class InventoryValidationFeedbackTests
         Assert.Single(page.FindAll("[role=alert]"));
         Assert.Equal("TEST-001", page.Find("input:not([type])").GetAttribute("value"));
         Assert.Equal("2", page.Find("input[type=number]").GetAttribute("value"));
-        Assert.Equal("keep my remarks", page.Find("textarea").TextContent);
+        Assert.Equal("keep my remarks", page.Find("textarea").GetAttribute("value"));
         Assert.False(SaveButton(page).HasAttribute("disabled"));
         Assert.DoesNotContain("/stock-returns/site/", context.Services.GetRequiredService<NavigationManager>().Uri);
 
