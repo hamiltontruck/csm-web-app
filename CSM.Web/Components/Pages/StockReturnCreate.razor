@@ -37,7 +37,9 @@
                     @foreach (var issue in issueMovements)
                     {
                         <option value="@issue.Id">
-                            @issue.MaterialCode - @issue.MaterialName
+                            @(string.IsNullOrWhiteSpace(issue.ReferenceNumber) ? issue.Id.ToString() : issue.ReferenceNumber)
+                            | @issue.MovementDateUtc.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                            | @issue.MaterialCode - @issue.MaterialName
                             (@issue.Quantity @issue.UnitOfMeasure)
                         </option>
                     }
