@@ -9,12 +9,13 @@
 @inject NavigationManager Navigation
 @inject ILogger<Dashboard> Logger
 
-<PageTitle>Executive Dashboard</PageTitle>
+<PageTitle>Executive Dashboard | HBG CSM</PageTitle>
 
+<div class="dashboard-shell">
 @if (_canSelectCompany)
 {
-    <div class="container-fluid pt-4">
-        <label for="dashboard-company" class="form-label">Company</label>
+    <div class="dashboard-company">
+        <label for="dashboard-company" class="dashboard-company-label">Workspace</label>
         <select id="dashboard-company" class="form-select" value="@_selectedCompanyId"
                 @onchange="SelectCompanyAsync" disabled="@_loading">
             <option value="">Select a company</option>
@@ -28,166 +29,130 @@
 
 @if (_loading)
 {
-    <div class="container mt-5">
-        <h4>Loading Executive Dashboard...</h4>
-    </div>
+    <section class="dashboard-loading" aria-live="polite">
+        <div class="dashboard-skeleton dashboard-skeleton-title"></div>
+        <div class="dashboard-skeleton-grid">
+            @for (var i = 0; i < 4; i++) { <div class="dashboard-skeleton dashboard-skeleton-card"></div> }
+        </div>
+        <p>Preparing your project overview…</p>
+    </section>
 }
 else if (_dashboard is null)
 {
-    <div class="container mt-5">
-        <div class="alert alert-danger" role="alert">
-            @_errorMessage
+    <section class="dashboard-empty" role="alert">
+        <div class="dashboard-empty-icon">!</div>
+        <p class="dashboard-eyebrow">Dashboard unavailable</p>
+        <h1>We couldn’t load your workspace</h1>
+        <p class="dashboard-empty-copy">@_errorMessage</p>
+        <div class="dashboard-actions">
+            <button class="dashboard-button dashboard-button-primary" @onclick="RetryAsync">Try again</button>
+            <a class="dashboard-button dashboard-button-secondary" href="/login">Sign in</a>
         </div>
-        <button class="btn btn-outline-primary" @onclick="RetryAsync">Try again</button>
-        <a class="btn btn-link" href="/login">Sign in</a>
-    </div>
+    </section>
 }
 else
 {
-    <div class="container-fluid py-4">
-
-        <div class="mb-4">
-            <h2>Hamilton Business Group</h2>
-            <div class="text-muted">
-                Construction Site Management
+    <main class="executive-dashboard">
+        <header class="dashboard-header">
+            <div>
+                <p class="dashboard-eyebrow"><span class="status-dot"></span> OPERATIONS OVERVIEW</p>
+                <h1>Good to see you, @_userName</h1>
+                <p class="dashboard-subtitle">Here’s the latest across your construction portfolio.</p>
             </div>
-            <div class="text-success fw-semibold mt-2">
-                Welcome, @_userName
+            <div class="dashboard-header-meta">
+                <span class="dashboard-date">@DateTime.Now.ToString("dddd, dd MMMM yyyy")</span>
+                <span class="dashboard-live"><span class="status-dot"></span> Live workspace</span>
             </div>
-        </div>
+        </header>
 
-        <div class="row g-3">
+        <section class="metric-grid" aria-label="Portfolio metrics">
+            <article class="metric-card metric-card-primary">
+                <div class="metric-top"><span class="metric-icon">▦</span><span class="metric-kicker">IN PROGRESS</span></div>
+                <div class="metric-value">@_dashboard.ActiveProjects</div>
+                <div class="metric-label">Active projects</div>
+                <div class="metric-foot"><span class="metric-mini-bar"><i style="width:72%"></i></span><span>Across your portfolio</span></div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-top"><span class="metric-icon metric-icon-green">✓</span><span class="metric-kicker">DELIVERED</span></div>
+                <div class="metric-value">@_dashboard.CompletedProjects</div>
+                <div class="metric-label">Completed projects</div>
+                <div class="metric-foot"><span class="metric-positive">●</span><span>Successfully handed over</span></div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-top"><span class="metric-icon metric-icon-blue">♙</span><span class="metric-kicker">YOUR PEOPLE</span></div>
+                <div class="metric-value">@_dashboard.TotalEmployees</div>
+                <div class="metric-label">Team members</div>
+                <div class="metric-foot"><span class="metric-foot-avatars"><b>H</b><b>B</b><b>G</b></span><span>Across all active sites</span></div>
+            </article>
+            <article class="metric-card metric-card-alert">
+                <div class="metric-top"><span class="metric-icon metric-icon-amber">↗</span><span class="metric-kicker">NEEDS ATTENTION</span></div>
+                <div class="metric-value">@_dashboard.OpenDelays</div>
+                <div class="metric-label">Open project delays</div>
+                <div class="metric-foot"><span class="metric-attention">Review required</span></div>
+            </article>
+        </section>
 
-            <div class="col-xl-3 col-md-6">
-                <div class="card shadow-sm">
-                    <div class="card-body text-center">
-                        <div class="text-muted">Active Projects</div>
-                        <h2>@_dashboard.ActiveProjects</h2>
-                    </div>
+        <section class="dashboard-content-grid">
+            <article class="dashboard-panel budget-panel">
+                <div class="panel-heading">
+                    <div><p class="panel-overline">FINANCIAL HEALTH</p><h2>Budget overview</h2></div>
+                    <span class="panel-chip">Portfolio</span>
                 </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6">
-                <div class="card shadow-sm">
-                    <div class="card-body text-center">
-                        <div class="text-muted">Completed</div>
-                        <h2>@_dashboard.CompletedProjects</h2>
-                    </div>
+                <div class="budget-total">
+                    <div><span class="budget-caption">Total approved budget</span><strong>@Money(_dashboard.TotalBudget)</strong></div>
+                    <div class="budget-spend"><span class="budget-caption">Expenses to date</span><strong>@Money(_dashboard.TotalExpenses)</strong></div>
                 </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6">
-                <div class="card shadow-sm">
-                    <div class="card-body text-center">
-                        <div class="text-muted">Employees</div>
-                        <h2>@_dashboard.TotalEmployees</h2>
-                    </div>
+                <div class="budget-progress-label"><span>Budget utilization</span><strong>@_dashboard.BudgetUtilization.ToString("0.0")%</strong></div>
+                <div class="budget-progress" role="progressbar" aria-label="Budget utilization" aria-valuenow="@_dashboard.BudgetUtilization" aria-valuemin="0" aria-valuemax="100">
+                    <span style="width:@($"{Math.Clamp(_dashboard.BudgetUtilization, 0, 100)}%")"></span>
                 </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6">
-                <div class="card shadow-sm">
-                    <div class="card-body text-center">
-                        <div class="text-muted">Open Delays</div>
-                        <h2>@_dashboard.OpenDelays</h2>
-                    </div>
+                <div class="budget-foot"><span>Remaining budget</span><strong>@Money(_dashboard.TotalBudget - _dashboard.TotalExpenses)</strong></div>
+                <div class="budget-note">
+                    <span class="budget-note-mark">↗</span>
+                    <span>Actual spend is <strong>@Money(_dashboard.TotalExpenses)</strong> of <strong>@Money(_dashboard.TotalBudget)</strong> approved.</span>
                 </div>
-            </div>
+            </article>
 
-        </div>
-
-        <div class="row mt-4 g-4">
-
-            <div class="col-lg-6">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body">
-
-                        <h5>Financial Summary</h5>
-
-                        <hr />
-
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Total Budget</span>
-                            <strong>@Money(_dashboard.TotalBudget)</strong>
-                        </div>
-
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Total Expenses</span>
-                            <strong>@Money(_dashboard.TotalExpenses)</strong>
-                        </div>
-
-                        <div class="d-flex justify-content-between mb-3">
-                            <span>Budget Utilization</span>
-                            <strong>@_dashboard.BudgetUtilization.ToString("0.00")%</strong>
-                        </div>
-
-                        <div class="progress" style="height:10px;">
-                            <div class="progress-bar bg-success"
-                                 role="progressbar"
-                                 style="width:@($"{_dashboard.BudgetUtilization}%")">
-                            </div>
-                        </div>
-
-                    </div>
+            <article class="dashboard-panel operations-panel">
+                <div class="panel-heading">
+                    <div><p class="panel-overline">SITE OPERATIONS</p><h2>Daily pulse</h2></div>
+                    <span class="pulse-indicator"><i></i> Today</span>
                 </div>
-            </div>
-
-            <div class="col-lg-6">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body">
-
-                        <h5>Operations</h5>
-
-                        <hr />
-
-                        <div class="d-flex justify-content-between mb-3">
-                            <span>Open Safety Incidents</span>
-                            <span class="badge bg-danger">
-                                @_dashboard.OpenSafetyIncidents
-                            </span>
-                        </div>
-
-                        <div class="d-flex justify-content-between mb-3">
-                            <span>Low Stock Items</span>
-                            <span class="badge bg-warning text-dark">
-                                @_dashboard.LowStockItems
-                            </span>
-                        </div>
-
-                        <div class="d-flex justify-content-between">
-                            <span>Generated</span>
-                            <small>
-                                @_dashboard.GeneratedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")
-                            </small>
-                        </div>
-
-                    </div>
+                <div class="operation-row">
+                    <span class="operation-symbol operation-symbol-red">!</span>
+                    <div class="operation-copy"><strong>Safety incidents</strong><span>Open items requiring follow-up</span></div>
+                    <span class="operation-count operation-count-red">@_dashboard.OpenSafetyIncidents</span>
                 </div>
-            </div>
-
-        </div>
-
-    </div>
+                <div class="operation-row">
+                    <span class="operation-symbol operation-symbol-amber">⌁</span>
+                    <div class="operation-copy"><strong>Low stock items</strong><span>Materials below reorder level</span></div>
+                    <span class="operation-count operation-count-amber">@_dashboard.LowStockItems</span>
+                </div>
+                <div class="operations-note">
+                    <span class="operations-note-icon">✦</span>
+                    <div><strong>Keep your sites moving</strong><p>Review open items with your site leads to keep work on schedule.</p></div>
+                </div>
+                <div class="data-updated"><span class="status-dot"></span> Updated @_dashboard.GeneratedAtUtc.ToLocalTime().ToString("dd MMM, HH:mm")</div>
+            </article>
+        </section>
+        <footer class="dashboard-footer"><span>Hamilton Business Group <span class="footer-separator">/</span> Construction Site Management</span><span>CSM • Executive view</span></footer>
+    </main>
 }
+</div>
 
 @code {
-
     private ExecutiveDashboard? _dashboard;
-
     private bool _loading = true;
     private bool _initialized;
     private bool _canSelectCompany;
     private Guid? _selectedCompanyId;
     private IReadOnlyList<DashboardCompany> _companies = [];
-
     private string _userName = "";
     private string _errorMessage = "Unable to load dashboard data.";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
-
+        if (!firstRender) return;
         await LoadDashboardAsync();
     }
 
@@ -210,8 +175,7 @@ else
             {
                 var roles = await SessionStorage.GetAsync<List<string>>("roles");
                 _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
-                if (_canSelectCompany)
-                    _companies = await DashboardService.GetCompaniesAsync();
+                if (_canSelectCompany) _companies = await DashboardService.GetCompaniesAsync();
                 _initialized = true;
             }
 
@@ -231,14 +195,10 @@ else
             Logger.LogWarning(ex, "Dashboard API request failed with status {StatusCode}", ex.StatusCode);
             _errorMessage = ex.StatusCode switch
             {
-                System.Net.HttpStatusCode.Unauthorized =>
-                    "Your session has expired. Please sign in again.",
-                System.Net.HttpStatusCode.Forbidden =>
-                    "A company must be assigned or selected to view this dashboard.",
-                System.Net.HttpStatusCode.NotFound =>
-                    "The selected company was not found. Please choose another company.",
-                System.Net.HttpStatusCode.InternalServerError =>
-                    "A server error prevented the dashboard from loading. Please try again.",
+                System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "A company must be assigned or selected to view this dashboard.",
+                System.Net.HttpStatusCode.NotFound => "The selected company was not found. Please choose another company.",
+                System.Net.HttpStatusCode.InternalServerError => "A server error prevented the dashboard from loading. Please try again.",
                 _ => "Unable to contact the dashboard API. Please try again."
             };
         }
@@ -271,6 +231,5 @@ else
         await LoadDashboardAsync();
     }
 
-    private static string Money(decimal value)
-        => $"ETB {value:N0}";
+    private static string Money(decimal value) => $"ETB {value:N0}";
 }

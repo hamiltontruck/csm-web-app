@@ -46,7 +46,7 @@ public sealed class DashboardSelectionUiTests
         var service = new DashboardStub();
         using var context = await CreateContext(service, "CompanyAdmin");
         var page = context.RenderComponent<Dashboard>();
-        page.WaitForAssertion(() => Assert.Contains("Financial Summary", page.Markup));
+        page.WaitForAssertion(() => Assert.Contains("Budget overview", page.Markup));
         Assert.Empty(page.FindAll("select"));
         Assert.Null(service.Requests.Single());
     }
