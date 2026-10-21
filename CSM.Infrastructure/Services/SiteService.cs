@@ -460,6 +460,8 @@ public sealed class SiteService : ISiteService
             HasRole(actor, AppRoles.Accountant) ||
             HasRole(actor, AppRoles.SiteManager) ||
             HasRole(actor, AppRoles.Supervisor) ||
+            HasRole(actor, AppRoles.Storekeeper) ||
+            HasRole(actor, AppRoles.ProcurementOfficer) ||
             HasRole(actor, AppRoles.HrOfficer) ||
             HasRole(actor, AppRoles.HROfficer))
         {
