@@ -6,6 +6,7 @@
 
 @inject IProjectService ProjectService
 @inject IAuthService AuthService
+@inject IExecutiveDashboardService DashboardService
 @inject UserWebService UserService
 @inject NavigationManager Navigation
 
@@ -13,7 +14,7 @@
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
-    <div class="alert alert-danger">
+    <div class="alert alert-danger" role="alert">
         @errorMessage
     </div>
 }
@@ -23,6 +24,21 @@
     <DataAnnotationsValidator/>
 
     <ValidationSummary/>
+
+    @if (canSelectCompany)
+    {
+        <div class="mb-3">
+            <label for="user-company">Company</label>
+            <select id="user-company" class="form-select" value="@model.CompanyId"
+                    @onchange="CompanyChanged" disabled="@(saving || initializing)">
+                <option value="">-- Select Company --</option>
+                @foreach (var company in companies)
+                {
+                    <option value="@company.Id">@company.Name</option>
+                }
+            </select>
+        </div>
+    }
 
     <div class="row g-3">
 
@@ -34,8 +50,9 @@
 
         <div class="col-md-6">
             <label>Temporary Password</label>
-            <InputText class="form-control"
+            <InputText type="password" autocomplete="new-password" class="form-control"
                        @bind-Value="model.TemporaryPassword"/>
+            <small class="text-muted">At least 12 characters with uppercase, lowercase, a number, and a special character.</small>
         </div>
 
         <div class="col-md-6">
@@ -84,7 +101,7 @@
 
     <h5>Construction Site Access</h5>
 
-    @foreach (var site in Sites)
+    @foreach (var site in CompanySites)
     {
         <div class="form-check">
             <input class="form-check-input"
@@ -118,7 +135,7 @@
 
     <div class="mt-4">
         <button class="btn btn-primary"
-                disabled="@saving">
+                disabled="@(saving || initializing)">
             Create User
         </button>
 
@@ -135,6 +152,12 @@
     private readonly CreateUserModel model = new();
 
     private bool saving;
+    private bool initializing = true;
+    private bool canSelectCompany;
+    private IReadOnlyList<CSM.Web.Models.Dashboard.DashboardCompany> companies = [];
+
+    private IEnumerable<SiteResponse> CompanySites =>
+        Sites.Where(x => x.CompanyId == model.CompanyId && x.IsActive);
 
     private string? errorMessage;
 
@@ -163,11 +186,38 @@
     };
 
     private IEnumerable<SiteResponse> SelectedSites =>
-        Sites.Where(x => model.SiteIds.Contains(x.Id));
+        CompanySites.Where(x => model.SiteIds.Contains(x.Id));
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        Sites = await ProjectService.GetSitesAsync();
+        if (!firstRender) return;
+        try
+        {
+            model.CompanyId = await AuthService.GetCurrentCompanyIdAsync();
+            canSelectCompany = !model.CompanyId.HasValue || model.CompanyId == Guid.Empty;
+            if (canSelectCompany)
+            {
+                companies = await DashboardService.GetCompaniesAsync();
+                if (companies.Count == 1) model.CompanyId = companies[0].Id;
+            }
+            Sites = await ProjectService.GetSitesAsync();
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load user options. Refresh the page and sign in again if needed.";
+        }
+        finally
+        {
+            initializing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CompanyChanged(ChangeEventArgs e)
+    {
+        model.CompanyId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        model.SiteIds.Clear();
+        model.DefaultSiteId = null;
     }
 
     private void ToggleRole(string role, object? value)
@@ -205,28 +255,28 @@
 
     private async Task SaveAsync()
     {
+        if (saving || initializing) return;
         saving = true;
         errorMessage = null;
 
         try
         {
-            var companyId = await AuthService.GetCurrentCompanyIdAsync();
-
-            if (!companyId.HasValue)
+            if (!model.CompanyId.HasValue || model.CompanyId == Guid.Empty)
             {
-                errorMessage =
-                    "The current user is not assigned to a company.";
+                errorMessage = "Select a company before creating a user.";
                 return;
             }
-
-            model.CompanyId = companyId.Value;
 
             await UserService.CreateAsync(model);
             Navigation.NavigateTo("/users");
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            errorMessage = ex.StatusCode.HasValue ? ex.Message : "Unable to reach the user service. Please try again.";
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to create user. Check the user list before trying again.";
         }
         finally
         {

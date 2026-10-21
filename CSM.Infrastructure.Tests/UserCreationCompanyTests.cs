@@ -96,7 +96,7 @@ public sealed class UserCreationCompanyTests
         await Assert.ThrowsAsync<UserManagementException>(() => service.CreateAsync(
             ActorId, Request() with { CompanyId = Guid.NewGuid() }));
         await Assert.ThrowsAsync<UserManagementException>(() => service.CreateAsync(
-            ActorId, Request() with { Roles = [AppRoles.SuperAdmin], CompanyId = null }));
+            ActorId, Request() with { Roles = [AppRoles.SuperAdmin] }));
         Assert.Single(db.Users);
     }
 

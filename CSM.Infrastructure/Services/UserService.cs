@@ -27,18 +27,15 @@ public sealed class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var query = _dbContext.Users.AsNoTracking().Where(x => !x.IsDeleted);
+        if (!IsSuperAdmin(actor))
+            query = query.Where(x => x.CompanyId == actor.CompanyId);
 
-        var users = await _dbContext.Users
-            .AsNoTracking()
-            .Where(x => x.CompanyId == actor.CompanyId && !x.IsDeleted)
-            .Include(x => x.UserRoles)
-                .ThenInclude(x => x.Role)
-            .Include(x => x.SiteAccesses)
-                .ThenInclude(x => x.Site)
-            .OrderBy(x => x.FirstName)
-            .ThenBy(x => x.LastName)
+        var users = await query
+            .Include(x => x.UserRoles).ThenInclude(x => x.Role)
+            .Include(x => x.SiteAccesses).ThenInclude(x => x.Site)
+            .OrderBy(x => x.FirstName).ThenBy(x => x.LastName)
             .ToListAsync(cancellationToken);
-
         return users.Select(Map).ToList();
     }
 
@@ -125,6 +122,29 @@ public sealed class UserService : IUserService
                 "Non-SuperAdmin users must belong to a company.");
         }
 
+
+        if (request.CompanyId.HasValue &&
+            !await _dbContext.Companies.AnyAsync(
+                x => x.Id == request.CompanyId.Value && x.IsActive && !x.IsDeleted,
+                cancellationToken))
+        {
+            throw new UserManagementException("Select an active company before creating a user.");
+        }
+
+        var siteIds = (request.SiteIds ?? []).Distinct().ToList();
+        if (siteIds.Count > 0 && !request.CompanyId.HasValue)
+            throw new UserManagementException("Site assignments require a company.");
+
+        if (request.DefaultSiteId.HasValue && !siteIds.Contains(request.DefaultSiteId.Value))
+            throw new UserManagementException("The default site must be one of the assigned sites.");
+
+        var assignedSites = await _dbContext.ConstructionSites
+            .Where(x => siteIds.Contains(x.Id) && x.CompanyId == request.CompanyId &&
+                        x.IsActive && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+        if (assignedSites.Count != siteIds.Count)
+            throw new UserManagementException("Selected sites must be active and belong to the selected company.");
+
         var normalizedEmail =
             NormalizeEmail(request.Email);
 
@@ -148,13 +168,13 @@ public sealed class UserService : IUserService
         {
             var employeeExists =
                 await _dbContext.Employees.AnyAsync(
-                    x => x.Id == request.EmployeeId.Value,
+                    x => x.Id == request.EmployeeId.Value && x.CompanyId == request.CompanyId,
                     cancellationToken);
 
             if (!employeeExists)
             {
                 throw new UserManagementException(
-                    "The selected employee does not exist.");
+                    "The selected employee must belong to the selected company.");
             }
         }
 
@@ -170,6 +190,9 @@ public sealed class UserService : IUserService
                 _passwordHasher.Hash(
                     request.TemporaryPassword),
             IsActive = true,
+            PhoneNumber = request.PhoneNumber?.Trim() ?? string.Empty,
+            JobTitle = request.JobTitle?.Trim() ?? string.Empty,
+            DefaultSiteId = request.DefaultSiteId,
             MustChangePassword = true
         };
 
@@ -180,6 +203,18 @@ public sealed class UserService : IUserService
                 {
                     RoleId = role.Id
                 });
+        }
+
+        foreach (var site in assignedSites)
+        {
+            user.SiteAccesses.Add(new UserSiteAccess
+            {
+                CompanyId = site.CompanyId,
+                SiteId = site.Id,
+                Site = site,
+                IsActive = true,
+                IsDefault = request.DefaultSiteId == site.Id
+            });
         }
 
         _dbContext.Users.Add(user);
