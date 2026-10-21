@@ -11,6 +11,8 @@
 
 <h3 class="mb-4">User Management</h3>
 
+@if (!loading && string.IsNullOrWhiteSpace(errorMessage))
+{
 <div class="row mb-3">
     <div class="col-md-4">
         <input class="form-control"
@@ -34,9 +36,19 @@
     </div>
 </div>
 
+}
+
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
-    <div class="alert alert-danger">@errorMessage</div>
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+    @if (signInRequired)
+    {
+        <a id="users-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+    }
+    else if (canRetry)
+    {
+        <button id="retry-users" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+    }
 }
 
 @if (loading)
@@ -45,7 +57,7 @@
         <div class="spinner-border"></div>
     </div>
 }
-else
+else if (string.IsNullOrWhiteSpace(errorMessage))
 {
     <table class="table table-hover align-middle">
 
@@ -233,6 +245,8 @@ else
         });
 
     private bool initialized;
+    private bool signInRequired;
+    private bool canRetry;
 
     protected override Task OnInitializedAsync()
     {
@@ -247,22 +261,41 @@ else
 
         initialized = true;
 
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        errorMessage = null;
+        signInRequired = false;
+        canRetry = false;
+        users = [];
         try
         {
             users = await UserService.GetAllAsync();
-
-            Console.WriteLine($"Loaded users: {users.Count}");
-
-            foreach (var u in users)
-            {
-                Console.WriteLine(
-                    $"{u.FullName} | Sites = {u.SiteAccesses.Count}");
-            }
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.ToString();
-            Console.WriteLine(ex);
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = !signInRequired && ex.StatusCode != System.Net.HttpStatusCode.Forbidden;
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view users.",
+                null => "Unable to reach the user service. Please try again.",
+                _ => "The user service is temporarily unavailable. Please try again in a minute."
+            };
+        }
+        catch (TaskCanceledException)
+        {
+            canRetry = true;
+            errorMessage = "Loading users timed out. Please try again.";
+        }
+        catch (Exception)
+        {
+            canRetry = true;
+            errorMessage = "Unable to load users. Please try again.";
         }
         finally
         {
