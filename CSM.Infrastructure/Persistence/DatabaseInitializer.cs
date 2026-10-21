@@ -50,7 +50,11 @@ public static class DatabaseInitializer
         ApplicationDbContext dbContext,
         CancellationToken cancellationToken)
     {
-        foreach (var roleName in AppRoles.All)
+        var roleNames = AppRoles.All
+            .Concat(new[] { AppRoles.Storekeeper, AppRoles.ProcurementOfficer })
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var roleName in roleNames)
         {
             var normalizedName = roleName.ToUpperInvariant();
 
@@ -247,6 +251,9 @@ public static class DatabaseInitializer
             params GranularPermission[] permissions)
         {
             if (!roles.TryGetValue(roleName, out var role))
+                role = roles.Values.FirstOrDefault(x =>
+                    string.Equals(x.Name, roleName, StringComparison.OrdinalIgnoreCase));
+            if (role is null)
                 return;
 
             foreach (var permission in permissions.Distinct())
@@ -276,6 +283,19 @@ public static class DatabaseInitializer
         Grant(
             AppRoles.CompanyAdmin,
             Enum.GetValues<GranularPermission>());
+
+        // Inventory service roles need site lookup plus inventory view/adjust permissions.
+        Grant(
+            AppRoles.Storekeeper,
+            GranularPermission.Sites_View,
+            GranularPermission.Procurement_Inventory_View,
+            GranularPermission.Procurement_Inventory_Adjust);
+
+        Grant(
+            AppRoles.ProcurementOfficer,
+            GranularPermission.Sites_View,
+            GranularPermission.Procurement_Inventory_View,
+            GranularPermission.Procurement_Inventory_Adjust);
 
         Grant(
             AppRoles.SiteManager,

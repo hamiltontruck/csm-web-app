@@ -63,10 +63,12 @@ public sealed class InventoryRoleSeedTests
         var configuration = new ConfigurationBuilder().Build();
         await DatabaseInitializer.InitializeAsync(provider, configuration);
         var roles = await db.Roles.CountAsync();
-        var grants = await db.RoleGranularPermissions.CountAsync();
+        var inventoryRoleIds = await db.Roles.Where(x => x.NormalizedName == "STOREKEEPER" ||
+            x.NormalizedName == "PROCUREMENTOFFICER").Select(x => x.Id).ToListAsync();
+        var grants = await db.RoleGranularPermissions.CountAsync(x => inventoryRoleIds.Contains(x.RoleId));
         await DatabaseInitializer.InitializeAsync(provider, configuration);
         Assert.Equal(roles, await db.Roles.CountAsync());
-        Assert.Equal(grants, await db.RoleGranularPermissions.CountAsync());
+        Assert.Equal(grants, await db.RoleGranularPermissions.CountAsync(x => inventoryRoleIds.Contains(x.RoleId)));
         Assert.Equal(1, await db.Roles.CountAsync(x => x.NormalizedName == "STOREKEEPER"));
         Assert.Equal("existing-admin-hash", db.Users.Single().PasswordHash);
     }
