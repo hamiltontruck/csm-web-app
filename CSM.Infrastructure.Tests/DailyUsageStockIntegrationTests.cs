@@ -118,6 +118,35 @@ public sealed class DailyUsageStockIntegrationTests
         Assert.Empty(await fixture.Db.DailyMaterialUsages.ToListAsync());
     }
 
+    [Fact]
+    public async Task User_creation_persists_company_site_role_and_hashed_password_in_PostgreSQL()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var db = fixture.Db;
+        var companyId = (await db.Companies.SingleAsync()).Id;
+        db.Roles.Add(new Role { Name = AppRoles.Storekeeper, NormalizedName = "STOREKEEPER" });
+        await db.SaveChangesAsync();
+        var hasher = new CSM.Infrastructure.Security.PasswordHasher();
+        var request = new CSM.Application.Users.Dtos.CreateUserRequest(
+            companyId, null, "storekeeper@example.test", "Test", "Storekeeper", "Example-Password123!",
+            "Test phone", "Storekeeper", fixture.SiteId, [AppRoles.Storekeeper], [fixture.SiteId]);
+        var result = await new UserService(db, hasher).CreateAsync(fixture.ActorId, request);
+        db.ChangeTracker.Clear();
+
+        var saved = await db.Users.Include(x => x.SiteAccesses).Include(x => x.UserRoles)
+            .ThenInclude(x => x.Role).SingleAsync(x => x.Id == result.Id);
+        Assert.Equal(companyId, saved.CompanyId);
+        Assert.Equal(fixture.SiteId, saved.DefaultSiteId);
+        Assert.Equal("Storekeeper", saved.JobTitle);
+        Assert.True(hasher.Verify(request.TemporaryPassword, saved.PasswordHash));
+        Assert.True(saved.MustChangePassword);
+        Assert.Equal(AppRoles.Storekeeper, Assert.Single(saved.UserRoles).Role.Name);
+        Assert.Equal(fixture.SiteId, Assert.Single(saved.SiteAccesses).SiteId);
+        Assert.True(Assert.Single(saved.SiteAccesses).IsDefault);
+        Assert.Single(await db.UserAudits.Where(x => x.TargetUserId == result.Id).ToListAsync());
+        Assert.Equal(10m, (await db.StockItems.SingleAsync()).QuantityOnHand);
+    }
+
     // The runtime model still carries one SQL Server filtered-index expression.
     // Translate that DDL only while creating this disposable PostgreSQL schema.
     private sealed class IndexSyntax : DbCommandInterceptor
