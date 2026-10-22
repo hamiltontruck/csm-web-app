@@ -28,7 +28,14 @@
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="alert alert-danger" role="alert">@errorMessage</div>
-        <button id="retry-stock-balances" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        @if (signInRequired)
+        {
+            <a id="stock-site-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-stock-balances" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (balances.Count == 0)
     {
@@ -87,37 +94,82 @@
     public Guid SiteId { get; set; }
 
     private List<StockBalanceResponse> balances = [];
-    private string siteName = "";
+    private string siteName = "Construction Site";
     private bool loading = true;
-    private bool loaded;
+    private Guid? loadedSiteId;
+    private bool canRetry = true;
+    private bool signInRequired;
 
     private string? errorMessage;
 
+    protected override void OnParametersSet()
+    {
+        if (loadedSiteId == SiteId) return;
+        balances = [];
+        siteName = "Construction Site";
+        errorMessage = null;
+        loading = true;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || loaded) return;
-        loaded = true;
+        if (loadedSiteId == SiteId) return;
+        loadedSiteId = SiteId;
         await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
+        var requestedSiteId = SiteId;
         loading = true;
         errorMessage = null;
+        balances = [];
+        siteName = "Construction Site";
+        canRetry = true;
+        signInRequired = false;
         try
         {
-            balances = await InventoryService.GetStockBySiteAsync(SiteId);
             var sites = await ProjectService.GetSitesAsync();
-            siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? "Construction Site";
+            if (requestedSiteId != SiteId) return;
+            var site = sites.FirstOrDefault(x => x.Id == requestedSiteId);
+            if (site is null)
+            {
+                errorMessage = "This site is unavailable or you do not have permission to view its stock.";
+                canRetry = false;
+                return;
+            }
+
+            siteName = site.Name;
+            var result = await InventoryService.GetStockBySiteAsync(requestedSiteId);
+            if (requestedSiteId != SiteId) return;
+            balances = result;
+        }
+        catch (HttpRequestException ex)
+        {
+            if (requestedSiteId != SiteId) return;
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view stock for this site.",
+                System.Net.HttpStatusCode.NotFound => "This site is unavailable or you do not have permission to view its stock.",
+                _ => "Unable to load stock balances. Please try again."
+            };
         }
         catch (Exception)
         {
+            if (requestedSiteId != SiteId) return;
             errorMessage = "Unable to load stock balances. Please try again.";
         }
         finally
         {
-            loading = false;
-            StateHasChanged();
+            if (requestedSiteId == SiteId)
+            {
+                loading = false;
+                StateHasChanged();
+            }
         }
     }
 
