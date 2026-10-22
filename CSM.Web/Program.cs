@@ -47,6 +47,7 @@ builder.Services.AddScoped<IExecutiveDashboardService,
     builder.Services.AddScoped<IEquipmentService, EquipmentService>();
 
     builder.Services.AddScoped<UserWebService>();
+    builder.Services.AddScoped<CompanyWebService>();
 
     builder.Services.AddScoped<RoleWebService>();
 

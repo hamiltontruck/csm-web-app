@@ -1,6 +1,7 @@
 ﻿@inject CSM.Web.Services.INotificationApiService NotificationService
 @inject CSM.Web.Services.IAuthService AuthService
 @inject NavigationManager Navigation
+@inject CSM.Web.Services.CompanyWebService CompanyService
 
 <div class="sidebar">
 
@@ -88,6 +89,16 @@
             <div class="section-title">
                 Administration
             </div>
+
+            @if (_isSuperAdmin)
+            {
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="/companies">
+                        <span class="bi bi-building"></span>
+                        <span>Companies</span>
+                    </NavLink>
+                </div>
+            }
 
             @if (HasPermission("Users_View"))
             {
@@ -212,6 +223,15 @@
 @code
 {
     private int _unreadNotificationCount;
+    private bool _isSuperAdmin;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { _isSuperAdmin = await CompanyService.IsSuperAdminAsync(); }
+        catch { _isSuperAdmin = false; }
+        StateHasChanged();
+    }
 
     private IReadOnlyCollection<string> _permissions = [];
 
