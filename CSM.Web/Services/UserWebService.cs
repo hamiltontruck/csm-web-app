@@ -75,8 +75,8 @@ public class UserWebService
     {
         await AuthorizeAsync();
 
-        var response = await _http.PutAsJsonAsync($"users/{id}", model);
-        response.EnsureSuccessStatusCode();
+        using var response = await _http.PutAsJsonAsync($"users/{id}", model);
+        await EnsureUserChangeSuccessAsync(response);
     }
 
     public async Task ActivateAsync(Guid id)
@@ -99,11 +99,11 @@ public class UserWebService
     {
         await AuthorizeAsync();
 
-        var response = await _http.PutAsJsonAsync(
+        using var response = await _http.PutAsJsonAsync(
             $"users/{id}/roles",
             new { Roles = roles });
 
-        response.EnsureSuccessStatusCode();
+        await EnsureUserChangeSuccessAsync(response);
     }
 
     public async Task SetSitesAsync(
@@ -113,7 +113,7 @@ public class UserWebService
     {
         await AuthorizeAsync();
 
-        var response = await _http.PutAsJsonAsync(
+        using var response = await _http.PutAsJsonAsync(
             $"users/{id}/sites",
             new
             {
@@ -121,7 +121,34 @@ public class UserWebService
                 SiteIds = siteIds.Distinct().ToList()
             });
 
-        response.EnsureSuccessStatusCode();
+        await EnsureUserChangeSuccessAsync(response);
+    }
+
+    private static async Task EnsureUserChangeSuccessAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode) return;
+        var message = response.StatusCode switch
+        {
+            System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+            System.Net.HttpStatusCode.Forbidden => "You do not have permission to edit this user.",
+            _ => "Unable to save user changes. Please try again."
+        };
+        if ((int)response.StatusCode >= 500)
+            message = "The user service is temporarily unavailable. Please try again in a minute.";
+        else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            try
+            {
+                using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                if (body.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                    body.RootElement.TryGetProperty("message", out var value) &&
+                    value.ValueKind == System.Text.Json.JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(value.GetString()))
+                    message = value.GetString()!;
+            }
+            catch (System.Text.Json.JsonException) { }
+        }
+        throw new HttpRequestException(message, null, response.StatusCode);
     }
 
     public async Task DeleteAsync(Guid id)

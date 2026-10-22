@@ -8,6 +8,7 @@
 
 @inject UserWebService UserService
 @inject IProjectService ProjectService
+@inject RoleWebService RoleService
 @inject NavigationManager Navigation
 
 <PageTitle>Edit User</PageTitle>
@@ -16,7 +17,7 @@
 
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
-    <div class="alert alert-danger">@errorMessage</div>
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
 }
 
 @if (loading)
@@ -26,11 +27,12 @@
         <div class="mt-2">Loading user...</div>
     </div>
 }
-else
+else if (userLoaded)
 {
     <EditForm Model="model" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
         <ValidationSummary />
+        <fieldset disabled="@saving">
 
         <div class="card shadow-sm mb-4">
             <div class="card-header">
@@ -113,6 +115,11 @@ else
 
             <div class="card-body">
 
+                @if (Sites.Count == 0)
+                {
+                    <p class="text-muted">No active sites are available for this user's company.</p>
+                }
+
                 @foreach (var site in Sites)
                 {
                     <div class="form-check mb-2">
@@ -173,6 +180,7 @@ else
             </button>
         </div>
 
+        </fieldset>
     </EditForm>
 }
 
@@ -187,59 +195,65 @@ else
     private bool loading = true;
 
     private bool saving;
+    private bool userLoaded;
 
     private string? errorMessage;
 
-    private readonly string[] Roles =
-    {
-        "Administrator",
-        "ProjectManager",
-        "SiteEngineer",
-        "StoreKeeper",
-        "HROfficer",
-        "FinanceOfficer",
-        "EquipmentOfficer",
-        "SafetyOfficer",
-        "Viewer"
-    };
-
-    private List<string> selectedRoles = [];
+    private string[] Roles = [];
+    private HashSet<string> selectedRoles = new(StringComparer.OrdinalIgnoreCase);
 
     private IEnumerable<SiteResponse> SelectedSites =>
         Sites.Where(x => model.SiteIds.Contains(x.Id));
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender) return;
         try
         {
-            Sites = await ProjectService.GetSitesAsync();
-
             var user = await UserService.GetByIdAsync(Id);
-
-            if (user is not null)
+            if (user is null)
             {
-                model.EmployeeId = user.EmployeeId;
-                model.FirstName = user.FirstName;
-                model.LastName = user.LastName;
-                model.PhoneNumber = user.PhoneNumber;
-                model.JobTitle = user.JobTitle;
-                model.IsActive = user.IsActive;
-                model.DefaultSiteId = user.DefaultSiteId;
-
-                model.SiteIds = user.SiteAccesses.ToList();
-
-                selectedRoles = user.Roles.ToList();
+                errorMessage = "User was not found.";
+                return;
             }
+            var availableRoles = await RoleService.GetRolesAsync();
+            var availableSites = await ProjectService.GetSitesAsync();
+            Sites = availableSites.Where(x => x.CompanyId == user.CompanyId && x.IsActive).ToList();
+            model.EmployeeId = user.EmployeeId;
+            model.FirstName = user.FirstName;
+            model.LastName = user.LastName;
+            model.PhoneNumber = user.PhoneNumber;
+            model.JobTitle = user.JobTitle;
+            model.IsActive = user.IsActive;
+            model.SiteIds = user.SiteAccesses.Where(id => Sites.Any(site => site.Id == id)).Distinct().ToList();
+            model.DefaultSiteId = user.DefaultSiteId.HasValue && model.SiteIds.Contains(user.DefaultSiteId.Value)
+                ? user.DefaultSiteId : null;
+            selectedRoles = new(user.Roles, StringComparer.OrdinalIgnoreCase);
+            Roles = availableRoles.Select(x => x.Name).Concat(user.Roles)
+                .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToArray();
+            userLoaded = true;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            errorMessage = LoadError(ex);
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load the user and assignment options. Please try again.";
         }
         finally
         {
             loading = false;
+            StateHasChanged();
         }
     }
+
+    private static string LoadError(HttpRequestException ex) => ex.StatusCode switch
+    {
+        System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+        System.Net.HttpStatusCode.Forbidden => "You do not have permission to edit this user.",
+        _ => "Unable to load the user and assignment options. Please try again."
+    };
 
     private void ToggleRole(string role, object? value)
     {
@@ -276,14 +290,25 @@ else
 
     private async Task SaveAsync()
     {
-        saving = true;
+        if (saving || !userLoaded) return;
         errorMessage = null;
+        if (selectedRoles.Count == 0)
+        {
+            errorMessage = "At least one role is required.";
+            return;
+        }
+        if (model.DefaultSiteId.HasValue && !model.SiteIds.Contains(model.DefaultSiteId.Value))
+        {
+            errorMessage = "The default site must be one of the assigned sites.";
+            return;
+        }
+        saving = true;
 
         try
         {
             await UserService.UpdateAsync(Id, model);
 
-            await UserService.SetRolesAsync(Id, selectedRoles);
+            await UserService.SetRolesAsync(Id, selectedRoles.ToList());
 
             await UserService.SetSitesAsync(
                 Id,
@@ -292,9 +317,13 @@ else
 
             Navigation.NavigateTo("/users");
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            errorMessage = ex.StatusCode.HasValue ? ex.Message : "Unable to reach the user service. Please try again.";
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to save user changes. Check the user before trying again.";
         }
         finally
         {

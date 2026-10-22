@@ -147,6 +147,146 @@ public sealed class DailyUsageStockIntegrationTests
         Assert.Equal(10m, (await db.StockItems.SingleAsync()).QuantityOnHand);
     }
 
+    [Theory]
+    [InlineData("foreign")]
+    [InlineData("missing")]
+    [InlineData("inactive")]
+    [InlineData("default-not-assigned")]
+    public async Task Editing_sites_rejects_invalid_assignments_without_changing_existing_access(string reason)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var db = fixture.Db;
+        var target = await CreateManagedUserAsync(fixture);
+        var companyId = target.CompanyId!.Value;
+        var otherCompany = new Company { Code = "OTHER", Name = "Other company" };
+        var other = new ConstructionSite { Company = otherCompany, SiteCode = "OTHER", Name = "Foreign site" };
+        var inactive = new ConstructionSite { CompanyId = companyId, SiteCode = "INACTIVE", Name = "Inactive site", IsActive = false };
+        var unassigned = new ConstructionSite { CompanyId = companyId, SiteCode = "UNASSIGNED", Name = "Unassigned site" };
+        db.ConstructionSites.AddRange(other, inactive, unassigned);
+        await db.SaveChangesAsync();
+        var requestedSite = reason switch { "foreign" => other.Id, "missing" => Guid.NewGuid(),
+            "inactive" => inactive.Id, _ => fixture.SiteId };
+        var requestedDefault = reason == "default-not-assigned" ? unassigned.Id : requestedSite;
+        var auditsBefore = await db.UserAudits.CountAsync();
+        await Assert.ThrowsAsync<UserManagementException>(() => new UserService(db,
+            new CSM.Infrastructure.Security.PasswordHasher()).SetSitesAsync(fixture.ActorId, target.Id,
+                new CSM.Application.Users.Dtos.SetUserSitesRequest(requestedDefault, [requestedSite])));
+        db.ChangeTracker.Clear();
+        var saved = await db.Users.Include(x => x.SiteAccesses).SingleAsync(x => x.Id == target.Id);
+        Assert.Equal(fixture.SiteId, saved.DefaultSiteId);
+        Assert.Equal(fixture.SiteId, Assert.Single(saved.SiteAccesses).SiteId);
+        Assert.Equal(auditsBefore, await db.UserAudits.CountAsync());
+    }
+
+    [Fact]
+    public async Task Editing_sites_adds_destination_preserves_role_and_reuses_removed_assignments()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var db = fixture.Db;
+        var target = await CreateManagedUserAsync(fixture);
+        var originalAccessId = (await db.UserSiteAccesses.SingleAsync()).Id;
+        var destination = new ConstructionSite { CompanyId = target.CompanyId!.Value, SiteCode = "DEST", Name = "Destination" };
+        db.ConstructionSites.Add(destination);
+        await db.SaveChangesAsync();
+        var service = new UserService(db, new CSM.Infrastructure.Security.PasswordHasher());
+        var request = new CSM.Application.Users.Dtos.SetUserSitesRequest(fixture.SiteId, [fixture.SiteId, destination.Id]);
+        await service.SetSitesAsync(fixture.ActorId, target.Id, request);
+        db.ChangeTracker.Clear();
+        var accesses = await db.UserSiteAccesses.Where(x => x.UserId == target.Id).ToListAsync();
+        Assert.Equal(2, accesses.Count);
+        Assert.Equal(originalAccessId, accesses.Single(x => x.SiteId == fixture.SiteId).Id);
+        Assert.True(accesses.Single(x => x.SiteId == fixture.SiteId).IsDefault);
+        Assert.False(accesses.Single(x => x.SiteId == destination.Id).IsDefault);
+        await service.SetSitesAsync(fixture.ActorId, target.Id,
+            new CSM.Application.Users.Dtos.SetUserSitesRequest(destination.Id, [destination.Id]));
+        db.ChangeTracker.Clear();
+        await service.SetSitesAsync(fixture.ActorId, target.Id, request);
+        db.ChangeTracker.Clear();
+        Assert.Equal(2, await db.UserSiteAccesses.CountAsync(x => x.UserId == target.Id));
+        Assert.Equal(originalAccessId, (await db.UserSiteAccesses.SingleAsync(x => x.UserId == target.Id && x.SiteId == fixture.SiteId)).Id);
+        var saved = await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role).SingleAsync(x => x.Id == target.Id);
+        Assert.Equal(AppRoles.Storekeeper, Assert.Single(saved.UserRoles).Role.Name);
+        Assert.Equal(fixture.SiteId, saved.DefaultSiteId);
+    }
+
+    [Theory]
+    [InlineData("StoreKeeper")]
+    [InlineData("")]
+    public async Task Editing_roles_handles_case_and_rejects_empty_selection(string requested)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var db = fixture.Db;
+        var target = await CreateManagedUserAsync(fixture);
+        var service = new UserService(db, new CSM.Infrastructure.Security.PasswordHasher());
+        var request = new CSM.Application.Users.Dtos.SetUserRolesRequest(
+            string.IsNullOrEmpty(requested) ? [] : [requested]);
+        if (string.IsNullOrEmpty(requested))
+            await Assert.ThrowsAsync<UserManagementException>(() => service.SetRolesAsync(
+                fixture.ActorId, target.Id, request, default));
+        else
+            await service.SetRolesAsync(fixture.ActorId, target.Id, request, default);
+        db.ChangeTracker.Clear();
+        Assert.Equal("Storekeeper", (await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role)
+            .SingleAsync(x => x.Id == target.Id)).UserRoles.Single().Role.Name);
+    }
+
+    [Theory]
+    [InlineData("Storekeeper")]
+    [InlineData("CompanyAdmin")]
+    public async Task Editing_roles_cannot_be_used_to_escalate_to_SuperAdmin(string actorRole)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var db = fixture.Db;
+        var target = await CreateManagedUserAsync(fixture);
+        Guid actorId = target.Id;
+        if (actorRole == "CompanyAdmin")
+        {
+            var actor = new User { CompanyId = target.CompanyId, Email = "companyadmin@example.test", NormalizedEmail = "COMPANYADMIN@EXAMPLE.TEST",
+                FirstName = "Company", LastName = "Admin", IsActive = true,
+                UserRoles = [new UserRole { Role = new Role { Name = AppRoles.CompanyAdmin, NormalizedName = "COMPANYADMIN" } }] };
+            db.Users.Add(actor);
+            await db.SaveChangesAsync();
+            actorId = actor.Id;
+        }
+        await Assert.ThrowsAsync<UserManagementException>(() => new UserService(db,
+            new CSM.Infrastructure.Security.PasswordHasher()).SetRolesAsync(actorId, target.Id,
+                new CSM.Application.Users.Dtos.SetUserRolesRequest([AppRoles.SuperAdmin]), default));
+        db.ChangeTracker.Clear();
+        Assert.Equal("Storekeeper", (await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role)
+            .SingleAsync(x => x.Id == target.Id)).UserRoles.Single().Role.Name);
+    }
+
+    [Fact]
+    public async Task Basic_profile_save_does_not_change_default_before_site_assignment_save()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var db = fixture.Db;
+        var target = await CreateManagedUserAsync(fixture);
+        var destination = new ConstructionSite { CompanyId = target.CompanyId!.Value,
+            SiteCode = "DEST", Name = "Destination" };
+        db.ConstructionSites.Add(destination);
+        await db.SaveChangesAsync();
+        await new UserService(db, new CSM.Infrastructure.Security.PasswordHasher()).UpdateAsync(
+            fixture.ActorId, target.Id, new CSM.Application.Users.Dtos.UpdateUserRequest(
+                "Test", "Storekeeper", null, "", "Storekeeper", destination.Id, true,
+                [fixture.SiteId, destination.Id]));
+        db.ChangeTracker.Clear();
+        Assert.Equal(fixture.SiteId, (await db.Users.SingleAsync(x => x.Id == target.Id)).DefaultSiteId);
+        Assert.Equal(fixture.SiteId, (await db.UserSiteAccesses.SingleAsync(x => x.UserId == target.Id)).SiteId);
+    }
+
+    private static async Task<CSM.Application.Users.Dtos.UserResponse> CreateManagedUserAsync(Fixture fixture)
+    {
+        var db = fixture.Db;
+        db.Roles.Add(new Role { Name = AppRoles.Storekeeper, NormalizedName = "STOREKEEPER" });
+        await db.SaveChangesAsync();
+        var companyId = (await db.Companies.SingleAsync()).Id;
+        return await new UserService(db, new CSM.Infrastructure.Security.PasswordHasher()).CreateAsync(fixture.ActorId,
+            new CSM.Application.Users.Dtos.CreateUserRequest(companyId, null, "managed@example.test",
+                "Test", "Storekeeper", "Example-Password123!", "", "Storekeeper", fixture.SiteId,
+                [AppRoles.Storekeeper], [fixture.SiteId]));
+    }
+
     // The runtime model still carries one SQL Server filtered-index expression.
     // Translate that DDL only while creating this disposable PostgreSQL schema.
     private sealed class IndexSyntax : DbCommandInterceptor
