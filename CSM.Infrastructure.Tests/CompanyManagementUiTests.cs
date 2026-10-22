@@ -105,6 +105,26 @@ public sealed class CompanyManagementUiTests
         Assert.DoesNotContain("private diagnostic", page.Markup);
     }
 
+    [Theory]
+    [InlineData("SuperAdmin", true)]
+    [InlineData("Storekeeper", false)]
+    [InlineData("CompanyAdmin", false)]
+    public void Companies_menu_is_visible_only_for_SuperAdmin(string role, bool visible)
+    {
+        using var api = new Api { Role = role };
+        using var context = Context(api);
+        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, Auth>());
+        context.Services.AddSingleton(DispatchProxy.Create<INotificationApiService, Notifications>());
+        var menu = context.RenderComponent<CSM.Web.Components.Layout.NavMenu>();
+        menu.WaitForAssertion(() => Assert.Equal(visible, menu.FindAll("a[href='/companies']").Count == 1));
+        if (visible) Assert.Contains("Companies", menu.Markup);
+    }
+
+    public class Notifications : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args) => Task.FromResult(0);
+    }
+
     private static TestContext Context(Api api)
     {
         var context = new TestContext();
@@ -126,20 +146,25 @@ public sealed class CompanyManagementUiTests
     public class Auth : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            method!.Name == "GetTokenAsync" ? Task.FromResult<string?>("test-token") :
-            throw new NotSupportedException(method.Name);
+            method!.Name switch
+            {
+                "GetTokenAsync" => Task.FromResult<string?>("test-token"),
+                "GetPermissionsAsync" => Task.FromResult<IReadOnlyCollection<string>>(Array.Empty<string>()),
+                _ => throw new NotSupportedException(method.Name)
+            };
     }
 
     private sealed class Api : HttpMessageHandler
     {
         public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
         public bool Duplicate { get; set; }
+        public string Role { get; set; } = "SuperAdmin";
         public int Posts { get; private set; }
         public JsonElement? Payload { get; private set; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             if (request.RequestUri!.AbsolutePath.EndsWith("/auth/me"))
-                return new(HttpStatusCode.OK) { Content = JsonContent.Create(new { roles = new[] { "SuperAdmin" } }) };
+                return new(HttpStatusCode.OK) { Content = JsonContent.Create(new { roles = new[] { Role } }) };
             if (request.Method == HttpMethod.Post)
             {
                 Posts++;
