@@ -120,14 +120,9 @@ public sealed class InventoryService : IInventoryService
     {
         await _authService.ApplyAuthenticationAsync(_http);
 
-        var response = await _http.PostAsJsonAsync("StockTransfers", request);
+        using var response = await _http.PostAsJsonAsync("StockTransfers", request);
 
-        var body = await response.Content.ReadAsStringAsync();
-
-        Console.WriteLine($"STATUS: {response.StatusCode}");
-        Console.WriteLine(body);
-
-        return response.IsSuccessStatusCode;
+        return await ReadInventorySaveResultAsync(response, "stock transfer");
     }
 
     public async Task<List<StockTransferResponse>> GetStockTransfersAsync()

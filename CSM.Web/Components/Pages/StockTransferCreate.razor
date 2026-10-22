@@ -129,7 +129,7 @@
 
             @if (!string.IsNullOrWhiteSpace(errorMessage))
             {
-                <div class="alert alert-danger mt-3">
+                <div class="alert alert-danger mt-3" role="alert">
                     @errorMessage
                 </div>
             }
@@ -238,6 +238,8 @@ private bool saving;
 
 private async Task SaveTransfer()
 {
+    if (saving) return;
+
     errorMessage = null;
 
     if (model.FromSiteId == null ||
@@ -262,29 +264,48 @@ private async Task SaveTransfer()
 
     saving = true;
 
-    var success = await InventoryService.CreateStockTransferAsync(
-        new StockTransferCreateRequest
+    try
+    {
+        var success = await InventoryService.CreateStockTransferAsync(
+            new StockTransferCreateRequest
+            {
+                SourceConstructionSiteId = model.FromSiteId!.Value,
+                DestinationConstructionSiteId = model.ToSiteId!.Value,
+                MaterialId = model.MaterialId!.Value,
+                Quantity = model.Quantity,
+                TransferDateUtc = model.TransferDate.ToUniversalTime(),
+                TransferNumber = model.TransferNumber,
+                RequestedBy = string.IsNullOrWhiteSpace(model.RequestedBy) ? null : model.RequestedBy,
+                ApprovedBy = string.IsNullOrWhiteSpace(model.ApprovedBy) ? null : model.ApprovedBy,
+                Remarks = string.IsNullOrWhiteSpace(model.Remarks) ? null : model.Remarks
+            });
+    
+        if (success)
         {
-            SourceConstructionSiteId = model.FromSiteId!.Value,
-            DestinationConstructionSiteId = model.ToSiteId!.Value,
-            MaterialId = model.MaterialId!.Value,
-            Quantity = model.Quantity,
-            TransferDateUtc = model.TransferDate.ToUniversalTime(),
-            TransferNumber = model.TransferNumber,
-            RequestedBy = string.IsNullOrWhiteSpace(model.RequestedBy) ? null : model.RequestedBy,
-            ApprovedBy = string.IsNullOrWhiteSpace(model.ApprovedBy) ? null : model.ApprovedBy,
-            Remarks = string.IsNullOrWhiteSpace(model.Remarks) ? null : model.Remarks
-        });
-
-    saving = false;
-
-    if (success)
-    {
-       Navigation.NavigateTo($"/stock-transfers/site/{model.FromSiteId}");
+           Navigation.NavigateTo($"/stock-transfers/site/{model.FromSiteId}");
+        }
+        else
+        {
+            errorMessage = "Unable to create stock transfer.";
+        }
     }
-    else
+    catch (HttpRequestException ex)
     {
-        errorMessage = "Unable to create stock transfer.";
+        errorMessage = ex.StatusCode.HasValue
+            ? ex.Message
+            : "Unable to reach the inventory service. Please try again.";
+    }
+    catch (TaskCanceledException)
+    {
+        errorMessage = "The inventory request timed out. Check the saved records before trying again.";
+    }
+    catch (Exception)
+    {
+        errorMessage = "Unable to save the stock transfer. Please check the saved records before trying again.";
+    }
+    finally
+    {
+        saving = false;
     }
 }
 }

@@ -120,6 +120,67 @@ public sealed class InventoryValidationFeedbackTests
         Assert.False(SaveButton(page).HasAttribute("disabled"));
     }
 
+
+    [Theory]
+    [InlineData("Insufficient available stock.")]
+    [InlineData("A stock transfer with this transfer number already exists.")]
+    public async Task Transfer_client_preserves_validation_message(string message)
+    {
+        using var handler = new Api { Message = message };
+        using var http = Client(handler);
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            Service(http).CreateStockTransferAsync(new()));
+        Assert.Equal(HttpStatusCode.BadRequest, error.StatusCode);
+        Assert.Equal(message, error.Message);
+    }
+
+    [Theory]
+    [InlineData(401, "Your session has expired. Please sign in again.")]
+    [InlineData(403, "You do not have permission to create stock transfers.")]
+    [InlineData(500, "The inventory service is temporarily unavailable. Please try again in a minute.")]
+    [InlineData(400, "Unable to create stock transfer.")]
+    public async Task Transfer_client_uses_safe_fallbacks(int status, string expected)
+    {
+        using var handler = new Api { Status = (HttpStatusCode)status, RawBody = "<html>private server exception</html>" };
+        using var http = Client(handler);
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            Service(http).CreateStockTransferAsync(new()));
+        Assert.Equal(expected, error.Message);
+    }
+
+    [Theory]
+    [InlineData("Insufficient available stock.", false)]
+    [InlineData("A stock transfer with this transfer number already exists.", false)]
+    [InlineData("Unable to reach the inventory service. Please try again.", true)]
+    public void Transfer_failure_shows_one_alert_preserves_fields_and_allows_retry(string message, bool network)
+    {
+        using var handler = new Api { Message = message, ThrowOnPost = network };
+        using var context = Context(handler);
+        var page = context.RenderComponent<StockTransferCreate>();
+        page.WaitForAssertion(() => Assert.True(page.FindAll("option").Count >= 3));
+        page.FindAll("select").ToArray()[0].Change(SiteId.ToString());
+        page.FindAll("select").ToArray()[1].Change(Guid.NewGuid().ToString());
+        page.WaitForAssertion(() => Assert.Contains("Cement", page.Markup));
+        page.FindAll("select").ToArray()[2].Change(MaterialId.ToString());
+        page.Find("input[type=number]").Change("7");
+        page.FindAll("input:not([type])").ToArray()[0].Change("TRF-TEST-001");
+        page.Find("textarea").Change("keep my remarks");
+        SaveButton(page).Click();
+        page.WaitForAssertion(() => Assert.Equal(message, Assert.Single(page.FindAll("[role=alert]")).TextContent.Trim()));
+        Assert.Equal("TRF-TEST-001", page.FindAll("input:not([type])").ToArray()[0].GetAttribute("value"));
+        Assert.Equal("7", page.Find("input[type=number]").GetAttribute("value"));
+        Assert.Equal("keep my remarks", page.Find("textarea").GetAttribute("value"));
+        Assert.DoesNotContain("private network exception", page.Markup);
+        Assert.False(SaveButton(page).HasAttribute("disabled"));
+        Assert.DoesNotContain("/stock-transfers/site/", context.Services.GetRequiredService<NavigationManager>().Uri);
+        handler.ThrowOnPost = false;
+        handler.Status = HttpStatusCode.OK;
+        SaveButton(page).Click();
+        page.WaitForAssertion(() => Assert.EndsWith($"/stock-transfers/site/{SiteId}",
+            context.Services.GetRequiredService<NavigationManager>().Uri));
+        Assert.Equal(2, handler.Posts);
+    }
+
     private static void Fill(IRenderedFragment page, bool returns)
     {
         page.WaitForAssertion(() => Assert.True(page.FindAll("option").Count >= 2));
