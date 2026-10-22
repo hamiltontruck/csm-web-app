@@ -142,7 +142,7 @@
     color:#f2a397;
 }
 /* Responsive navigation */
-@media (max-width:640.98px){
+@media (max-width:991.98px){
     .sidebar{position:relative;top:auto;width:100%;height:auto;min-height:0;overflow:visible;z-index:20;}
     .top-row{height:58px;padding:0 18px;background:#102f25;}
     .navbar-brand{font-size:1.15rem;}

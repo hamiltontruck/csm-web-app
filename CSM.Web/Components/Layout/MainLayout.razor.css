@@ -36,7 +36,7 @@ main {
         text-overflow: ellipsis;
     }
 
-@media (max-width: 640.98px) {
+@media (max-width: 991.98px) {
     .top-row {
         justify-content: space-between;
     }
@@ -46,7 +46,7 @@ main {
     }
 }
 
-@media (min-width: 641px) {
+@media (min-width: 992px) {
     .page {
         flex-direction: row;
     }
@@ -98,7 +98,7 @@ main {
         top: 0.5rem;
     }
 
-@media (max-width: 640.98px) {
+@media (max-width: 991.98px) {
     .page { display: flex; flex-direction: column; }
     .page > .sidebar { width: 100%; height: auto; min-height: 0; position: relative; flex: 0 0 auto; }
     .top-row { display: none; }
