@@ -4,6 +4,7 @@ using CSM.Application.Users;
 using CSM.Application.Users.Dtos;
 using CSM.Domain.Constants;
 using CSM.Domain.Entities.Identity;
+using CSM.Domain.Entities.Organization;
 using CSM.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -280,7 +281,6 @@ public sealed class UserService : IUserService
                 ? string.Empty
                 : request.JobTitle.Trim();
 
-        target.DefaultSiteId = request.DefaultSiteId;
         target.IsActive = request.IsActive;
 
 
@@ -306,37 +306,23 @@ public sealed class UserService : IUserService
        SetUserRolesRequest request,
        CancellationToken cancellationToken)
    {
-       var currentUser = await _dbContext.Users
-           .AsNoTracking()
-           .SingleOrDefaultAsync(x => x.Id == currentUserId, cancellationToken)
-           ?? throw new UserManagementException("Current user not found.");
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var target = await GetUserAsync(userId, cancellationToken);
+        EnsureCanManage(actor, target);
 
-       var user = await _dbContext.Users
-           .AsNoTracking()
-           .SingleOrDefaultAsync(x => x.Id == userId, cancellationToken)
-           ?? throw new UserManagementException("User not found.");
+        var requestedNames = NormalizeRoles(request.Roles);
+        if (requestedNames.Count == 0)
+            throw new UserManagementException("At least one role is required.");
+        var grantsSuperAdmin = requestedNames.Contains(AppRoles.SuperAdmin, StringComparer.OrdinalIgnoreCase);
+        if (grantsSuperAdmin && !IsSuperAdmin(actor))
+            throw new UserManagementException("Company administrators cannot assign the SuperAdmin role.");
+        if (grantsSuperAdmin && target.CompanyId.HasValue)
+            throw new UserManagementException("SuperAdmin users must not belong to a company.");
+        if (!grantsSuperAdmin && !target.CompanyId.HasValue)
+            throw new UserManagementException("Non-SuperAdmin users must belong to a company.");
 
-       if (currentUser.CompanyId != null &&
-           user.CompanyId != currentUser.CompanyId)
-       {
-           throw new UserManagementException(
-               "You can only manage users in your own company.");
-       }
-
-       var requestedNames = request.Roles
-           .Distinct(StringComparer.OrdinalIgnoreCase)
-           .ToList();
-
-        var requestedRoleIds = await _dbContext.Roles
-            .Where(r => requestedNames.Contains(r.Name))
-            .Select(r => r.Id)
-            .ToListAsync(cancellationToken);
-
-        if (requestedRoleIds.Count != requestedNames.Count)
-        {
-            throw new UserManagementException(
-                "One or more selected roles are invalid.");
-        }
+        var requestedRoles = await ResolveRolesAsync(requestedNames, cancellationToken);
+        var requestedRoleIds = requestedRoles.Select(x => x.Id).ToList();
 
         var executionStrategy = _dbContext.Database.CreateExecutionStrategy();
 
@@ -551,30 +537,47 @@ public sealed class UserService : IUserService
 
         EnsureCanManage(actor, target);
 
-        target.DefaultSiteId = request.DefaultSiteId;
+        var sites = await ValidateSiteSelectionAsync(target, request.DefaultSiteId, request.SiteIds, cancellationToken);
+        var selectedIds = sites.Select(x => x.Id).ToHashSet();
+        var existing = await _dbContext.UserSiteAccesses.IgnoreQueryFilters()
+            .Where(x => x.UserId == target.Id).ToListAsync(cancellationToken);
 
-        // Delete directly in SQL (avoids EF tracking duplicates)
-        await _dbContext.UserSiteAccesses
-            .Where(x => x.UserId == target.Id)
-            .ExecuteDeleteAsync(cancellationToken);
-
-        // Insert unique site assignments
-        var uniqueSiteIds = request.SiteIds
-            .Where(x => x != Guid.Empty)
-            .Distinct()
-            .ToList();
-
-        foreach (var siteId in uniqueSiteIds)
+        foreach (var access in existing)
         {
+            if (access.CompanyId == target.CompanyId && selectedIds.Contains(access.SiteId))
+            {
+                access.IsDeleted = false;
+                access.DeletedAtUtc = null;
+                access.DeletedBy = null;
+                access.IsActive = true;
+                access.IsDefault = request.DefaultSiteId == access.SiteId;
+            }
+            else if (!access.IsDeleted)
+            {
+                access.IsActive = false;
+                access.IsDefault = false;
+                _dbContext.UserSiteAccesses.Remove(access);
+            }
+        }
+
+        foreach (var site in sites)
+        {
+            if (existing.Any(x => x.SiteId == site.Id && x.CompanyId == target.CompanyId))
+                continue;
             _dbContext.UserSiteAccesses.Add(new UserSiteAccess
             {
-                CompanyId = target.CompanyId!.Value,
+                Id = Guid.NewGuid(),
+                CompanyId = site.CompanyId,
                 UserId = target.Id,
-                SiteId = siteId,
-                IsActive = true
+                SiteId = site.Id,
+                Site = site,
+                IsActive = true,
+                IsDefault = request.DefaultSiteId == site.Id
             });
         }
 
+        // Persist the default together with its assignments in the same SaveChanges transaction.
+        target.DefaultSiteId = request.DefaultSiteId;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await WriteAuditAsync(
@@ -583,6 +586,22 @@ public sealed class UserService : IUserService
             "Update Sites",
             $"{request.SiteIds.Count} assigned site(s)",
             cancellationToken);
+    }
+
+    private async Task<List<ConstructionSite>> ValidateSiteSelectionAsync(
+        User target, Guid? defaultSiteId, IReadOnlyCollection<Guid>? siteIds, CancellationToken cancellationToken)
+    {
+        var uniqueIds = (siteIds ?? []).Distinct().ToArray();
+        if (uniqueIds.Length > 0 && !target.CompanyId.HasValue)
+            throw new UserManagementException("Site assignments require a user company.");
+        if (defaultSiteId.HasValue && !uniqueIds.Contains(defaultSiteId.Value))
+            throw new UserManagementException("The default site must be one of the assigned sites.");
+        var sites = await _dbContext.ConstructionSites
+            .Where(x => uniqueIds.Contains(x.Id) && x.CompanyId == target.CompanyId && x.IsActive)
+            .ToListAsync(cancellationToken);
+        if (sites.Count != uniqueIds.Length)
+            throw new UserManagementException("Selected sites must be active and belong to the user's company.");
+        return sites;
     }
 
     public async Task ActivateAsync(

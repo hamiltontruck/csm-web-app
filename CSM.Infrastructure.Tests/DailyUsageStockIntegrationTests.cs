@@ -241,7 +241,7 @@ public sealed class DailyUsageStockIntegrationTests
         Guid actorId = target.Id;
         if (actorRole == "CompanyAdmin")
         {
-            var actor = new User { CompanyId = target.CompanyId, Email = "companyadmin@example.test",
+            var actor = new User { CompanyId = target.CompanyId, Email = "companyadmin@example.test", NormalizedEmail = "COMPANYADMIN@EXAMPLE.TEST",
                 FirstName = "Company", LastName = "Admin", IsActive = true,
                 UserRoles = [new UserRole { Role = new Role { Name = AppRoles.CompanyAdmin, NormalizedName = "COMPANYADMIN" } }] };
             db.Users.Add(actor);
@@ -254,6 +254,25 @@ public sealed class DailyUsageStockIntegrationTests
         db.ChangeTracker.Clear();
         Assert.Equal("Storekeeper", (await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role)
             .SingleAsync(x => x.Id == target.Id)).UserRoles.Single().Role.Name);
+    }
+
+    [Fact]
+    public async Task Basic_profile_save_does_not_change_default_before_site_assignment_save()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var db = fixture.Db;
+        var target = await CreateManagedUserAsync(fixture);
+        var destination = new ConstructionSite { CompanyId = target.CompanyId!.Value,
+            SiteCode = "DEST", Name = "Destination" };
+        db.ConstructionSites.Add(destination);
+        await db.SaveChangesAsync();
+        await new UserService(db, new CSM.Infrastructure.Security.PasswordHasher()).UpdateAsync(
+            fixture.ActorId, target.Id, new CSM.Application.Users.Dtos.UpdateUserRequest(
+                "Test", "Storekeeper", null, "", "Storekeeper", destination.Id, true,
+                [fixture.SiteId, destination.Id]));
+        db.ChangeTracker.Clear();
+        Assert.Equal(fixture.SiteId, (await db.Users.SingleAsync(x => x.Id == target.Id)).DefaultSiteId);
+        Assert.Equal(fixture.SiteId, (await db.UserSiteAccesses.SingleAsync(x => x.UserId == target.Id)).SiteId);
     }
 
     private static async Task<CSM.Application.Users.Dtos.UserResponse> CreateManagedUserAsync(Fixture fixture)
