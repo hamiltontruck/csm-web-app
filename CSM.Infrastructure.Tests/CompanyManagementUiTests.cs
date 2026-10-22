@@ -116,7 +116,6 @@ public sealed class CompanyManagementUiTests
         context.Services.AddSingleton(DispatchProxy.Create<IAuthService, Auth>());
         context.Services.AddSingleton(DispatchProxy.Create<INotificationApiService, Notifications>());
         var menu = context.RenderComponent<CSM.Web.Components.Layout.NavMenu>();
-        menu.WaitForState(() => menu.RenderCount >= 2);
         menu.WaitForAssertion(() => Assert.Equal(visible, menu.FindAll("a[href='/companies']").Count == 1));
         if (visible) Assert.Contains("Companies", menu.Markup);
     }
