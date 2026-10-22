@@ -1,0 +1,189 @@
+@page "/companies"
+@using CSM.Web.Models.Companies
+@using CSM.Web.Services
+@inject CompanyWebService CompanyService
+
+<PageTitle>Company Management</PageTitle>
+
+<div class="container py-4">
+    <h2>Company Management</h2>
+    <p class="text-muted">Manage companies in your workspace.</p>
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(success))
+    {
+        <div class="alert alert-success" role="status">@success</div>
+    }
+    @if (loading)
+    {
+        <p role="status">Loading companies...</p>
+    }
+    else if (!canManage)
+    {
+        @if (signInRequired)
+        {
+            <a class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        }
+    }
+    else if (showForm)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h3>New Company</h3>
+                <EditForm Model="model" OnValidSubmit="SaveAsync">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+                    <fieldset disabled="@saving">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="company-code" class="form-label">Company Code</label>
+                                <InputText id="company-code" class="form-control" maxlength="30" @bind-Value="model.Code" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="company-name" class="form-label">Company Name</label>
+                                <InputText id="company-name" class="form-control" maxlength="200" @bind-Value="model.Name" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="company-currency" class="form-label">Base Currency</label>
+                                <InputText id="company-currency" class="form-control" maxlength="3" @bind-Value="model.BaseCurrencyCode" />
+                                <small class="text-muted">Three-letter currency code, for example ETB.</small>
+                            </div>
+                        </div>
+                        <h4 class="mt-4">Contact details <small class="text-muted fs-6">(optional)</small></h4>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="company-email" class="form-label">Email</label>
+                                <InputText id="company-email" type="email" class="form-control" @bind-Value="model.Email" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="company-phone" class="form-label">Phone</label>
+                                <InputText id="company-phone" class="form-control" @bind-Value="model.PhoneNumber" />
+                            </div>
+                            <div class="col-12">
+                                <label for="company-address" class="form-label">Address</label>
+                                <InputText id="company-address" class="form-control" @bind-Value="model.Address" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="company-city" class="form-label">City</label>
+                                <InputText id="company-city" class="form-control" @bind-Value="model.City" />
+                            </div>
+                            <div class="col-md-6">
+                                <label for="company-country" class="form-label">Country</label>
+                                <InputText id="company-country" class="form-control" @bind-Value="model.Country" />
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-4">
+                            <button id="save-company" type="submit" class="btn btn-primary" disabled="@saving">@(saving ? "Saving..." : "Save Company")</button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="Cancel">Cancel</button>
+                        </div>
+                    </fieldset>
+                </EditForm>
+            </div>
+        </div>
+    }
+    else
+    {
+        <button id="new-company" class="btn btn-primary mb-4" @onclick="NewCompany">New Company</button>
+        @if (companies.Count == 0)
+        {
+            <p>No companies yet. Create a company to get started.</p>
+        }
+        @foreach (var company in companies.OrderBy(x => x.Name))
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between gap-2">
+                        <h3 class="h5 mb-0">@company.Name</h3>
+                        <span class="badge @(company.IsActive ? "bg-success" : "bg-secondary") align-self-start">@(company.IsActive ? "Active" : "Inactive")</span>
+                    </div>
+                    <div class="text-muted mt-2">Code: @company.Code</div>
+                    <div class="mt-1">Currency: @company.BaseCurrencyCode</div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<CompanyModel> companies = [];
+    private CreateCompanyModel model = new();
+    private bool loading = true;
+    private bool canManage;
+    private bool showForm;
+    private bool saving;
+    private bool signInRequired;
+    private bool canRetry;
+    private string? error;
+    private string? success;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        signInRequired = false;
+        canRetry = false;
+        error = null;
+        try
+        {
+            companies = await CompanyService.GetAllAsync();
+            canManage = true;
+        }
+        catch (HttpRequestException ex) { HandleHttpError(ex); }
+        catch (TaskCanceledException) { error = "Loading companies timed out. Please try again."; canRetry = true; }
+        catch (Exception) { error = "Unable to load companies. Please try again."; canRetry = true; }
+        finally { loading = false; StateHasChanged(); }
+    }
+
+    private void NewCompany()
+    {
+        model = new();
+        error = null;
+        success = null;
+        showForm = true;
+    }
+
+    private void Cancel() { showForm = false; error = null; }
+
+    private async Task SaveAsync()
+    {
+        if (saving || !canManage) return;
+        saving = true;
+        error = null;
+        try
+        {
+            var company = await CompanyService.CreateAsync(model);
+            companies.Add(company);
+            showForm = false;
+            success = $"Company {company.Name} created successfully.";
+        }
+        catch (HttpRequestException ex) { HandleHttpError(ex); }
+        catch (TaskCanceledException) { error = "Saving timed out. Check the company list before trying again."; }
+        catch (Exception) { error = "Unable to save company. Check the company list before trying again."; }
+        finally { saving = false; }
+    }
+
+    private void HandleHttpError(HttpRequestException ex)
+    {
+        error = ex.StatusCode.HasValue ? ex.Message : "Unable to reach the company service. Please try again.";
+        if (ex.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+        {
+            canManage = false;
+            showForm = false;
+            companies = [];
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+        }
+        canRetry = !canManage && ex.StatusCode != System.Net.HttpStatusCode.Forbidden && !signInRequired;
+    }
+}

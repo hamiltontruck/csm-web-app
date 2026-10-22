@@ -11,7 +11,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.CompanyManagement)]
+[Authorize(Roles = CSM.Domain.Constants.AppRoles.SuperAdmin)]
 public sealed class CompaniesController : ControllerBase
 {
     private readonly ICompanyService _companyService;
