@@ -202,15 +202,40 @@ else
 
             </div>
 
-            <div class="card-body text-center py-5">
-
-                <h5>No Progress Recorded</h5>
-
-                <p class="text-muted">
-                    Site supervisors will submit daily production here.
-                </p>
-
-            </div>
+            @if (_history.Count == 0)
+            {
+                <div class="card-body text-center py-5">
+                    <h5>No Progress Recorded</h5>
+                    <p class="text-muted">
+                        Site supervisors will submit daily production here.
+                    </p>
+                </div>
+            }
+            else
+            {
+                <div class="card-body">
+                    @foreach (var record in _history)
+                    {
+                        var entry = record.Entry;
+                        <article class="border rounded p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                                <strong>@record.LogDate.ToString("dd MMM yyyy")</strong>
+                                <span class="badge bg-success">@entry.ProgressPercentage.ToString("0.##")%</span>
+                            </div>
+                            <p class="mb-2" style="white-space: pre-wrap;">@(string.IsNullOrWhiteSpace(entry.WorkCompleted) ? "No work description provided." : entry.WorkCompleted)</p>
+                            <div class="d-flex flex-wrap gap-3 text-muted small">
+                                <span>Labour: @entry.LabourCount</span>
+                                <span>Equipment: @entry.EquipmentCount</span>
+                                <span>Hours: @entry.EquipmentHours.ToString("0.0")</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(entry.Remarks))
+                            {
+                                <p class="mt-2 mb-0" style="white-space: pre-wrap;">@entry.Remarks</p>
+                            }
+                        </article>
+                    }
+                </div>
+            }
 
         </div>
 
@@ -228,6 +253,8 @@ else
     private List<DailyProgressLogResponse> _logs = new();
 
     private List<DailyProgressTaskEntryResponse> _entries = new();
+
+    private List<(DateTime LogDate, DailyProgressTaskEntryResponse Entry)> _history = new();
 
     private bool _loading = true;
     private bool _loaded;
@@ -261,17 +288,16 @@ else
             .OrderByDescending(x => x.LogDate)
             .ToList();
 
-        var allEntries = new List<DailyProgressTaskEntryResponse>();
-
+        _history.Clear();
         foreach (var log in _logs)
         {
             var entries = await ProjectService.GetTaskProgressEntriesAsync(log.Id);
-            allEntries.AddRange(entries);
+            _history.AddRange(entries
+                .Where(x => x.WorkTaskId == TaskId)
+                .Select(entry => (log.LogDate, entry)));
         }
 
-        _entries = allEntries
-            .Where(x => x.WorkTaskId == TaskId)
-            .ToList();
+        _entries = _history.Select(x => x.Entry).ToList();
 
         // Use the most recent log when adding another entry
         _dailyLogId = _logs
