@@ -76,7 +76,7 @@ public sealed class SupervisorProjectAccessTests
         await Assert.ThrowsAsync<ProjectPhaseManagementException>(() => phases.GetAllAsync(actor.Id, other.Id));
         await Assert.ThrowsAsync<DailyProgressLogManagementException>(() => logs.GetAllAsync(actor.Id, other.Id));
         await Assert.ThrowsAsync<ProjectPhaseManagementException>(() =>
-            phases.CreateAsync(actor.Id, new() { ProjectId = own.Id, Name = "Denied", Sequence = 1 }));
+            phases.CreateAsync(actor.Id, new(own.Id, "PH-000001", "Denied", null, 1, null, null)));
     }
 
     [Theory]
