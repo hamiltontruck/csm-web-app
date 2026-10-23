@@ -11,7 +11,7 @@ using CSM.Domain.Entities.Projects;
 using CSM.Infrastructure.Persistence;
 using CSM.Infrastructure.Services;
 using CSM.Web.Components.Pages;
-using CSM.Web.Models.Projects;
+using ProjectPhase = CSM.Web.Models.Projects.ProjectPhase;
 using CSM.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
