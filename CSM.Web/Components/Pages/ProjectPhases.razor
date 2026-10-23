@@ -16,6 +16,21 @@
         <p class="mt-3">Loading Work Breakdown Structure...</p>
     </div>
 }
+else if (_loadError is not null)
+{
+    <div class="container py-4">
+        <button class="btn btn-outline-secondary mb-3" @onclick="Back">← Project Details</button>
+        <div class="alert alert-danger" role="alert">@_loadError</div>
+        @if (_signInRequired)
+        {
+            <a class="btn btn-primary" href="/login">Sign in</a>
+        }
+        @if (_canRetry)
+        {
+            <button class="btn btn-primary" @onclick="LoadPhasesAsync">Retry</button>
+        }
+    </div>
+}
 else
 {
     <div class="container-fluid py-4">
@@ -239,6 +254,9 @@ else
 
     private bool _loading = true;
     private bool _loaded;
+    private string? _loadError;
+    private bool _canRetry;
+    private bool _signInRequired;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -247,11 +265,48 @@ else
 
         _loaded = true;
 
-        _phases = await ProjectService.GetProjectPhasesAsync(ProjectId);
+        await LoadPhasesAsync();
+    }
 
-        _loading = false;
-
-        StateHasChanged();
+    private async Task LoadPhasesAsync()
+    {
+        _loading = true;
+        _loadError = null;
+        _canRetry = false;
+        _signInRequired = false;
+        _phases.Clear();
+        try
+        {
+            _phases = await ProjectService.GetProjectPhasesAsync(ProjectId);
+        }
+        catch (HttpRequestException ex)
+        {
+            _signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            _canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            _loadError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view project phases.",
+                null => "Unable to reach the project service. Please try again.",
+                _ => "Unable to load project phases. Please try again."
+            };
+        }
+        catch (TaskCanceledException)
+        {
+            _loadError = "The project request timed out. Please try again.";
+            _canRetry = true;
+        }
+        catch (Exception)
+        {
+            _loadError = "Unable to load project phases. Please try again.";
+            _canRetry = true;
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
     }
 
     void Back()
