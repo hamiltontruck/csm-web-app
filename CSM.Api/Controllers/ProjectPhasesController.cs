@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.Projects.Phases;
 using CSM.Application.Projects.Phases.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProjectManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Supervisor)]
 public sealed class ProjectPhasesController : ControllerBase
 {
     private readonly IProjectPhaseService _phaseService;
@@ -63,6 +63,7 @@ public sealed class ProjectPhasesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<ProjectPhaseResponse>> Create(
         CreateProjectPhaseRequest request,
         CancellationToken cancellationToken)
@@ -86,6 +87,7 @@ public sealed class ProjectPhasesController : ControllerBase
     }
 
     [HttpPut("{phaseId:guid}")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<ProjectPhaseResponse>> Update(
         Guid phaseId,
         UpdateProjectPhaseRequest request,
@@ -108,6 +110,7 @@ public sealed class ProjectPhasesController : ControllerBase
     }
 
     [HttpPut("{phaseId:guid}/status")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<ProjectPhaseResponse>> ChangeStatus(
         Guid phaseId,
         ChangeProjectPhaseStatusRequest request,
