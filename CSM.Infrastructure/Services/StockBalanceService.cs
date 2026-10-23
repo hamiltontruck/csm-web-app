@@ -29,7 +29,7 @@ public sealed class StockBalanceService : IStockBalanceService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        EnsureCanRead(actor);
 
         var query = BuildQuery();
 
@@ -39,6 +39,12 @@ public sealed class StockBalanceService : IStockBalanceService
 
             query = query.Where(
                 x => x.CompanyId == companyId);
+        }
+
+        if (IsSiteScopedSupervisor(actor))
+        {
+            var allowedSites = GetSupervisorSiteIds(actor);
+            query = query.Where(x => allowedSites.Contains(x.ConstructionSiteId));
         }
 
         if (constructionSiteId.HasValue)
@@ -74,9 +80,17 @@ public sealed class StockBalanceService : IStockBalanceService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        EnsureCanRead(actor);
 
-        var record = await BuildQuery()
+        var query = BuildQuery();
+
+        if (IsSiteScopedSupervisor(actor))
+        {
+            var allowedSites = GetSupervisorSiteIds(actor);
+            query = query.Where(x => allowedSites.Contains(x.ConstructionSiteId));
+        }
+
+        var record = await query
             .SingleOrDefaultAsync(
                 x => x.Id == stockItemId,
                 cancellationToken)
@@ -88,6 +102,21 @@ public sealed class StockBalanceService : IStockBalanceService
             record.CompanyId);
 
         return Map(record);
+    }
+
+    private static bool IsSiteScopedSupervisor(User actor) =>
+        HasRole(actor, AppRoles.Supervisor) &&
+        !IsSuperAdmin(actor) &&
+        !HasRole(actor, AppRoles.Storekeeper) &&
+        !HasRole(actor, AppRoles.ProcurementOfficer);
+
+    private IQueryable<Guid> GetSupervisorSiteIds(User actor)
+    {
+        var companyId = GetActorCompanyId(actor);
+        return _dbContext.UserSiteAccesses
+            .Where(x => x.UserId == actor.Id && x.CompanyId == companyId &&
+                x.IsActive && x.Site.IsActive && x.Site.CompanyId == companyId)
+            .Select(x => x.SiteId);
     }
 
     private IQueryable<StockItem> BuildQuery()
@@ -112,9 +141,13 @@ public sealed class StockBalanceService : IStockBalanceService
                 "Authenticated user was not found.");
     }
 
-    private static void EnsureCanManage(User actor)
+    private static void EnsureCanRead(User actor)
     {
+        if (!actor.IsActive)
+            throw new StockBalanceManagementException("You are not authorized to access stock balances.");
+
         if (IsSuperAdmin(actor) ||
+            HasRole(actor, AppRoles.Supervisor) ||
             HasRole(actor, AppRoles.Storekeeper) ||
             HasRole(actor, AppRoles.ProcurementOfficer))
         {

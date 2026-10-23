@@ -42,10 +42,15 @@ public sealed class StockBalancesController : ControllerBase
         }
         catch (StockBalanceManagementException ex)
         {
-            return BadRequest(new
+            var status = ex.Message switch
             {
-                message = ex.Message
-            });
+                "You are not authorized to access stock balances." or
+                "You are not authorized to access this stock balance." or
+                "Current user is not assigned to a company." => StatusCodes.Status403Forbidden,
+                "Stock balance was not found." => StatusCodes.Status404NotFound,
+                _ => StatusCodes.Status400BadRequest
+            };
+            return StatusCode(status, new { message = ex.Message });
         }
     }
 
@@ -67,10 +72,15 @@ public sealed class StockBalancesController : ControllerBase
         }
         catch (StockBalanceManagementException ex)
         {
-            return BadRequest(new
+            var status = ex.Message switch
             {
-                message = ex.Message
-            });
+                "You are not authorized to access stock balances." or
+                "You are not authorized to access this stock balance." or
+                "Current user is not assigned to a company." => StatusCodes.Status403Forbidden,
+                "Stock balance was not found." => StatusCodes.Status404NotFound,
+                _ => StatusCodes.Status400BadRequest
+            };
+            return StatusCode(status, new { message = ex.Message });
         }
     }
 
