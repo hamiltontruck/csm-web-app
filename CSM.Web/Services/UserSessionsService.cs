@@ -1,6 +1,7 @@
 
 using System.Net.Http.Json;
 using CSM.Web.Models.Security;
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 
 namespace CSM.Web.Services;
 
@@ -8,6 +9,7 @@ public sealed class UserSessionsService
 {
     private readonly IHttpClientFactory _factory;
     private readonly IAuthService _authService;
+    private readonly ProtectedSessionStorage _sessionStorage;
 
     public UserSessionsService(
         IHttpClientFactory factory,
@@ -23,7 +25,7 @@ public sealed class UserSessionsService
         var client = _factory.CreateClient("CSM.Api");
         await _authService.ApplyAuthenticationAsync(client);
 
-        var refreshToken = await _authService.GetRefreshTokenAsync();
+        var refreshToken = await GetRefreshTokenAsync();
 
         if (!string.IsNullOrWhiteSpace(refreshToken))
         {
@@ -52,7 +54,7 @@ public sealed class UserSessionsService
         var client = _factory.CreateClient("CSM.Api");
         await _authService.ApplyAuthenticationAsync(client);
 
-        var refreshToken = await _authService.GetRefreshTokenAsync();
+        var refreshToken = await GetRefreshTokenAsync();
 
         if (!string.IsNullOrWhiteSpace(refreshToken))
         {
@@ -76,7 +78,7 @@ public async Task<int> RevokeOtherSessionsAsync(
     var client = _factory.CreateClient("CSM.Api");
     await _authService.ApplyAuthenticationAsync(client);
 
-    var refreshToken = await _authService.GetRefreshTokenAsync();
+    var refreshToken = await GetRefreshTokenAsync();
 
     if (string.IsNullOrWhiteSpace(refreshToken))
     {
@@ -100,6 +102,14 @@ public async Task<int> RevokeOtherSessionsAsync(
         cancellationToken: cancellationToken);
 
     return result?.RevokedCount ?? 0;
+}
+
+private async Task<string?> GetRefreshTokenAsync()
+{
+    var result = await _sessionStorage.GetAsync<string>("refreshToken");
+    return result.Success && !string.IsNullOrWhiteSpace(result.Value)
+        ? result.Value
+        : null;
 }
 
 private sealed class RevokeOtherSessionsResponse
