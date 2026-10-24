@@ -1,4 +1,9 @@
 using System.Reflection;
+using System.Net;
+using System.Security.Claims;
+using CSM.Api.Controllers;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Bunit;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.StockIssues.Dtos;
@@ -133,6 +138,44 @@ public sealed class StockIssueAccessTests
         Assert.Equal(balance, db.StockItems.Single().QuantityOnHand);
     }
 
+
+    [Fact]
+    public async Task Supervisor_denial_returns_403_and_cannot_change_own_company_stock()
+    {
+        using var db = Database(AppRoles.Supervisor);
+        db.Users.Single().CompanyId = db.StockItems.Single().CompanyId;
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        var controller = new StockIssuesController(new StockIssueService(db, new Notifications())) {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, ActorId.ToString())], "test")) } } };
+        var list = await controller.GetAll(default);
+        var detail = await controller.GetById(Guid.NewGuid(), default);
+        var create = await controller.Create(Request(), default);
+        Assert.Equal(403, Assert.IsType<ObjectResult>(list.Result).StatusCode);
+        Assert.Equal(403, Assert.IsType<ObjectResult>(detail.Result).StatusCode);
+        Assert.Equal(403, Assert.IsType<ObjectResult>(create.Result).StatusCode);
+        Assert.Equal(10m, db.StockItems.Single().QuantityOnHand);
+        Assert.Empty(db.StockMovements);
+    }
+
+    [Theory]
+    [InlineData(401, "Your session is missing or has expired. Please sign in again.")]
+    [InlineData(403, "You do not have permission to view stock issues.")]
+    public void Site_issues_page_shows_auth_feedback_without_retry_or_issue_controls(int status, string expected)
+    {
+        using var context = new TestContext();
+        var inventory = DispatchProxy.Create<IInventoryService, InventoryProxy>();
+        ((InventoryProxy)(object)inventory).Status = (HttpStatusCode)status;
+        context.Services.AddSingleton(inventory);
+        var page = context.RenderComponent<StockIssuesSite>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Equal(expected, Assert.Single(page.FindAll("[role=alert]")).TextContent.Trim()));
+        Assert.Empty(page.FindAll("#retry-stock-issues"));
+        Assert.DoesNotContain("New Issue", page.Markup);
+        Assert.DoesNotContain("No stock issues for this site.", page.Markup);
+        Assert.DoesNotContain("private API error", page.Markup);
+        Assert.Equal(status == 401, page.FindAll("#stock-issues-sign-in").Count == 1);
+    }
+
     private static readonly Guid ActorId = Guid.NewGuid();
     private static readonly Guid SiteId = Guid.NewGuid();
     private static readonly Guid MaterialId = Guid.NewGuid();
@@ -173,7 +216,9 @@ public sealed class StockIssueAccessTests
     public class InventoryProxy : DispatchProxy
     {
         public bool Fail { get; set; }
+        public HttpStatusCode? Status { get; set; }
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Status.HasValue ? Task.FromException<List<CSM.Web.Models.Procurement.StockIssueResponse>>(new HttpRequestException("private API error", null, Status)) :
             Fail ? Task.FromException<List<CSM.Web.Models.Procurement.StockIssueResponse>>(new HttpRequestException("400 Bad Request")) :
             Task.FromResult(new List<CSM.Web.Models.Procurement.StockIssueResponse> {
                 new() { ConstructionSiteId = SiteId, MaterialName = "Cement", ReferenceNumber = "ISS-001", QuantityIssued = 2m },

@@ -37,10 +37,7 @@ public sealed class StockIssuesController : ControllerBase
         }
         catch (StockIssueManagementException ex)
         {
-            return BadRequest(new
-            {
-                message = ex.Message
-            });
+            return IssueError(ex);
         }
     }
 
@@ -62,10 +59,7 @@ public sealed class StockIssuesController : ControllerBase
         }
         catch (StockIssueManagementException ex)
         {
-            return BadRequest(new
-            {
-                message = ex.Message
-            });
+            return IssueError(ex);
         }
     }
 
@@ -87,11 +81,20 @@ public sealed class StockIssuesController : ControllerBase
         }
         catch (StockIssueManagementException ex)
         {
-            return BadRequest(new
-            {
-                message = ex.Message
-            });
+            return IssueError(ex);
         }
+    }
+
+    private ObjectResult IssueError(StockIssueManagementException ex)
+    {
+        var status = ex.Message switch
+        {
+            "You are not authorized to manage stock issues." or
+            "You are not authorized to access this company stock." or
+            "Current user is not assigned to a company." => StatusCodes.Status403Forbidden,
+            _ => StatusCodes.Status400BadRequest
+        };
+        return StatusCode(status, new { message = ex.Message });
     }
 
     private Guid GetCurrentUserId()
