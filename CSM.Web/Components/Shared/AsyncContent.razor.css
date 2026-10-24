@@ -1,0 +1,66 @@
+.csm-content-state {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border: 1px solid var(--csm-border, #dee2e6);
+    border-radius: .875rem;
+    background: var(--csm-surface, #fff);
+    color: var(--csm-text, #1f2937);
+}
+
+.csm-content-state-loading {
+    min-height: 5rem;
+    align-items: center;
+    justify-content: center;
+    color: var(--csm-muted, #6b7280);
+}
+
+.csm-content-state-error {
+    border-color: color-mix(in srgb, #b42318 35%, var(--csm-border, #dee2e6));
+}
+
+.csm-content-state-icon {
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: .75rem;
+    background: color-mix(in srgb, #64748b 10%, transparent);
+    color: #475569;
+    font-size: 1.2rem;
+}
+
+.csm-content-state-error .csm-content-state-icon {
+    background: color-mix(in srgb, #b42318 10%, transparent);
+    color: #b42318;
+}
+
+.csm-content-state-copy {
+    min-width: 0;
+}
+
+.csm-content-state-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.csm-content-state-description {
+    margin: .35rem 0 .75rem;
+    color: var(--csm-muted, #6b7280);
+}
+
+.csm-content-state-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+@media (max-width: 480px) {
+    .csm-content-state {
+        gap: .75rem;
+        padding: 1rem;
+    }
+}

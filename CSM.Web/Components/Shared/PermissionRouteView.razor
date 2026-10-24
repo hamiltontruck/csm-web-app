@@ -1,0 +1,110 @@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Routing
+@using CSM.Web.Services
+
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ILogger<PermissionRouteView> Logger
+
+@if (_loading)
+{
+    <main class="container py-5" role="status" aria-live="polite">
+        Checking access...
+    </main>
+}
+else if (_isAllowed)
+{
+    <RouteView RouteData="RouteData" DefaultLayout="DefaultLayout" />
+    <FocusOnNavigate RouteData="RouteData" Selector="h1" />
+}
+else if (_permissionCheckFailed)
+{
+    <LayoutView Layout="DefaultLayout">
+        <main class="container py-5">
+            <section class="alert alert-danger" role="alert">
+                <h1 class="h4">Access could not be verified</h1>
+                <p class="mb-3">
+                    The permission service is temporarily unavailable.
+                    Please try again.
+                </p>
+                <button class="btn btn-outline-primary"
+                        @onclick="RetryPermissionCheckAsync">
+                    Retry
+                </button>
+            </section>
+        </main>
+    </LayoutView>
+}
+else
+{
+    <LayoutView Layout="DefaultLayout">
+        <main class="container py-5">
+            <section class="alert alert-warning" role="alert">
+                <h1 class="h4">Access not available</h1>
+                <p class="mb-3">
+                    Your account does not have permission to open this page.
+                    Contact your administrator if you believe you need access.
+                </p>
+                <a class="btn btn-outline-primary" href="/dashboard">
+                    Return to dashboard
+                </a>
+            </section>
+        </main>
+    </LayoutView>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public RouteData RouteData { get; set; } = default!;
+
+    [Parameter]
+    public Type? DefaultLayout { get; set; }
+
+    private bool _loading = true;
+    private bool _isAllowed;
+    private bool _permissionCheckFailed;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _permissionCheckFailed = false;
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var required =
+            PermissionRoutePolicy.GetRequiredPermissions(path);
+
+        if (required.Count == 0)
+        {
+            _isAllowed = true;
+        }
+        else
+        {
+            try
+            {
+                var token = await AuthService.GetTokenAsync();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+
+                var permissions = await AuthService.GetPermissionsAsync();
+                _isAllowed = required.Any(permissions.Contains);
+            }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogWarning(
+                    ex,
+                    "Could not verify permissions for route {Route}.",
+                    path);
+                _permissionCheckFailed = true;
+            }
+        }
+
+        _loading = false;
+    }
+
+    private async Task RetryPermissionCheckAsync()
+    {
+        await OnParametersSetAsync();
+    }
+}

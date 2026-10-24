@@ -1,0 +1,24 @@
+@using CSM.Web.Services
+
+@inject IAuthService AuthService
+
+@if (_hasPermission)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string[] AnyOf { get; set; } = [];
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool _hasPermission;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var permissions = await AuthService.GetPermissionsAsync();
+        _hasPermission = AnyOf.Any(permissions.Contains);
+    }
+}

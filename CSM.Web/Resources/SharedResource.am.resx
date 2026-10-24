@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="Settings.General.Title" xml:space="preserve">
+    <value>አጠቃላይ ምርጫዎች</value>
+  </data>
+  <data name="Settings.General.Description" xml:space="preserve">
+    <value>ከConstruction Site Management ጋር የሚያደርጉትን ግንኙነት ያዋቅሩ።</value>
+  </data>
+  <data name="Settings.General.WorkspaceTitle" xml:space="preserve">
+    <value>የሥራ ቦታ ምርጫዎች</value>
+  </data>
+  <data name="Settings.General.WorkspaceDescription" xml:space="preserve">
+    <value>የመተግበሪያውን ነባሪ የአጠቃቀም ሁኔታ ይቆጣጠሩ።</value>
+  </data>
+  <data name="Settings.General.CompactInterface" xml:space="preserve">
+    <value>የታመቀ በይነገጽ</value>
+  </data>
+  <data name="Settings.General.CompactInterfaceDescription" xml:space="preserve">
+    <value>በስክሪኑ ላይ ተጨማሪ መረጃ ለማሳየት ክፍተቶችን ይቀንሱ።</value>
+  </data>
+  <data name="Settings.General.ConfirmationPrompts" xml:space="preserve">
+    <value>የማረጋገጫ ጥያቄዎች</value>
+  </data>
+  <data name="Settings.General.ConfirmationPromptsDescription" xml:space="preserve">
+    <value>ሊያጠፉ የሚችሉ እርምጃዎችን ከመፈጸምዎ በፊት ተጨማሪ ማረጋገጫ ያሳዩ።</value>
+  </data>
+  <data name="Settings.General.RememberNavigation" xml:space="preserve">
+    <value>የተስፋፉ አሰሳዎችን አስታውስ</value>
+  </data>
+  <data name="Settings.General.RememberNavigationDescription" xml:space="preserve">
+    <value>መተግበሪያውን ሲጠቀሙ የአሰሳ ቡድኖችን እንደተስፋፉ ያቆዩ።</value>
+  </data>
+
+  <data name="Settings.Regional.Title" xml:space="preserve">
+    <value>የክልል ምርጫዎች</value>
+  </data>
+  <data name="Settings.Regional.Description" xml:space="preserve">
+    <value>ቀኖች፣ ሰዓቶች እና ቁጥሮች እንዴት እንደሚታዩ ይምረጡ።</value>
+  </data>
+  <data name="Settings.Regional.DisplayLanguage" xml:space="preserve">
+    <value>የማሳያ ቋንቋ</value>
+  </data>
+  <data name="Settings.Regional.LanguageDescription" xml:space="preserve">
+    <value>በCSM ውስጥ የሚጠቀሙበትን ቋንቋ ይምረጡ።</value>
+  </data>
+  <data name="Settings.Regional.DateFormat" xml:space="preserve">
+    <value>የቀን ቅርጸት</value>
+  </data>
+  <data name="Settings.Regional.TimeFormat" xml:space="preserve">
+    <value>የሰዓት ቅርጸት</value>
+  </data>
+
+  <data name="Settings.Language.English" xml:space="preserve">
+    <value>እንግሊዝኛ</value>
+  </data>
+  <data name="Settings.Language.Amharic" xml:space="preserve">
+    <value>አማርኛ</value>
+  </data>
+  <data name="Settings.Language.AfanOromo" xml:space="preserve">
+    <value>አፋን ኦሮሞ</value>
+  </data>
+
+  <data name="Settings.TimeFormat.24Hour" xml:space="preserve">
+    <value>24 ሰዓት</value>
+  </data>
+  <data name="Settings.TimeFormat.12Hour" xml:space="preserve">
+    <value>12 ሰዓት</value>
+  </data>
+
+  <data name="Settings.Appearance.Title" xml:space="preserve">
+    <value>መልክ</value>
+  </data>
+  <data name="Settings.Appearance.Description" xml:space="preserve">
+    <value>የCSM የእይታ አቀራረብን ያበጁ።</value>
+  </data>
+  <data name="Settings.Appearance.ThemeTitle" xml:space="preserve">
+    <value>የማሳያ ገጽታ</value>
+  </data>
+  <data name="Settings.Appearance.ThemeDescription" xml:space="preserve">
+    <value>የሚመርጡትን የበይነገጽ ገጽታ ይምረጡ።</value>
+  </data>
+  <data name="Settings.Appearance.CompactInterface" xml:space="preserve">
+    <value>የታመቀ በይነገጽ</value>
+  </data>
+  <data name="Settings.Appearance.CompactInterfaceDescription" xml:space="preserve">
+    <value>ለሰንጠረዦች እና ለዳሽቦርድ ካርዶች የተጠበበ አቀማመጥ ይጠቀሙ።</value>
+  </data>
+  <data name="Settings.Appearance.ThemeInfo" xml:space="preserve">
+    <value>የገጽታ ምርጫ በአሁኑ ጊዜ የዚህን ገጽ የምርጫ ሁኔታ ብቻ ይቀይራል።</value>
+  </data>
+  <data name="Settings.Appearance.ThemeInfoDetails" xml:space="preserve">
+    <value>በመተግበሪያው ሁሉ የገጽታ ማስፈን ከጋራ አቀማመጥ ጋር ውህደት ይፈልጋል።</value>
+  </data>
+
+  <data name="Settings.Theme.Light" xml:space="preserve">
+    <value>ብርሃን</value>
+  </data>
+  <data name="Settings.Theme.LightDescription" xml:space="preserve">
+    <value>ብሩህ የሥራ ቦታ</value>
+  </data>
+  <data name="Settings.Theme.Dark" xml:space="preserve">
+    <value>ጨለማ</value>
+  </data>
+  <data name="Settings.Theme.DarkDescription" xml:space="preserve">
+    <value>ለዝቅተኛ ብርሃን የሚስማማ የሥራ ቦታ</value>
+  </data>
+  <data name="Settings.Theme.System" xml:space="preserve">
+    <value>ሲስተም</value>
+  </data>
+  <data name="Settings.Theme.SystemDescription" xml:space="preserve">
+    <value>የመሣሪያውን ቅንብሮች ይከተሉ</value>
+  </data>
+
+  <data name="Settings.Notifications.Title" xml:space="preserve">
+    <value>የማሳወቂያ ምርጫዎች</value>
+  </data>
+  <data name="Settings.Notifications.Description" xml:space="preserve">
+    <value>መቀበል የሚፈልጉትን የዝማኔ ምድቦች ይምረጡ።</value>
+  </data>
+  <data name="Settings.Notifications.OperationalTitle" xml:space="preserve">
+    <value>የሥራ ማሳወቂያዎች</value>
+  </data>
+  <data name="Settings.Notifications.OperationalDescription" xml:space="preserve">
+    <value>ስለ የግንባታ ቦታ እንቅስቃሴ ወቅታዊ መረጃ ያግኙ።</value>
+  </data>
+  <data name="Settings.Notifications.ProjectUpdates" xml:space="preserve">
+    <value>የፕሮጀክት ዝማኔዎች</value>
+  </data>
+  <data name="Settings.Notifications.ProjectUpdatesDescription" xml:space="preserve">
+    <value>የፕሮጀክት ዋና ዋና ደረጃዎች፣ የሂደት ለውጦች እና የመጨረሻ ቀናት።</value>
+  </data>
+  <data name="Settings.Notifications.ApprovalRequests" xml:space="preserve">
+    <value>የማጽደቅ ጥያቄዎች</value>
+  </data>
+  <data name="Settings.Notifications.ApprovalRequestsDescription" xml:space="preserve">
+    <value>ትኩረትዎን የሚፈልጉ በመጠባበቅ ላይ ያሉ ማጽደቂያዎች።</value>
+  </data>
+  <data name="Settings.Notifications.InventoryAlerts" xml:space="preserve">
+    <value>የእቃ ክምችት ማሳወቂያዎች</value>
+  </data>
+  <data name="Settings.Notifications.InventoryAlertsDescription" xml:space="preserve">
+    <value>ዝቅተኛ ክምችት፣ የቁሳቁስ ጥያቄዎች እና የማድረስ ዝማኔዎች።</value>
+  </data>
+  <data name="Settings.Notifications.HrAttendance" xml:space="preserve">
+    <value>የሰው ኃይል እና የመገኘት ዝማኔዎች</value>
+  </data>
+  <data name="Settings.Notifications.HrAttendanceDescription" xml:space="preserve">
+    <value>መገኘት፣ የፈቃድ ጥያቄዎች እና የሰው ኃይል ዝማኔዎች።</value>
+  </data>
+  <data name="Settings.Notifications.FinancialAlerts" xml:space="preserve">
+    <value>የፋይናንስ ማሳወቂያዎች</value>
+  </data>
+  <data name="Settings.Notifications.FinancialAlertsDescription" xml:space="preserve">
+    <value>የበጀት ለውጦች፣ ወጪዎች እና የፋይናንስ ማጽደቂያዎች።</value>
+  </data>
+  <data name="Settings.Notifications.DeliveryChannelsTitle" xml:space="preserve">
+    <value>የማድረሻ መንገዶች</value>
+  </data>
+  <data name="Settings.Notifications.DeliveryChannelsDescription" xml:space="preserve">
+    <value>የሚመርጧቸውን የማሳወቂያ መንገዶች ያዋቅሩ።</value>
+  </data>
+  <data name="Settings.Notifications.InApp" xml:space="preserve">
+    <value>የውስጥ-መተግበሪያ ማሳወቂያዎች</value>
+  </data>
+  <data name="Settings.Notifications.InAppDescription" xml:space="preserve">
+    <value>በCSM መተግበሪያ ውስጥ ማሳወቂያዎችን ያሳዩ።</value>
+  </data>
+  <data name="Settings.Notifications.Email" xml:space="preserve">
+    <value>የኢሜይል ማሳወቂያዎች</value>
+  </data>
+  <data name="Settings.Notifications.EmailDescription" xml:space="preserve">
+    <value>የሚደገፉ ዝማኔዎችን በኢሜይል ይቀበሉ።</value>
+  </data>
+  <data name="Settings.Notifications.Info" xml:space="preserve">
+    <value>እነዚህ ቁጥጥሮች የማሳወቂያ ምርጫዎች ከቋሚ ማከማቻ እና ከማሳወቂያ አገልግሎቱ ጋር እስኪገናኙ ድረስ የገጹን ሁኔታ ብቻ ያዋቅራሉ።</value>
+  </data>
+</root>
