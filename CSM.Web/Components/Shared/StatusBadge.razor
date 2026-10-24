@@ -1,0 +1,11 @@
+<span class="csm-status-badge csm-status-badge-@Tone.ToString().ToLowerInvariant()">
+    @Label
+</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public StatusBadgeTone Tone { get; set; } = StatusBadgeTone.Neutral;
+}

@@ -1,0 +1,197 @@
+.equipment-page {
+    --equipment-accent: #2563eb;
+    --equipment-accent-soft: rgba(37, 99, 235, .08);
+    --equipment-border: var(--csm-border, #dee2e6);
+    --equipment-surface: var(--csm-surface, #ffffff);
+    --equipment-text: var(--csm-text, #1f2937);
+    --equipment-muted: var(--csm-muted, #6b7280);
+    max-width: 1420px;
+    margin: 0 auto;
+    padding: 2rem clamp(1rem, 2.5vw, 2.5rem) 3rem;
+}
+
+.equipment-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.7rem;
+}
+
+.equipment-eyebrow {
+    margin-bottom: .3rem;
+    color: var(--equipment-accent);
+    font-size: .68rem;
+    font-weight: 750;
+    letter-spacing: .14em;
+}
+
+.equipment-header h1 {
+    margin: 0;
+    color: var(--equipment-text);
+    font-size: clamp(1.8rem, 3vw, 2.35rem);
+    font-weight: 750;
+    letter-spacing: -.04em;
+}
+
+.equipment-header p {
+    margin: .45rem 0 0;
+    color: var(--equipment-muted);
+    font-size: .9rem;
+}
+
+.equipment-back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 2.7rem;
+    padding: .6rem .9rem;
+    border: 1px solid var(--equipment-border);
+    border-radius: .7rem;
+    background: var(--equipment-surface);
+    color: var(--equipment-text);
+    font-size: .86rem;
+    font-weight: 650;
+    transition: border-color .15s ease, background-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+.equipment-back-button:hover {
+    border-color: var(--equipment-accent);
+    background: rgba(37, 99, 235, .06);
+    color: var(--equipment-accent);
+}
+
+.equipment-back-button:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, .38);
+    outline-offset: 2px;
+}
+
+.equipment-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.equipment-card-skeleton {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-height: 156px;
+    padding: 1rem 1.1rem 1rem 1rem;
+    border: 1px solid var(--equipment-border);
+    border-radius: 1rem;
+    background: var(--equipment-surface);
+}
+
+.skeleton-icon,
+.skeleton-copy span {
+    display: block;
+    background: linear-gradient(90deg, rgba(128, 138, 156, .12), rgba(128, 138, 156, .22), rgba(128, 138, 156, .12));
+    background-size: 200% 100%;
+    animation: equipment-skeleton 1.4s ease-in-out infinite;
+}
+
+.skeleton-icon {
+    width: 3.15rem;
+    height: 3.15rem;
+    flex: 0 0 auto;
+    border-radius: .9rem;
+}
+
+.skeleton-copy {
+    display: grid;
+    flex: 1;
+    gap: .65rem;
+}
+
+.skeleton-copy span {
+    height: .8rem;
+    border-radius: 999px;
+}
+
+.skeleton-copy span:first-child {
+    width: 48%;
+}
+
+.skeleton-copy span:last-child {
+    width: 82%;
+}
+
+.equipment-state {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    max-width: 680px;
+    margin: 3rem auto;
+    padding: 1.5rem;
+    border: 1px solid var(--equipment-border);
+    border-radius: 1rem;
+    background: var(--equipment-surface);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, .04);
+}
+
+.equipment-state-icon {
+    display: grid;
+    width: 2.8rem;
+    height: 2.8rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: .8rem;
+    background: rgba(220, 38, 38, .09);
+    color: #dc2626;
+    font-size: 1.2rem;
+}
+
+.equipment-state h2 {
+    margin: .1rem 0 .4rem;
+    color: var(--equipment-text);
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.equipment-state p {
+    margin: 0 0 .9rem;
+    color: var(--equipment-muted);
+    font-size: .88rem;
+}
+
+.equipment-retry-button {
+    border-radius: .65rem;
+    font-size: .85rem;
+    font-weight: 650;
+}
+
+@keyframes equipment-skeleton {
+    to {
+        background-position: -200% 0;
+    }
+}
+
+@media (max-width: 980px) {
+    .equipment-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .equipment-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .equipment-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .equipment-card-skeleton {
+        min-height: 138px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton-icon,
+    .skeleton-copy span {
+        animation: none;
+    }
+}

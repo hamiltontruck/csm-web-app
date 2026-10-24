@@ -1,0 +1,35 @@
+<a class="navigation-card @ToneClass @Class"
+   href="@Href">
+    <span class="navigation-card-icon" aria-hidden="true">
+        <i class="@IconClass"></i>
+    </span>
+    <span class="navigation-card-copy">
+        <span class="navigation-card-title">@Title</span>
+        <span class="navigation-card-description">@Description</span>
+    </span>
+    <span class="navigation-card-arrow" aria-hidden="true">
+        <i class="bi bi-chevron-right"></i>
+    </span>
+</a>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Href { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Description { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string IconClass { get; set; } = string.Empty;
+
+    [Parameter]
+    public NavigationCardTone Tone { get; set; } = NavigationCardTone.Blue;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private string ToneClass => $"navigation-card-{Tone.ToString().ToLowerInvariant()}";
+}

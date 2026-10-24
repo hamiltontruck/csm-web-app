@@ -1,0 +1,103 @@
+@if (IsLoading)
+{
+    <div class="csm-content-state csm-content-state-loading"
+         role="status"
+         aria-live="polite"
+         aria-busy="true">
+        <span class="spinner-border spinner-border-sm"
+              aria-hidden="true"></span>
+        <span>@LoadingText</span>
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(Error))
+{
+    <section class="csm-content-state csm-content-state-error"
+             role="alert">
+        <div class="csm-content-state-icon" aria-hidden="true">
+            <i class="bi bi-exclamation-triangle"></i>
+        </div>
+        <div class="csm-content-state-copy">
+            <h2 class="csm-content-state-title">@ErrorTitle</h2>
+            <p class="csm-content-state-description">@Error</p>
+            @if (OnRetry.HasDelegate)
+            {
+                <button type="button"
+                        class="btn btn-outline-danger"
+                        @onclick="OnRetry">
+                    @RetryText
+                </button>
+            }
+        </div>
+    </section>
+}
+else if (IsEmpty)
+{
+    <section class="csm-content-state csm-content-state-empty"
+             aria-labelledby="@_emptyHeadingId">
+        <div class="csm-content-state-icon" aria-hidden="true">
+            <i class="@EmptyIconClass"></i>
+        </div>
+        <div class="csm-content-state-copy">
+            <h2 id="@_emptyHeadingId" class="csm-content-state-title">
+                @EmptyTitle
+            </h2>
+            @if (!string.IsNullOrWhiteSpace(EmptyDescription))
+            {
+                <p class="csm-content-state-description">
+                    @EmptyDescription
+                </p>
+            }
+            @if (EmptyActions is not null)
+            {
+                <div class="csm-content-state-actions">
+                    @EmptyActions
+                </div>
+            }
+        </div>
+    </section>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    private readonly string _emptyHeadingId =
+        $"csm-empty-{Guid.NewGuid():N}";
+
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public bool IsEmpty { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public string LoadingText { get; set; } = "Loading...";
+
+    [Parameter]
+    public string ErrorTitle { get; set; } = "Something went wrong";
+
+    [Parameter]
+    public string RetryText { get; set; } = "Try again";
+
+    [Parameter]
+    public string EmptyTitle { get; set; } = "Nothing here yet";
+
+    [Parameter]
+    public string? EmptyDescription { get; set; }
+
+    [Parameter]
+    public string EmptyIconClass { get; set; } = "bi bi-inbox";
+
+    [Parameter]
+    public EventCallback OnRetry { get; set; }
+
+    [Parameter]
+    public RenderFragment? EmptyActions { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

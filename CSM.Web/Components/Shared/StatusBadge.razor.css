@@ -1,0 +1,58 @@
+.csm-status-badge {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    padding: .25rem .6rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.csm-status-badge-neutral {
+    border-color: var(--csm-border, #dee2e6);
+    background: color-mix(in srgb, var(--csm-muted, #6b7280) 10%, transparent);
+    color: var(--csm-text, #1f2937);
+}
+
+.csm-status-badge-info {
+    border-color: color-mix(in srgb, #175cd3 25%, transparent);
+    background: color-mix(in srgb, #175cd3 10%, transparent);
+    color: #175cd3;
+}
+
+.csm-status-badge-success {
+    border-color: color-mix(in srgb, #067647 25%, transparent);
+    background: color-mix(in srgb, #067647 10%, transparent);
+    color: #067647;
+}
+
+.csm-status-badge-warning {
+    border-color: color-mix(in srgb, #b54708 25%, transparent);
+    background: color-mix(in srgb, #b54708 10%, transparent);
+    color: #93370d;
+}
+
+.csm-status-badge-danger {
+    border-color: color-mix(in srgb, #b42318 25%, transparent);
+    background: color-mix(in srgb, #b42318 10%, transparent);
+    color: #b42318;
+}
+
+:root[data-theme="dark"] .csm-status-badge-info {
+    color: #84adff;
+}
+
+:root[data-theme="dark"] .csm-status-badge-success {
+    color: #75e0a7;
+}
+
+:root[data-theme="dark"] .csm-status-badge-warning {
+    color: #fec84b;
+}
+
+:root[data-theme="dark"] .csm-status-badge-danger {
+    color: #fda29b;
+}
