@@ -36,7 +36,7 @@ public sealed class StockReturnsController : ControllerBase
         }
         catch (StockReturnManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ReturnError(ex);
         }
     }
 
@@ -57,7 +57,7 @@ public sealed class StockReturnsController : ControllerBase
         }
         catch (StockReturnManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ReturnError(ex);
         }
     }
 
@@ -79,11 +79,19 @@ public sealed class StockReturnsController : ControllerBase
         }
         catch (StockReturnManagementException ex)
         {
-            return BadRequest(new
-            {
-                message = ex.Message
-            });
+            return ReturnError(ex);
         }
+    }
+
+    private ObjectResult ReturnError(StockReturnManagementException ex)
+    {
+        var status = ex.Message switch
+        {
+            "You are not authorized to manage stock returns." or
+            "You are not authorized to access this company stock." => StatusCodes.Status403Forbidden,
+            _ => StatusCodes.Status400BadRequest
+        };
+        return StatusCode(status, new { message = ex.Message });
     }
 
     private Guid GetCurrentUserId()
