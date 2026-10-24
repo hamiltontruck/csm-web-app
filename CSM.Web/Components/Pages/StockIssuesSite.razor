@@ -19,7 +19,14 @@ else if (!string.IsNullOrWhiteSpace(errorMessage))
 {
     <div class="container py-4">
         <div class="alert alert-danger" role="alert">@errorMessage</div>
-        <button id="retry-stock-issues" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        @if (signInRequired)
+        {
+            <a id="stock-issues-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-stock-issues" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        }
     </div>
 }
 else
@@ -122,6 +129,8 @@ else
     private string siteName = "";
 
     private string? errorMessage;
+    private bool canRetry = true;
+    private bool signInRequired;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -134,12 +143,27 @@ else
     {
         loading = true;
         errorMessage = null;
+        issues = [];
+        canRetry = true;
+        signInRequired = false;
         try
         {
             var all = await InventoryService.GetStockIssuesAsync();
             issues = all.Where(x => x.ConstructionSiteId == SiteId)
                 .OrderByDescending(x => x.IssueDateUtc).ToList();
             siteName = issues.FirstOrDefault()?.SiteName ?? "Construction Site";
+        }
+        catch (HttpRequestException ex)
+        {
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view stock issues.",
+                _ => "Unable to load stock issues. Please try again."
+            };
         }
         catch (Exception)
         {
