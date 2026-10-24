@@ -26,7 +26,7 @@ public sealed class UserPreferencesService : IUserPreferencesService
             currentUserId,
             cancellationToken);
 
-        var preferences = await _dbContext.UserPreferences
+        var preferences = await _dbContext.Set<DomainUserPreferences>()
             .SingleOrDefaultAsync(
                 x => x.UserId == currentUserId && !x.IsDeleted,
                 cancellationToken);
@@ -39,7 +39,7 @@ public sealed class UserPreferencesService : IUserPreferencesService
                 CreatedBy = currentUserId
             };
 
-            _dbContext.UserPreferences.Add(preferences);
+            _dbContext.Set<DomainUserPreferences>().Add(preferences);
 
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
@@ -58,7 +58,7 @@ public sealed class UserPreferencesService : IUserPreferencesService
 
         Validate(request);
 
-        var preferences = await _dbContext.UserPreferences
+        var preferences = await _dbContext.Set<DomainUserPreferences>()
             .SingleOrDefaultAsync(
                 x => x.UserId == currentUserId && !x.IsDeleted,
                 cancellationToken);
@@ -71,7 +71,7 @@ public sealed class UserPreferencesService : IUserPreferencesService
                 CreatedBy = currentUserId
             };
 
-            _dbContext.UserPreferences.Add(preferences);
+            _dbContext.Set<DomainUserPreferences>().Add(preferences);
         }
 
         preferences.Theme = request.Theme.Trim();
