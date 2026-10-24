@@ -5,8 +5,12 @@
 @using CSM.Web.Models.Procurement
 @using CSM.Web.Models.Sites
 @using CSM.Web.Services
+@using System.Net.Http.Headers
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 
 @inject IProcurementService ProcurementService
+@inject IHttpClientFactory HttpClientFactory
+@inject ProtectedSessionStorage SessionStorage
 @inject IProjectService ProjectService
 @inject NavigationManager Navigation
 
@@ -231,7 +235,21 @@
                 Lines = editableLines.ToList()
             };
 
-            await ProcurementService.UpdateMaterialRequestAsync(Id, request);
+            var token = await SessionStorage.GetAsync<string>("jwt");
+            if (!token.Success || string.IsNullOrWhiteSpace(token.Value))
+            {
+                throw new InvalidOperationException(
+                    "Your session has expired. Please sign in again.");
+            }
+
+            using var client = HttpClientFactory.CreateClient("CSM.Api");
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", token.Value);
+
+            using var response = await client.PutAsJsonAsync(
+                $"materialrequests/{Id}",
+                request);
+            response.EnsureSuccessStatusCode();
             Navigation.NavigateTo($"/material-requests/{Id}");
         }
         catch (Exception ex)
