@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.Procurement.EquipmentAssignments;
 using CSM.Application.Procurement.EquipmentAssignments.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
 public sealed class EquipmentAssignmentsController : ControllerBase
 {
     private readonly IEquipmentAssignmentService
@@ -47,7 +47,7 @@ public sealed class EquipmentAssignmentsController : ControllerBase
         }
         catch (EquipmentAssignmentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return AssignmentError(ex);
         }
     }
 
@@ -68,7 +68,7 @@ public sealed class EquipmentAssignmentsController : ControllerBase
         }
         catch (EquipmentAssignmentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return AssignmentError(ex);
         }
     }
 
@@ -95,7 +95,7 @@ public sealed class EquipmentAssignmentsController : ControllerBase
         }
         catch (EquipmentAssignmentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return AssignmentError(ex);
         }
     }
 
@@ -118,7 +118,7 @@ public sealed class EquipmentAssignmentsController : ControllerBase
         }
         catch (EquipmentAssignmentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return AssignmentError(ex);
         }
     }
 
@@ -142,8 +142,19 @@ public sealed class EquipmentAssignmentsController : ControllerBase
         }
         catch (EquipmentAssignmentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return AssignmentError(ex);
         }
+    }
+
+    private ObjectResult AssignmentError(EquipmentAssignmentManagementException exception)
+    {
+        var forbidden = exception.Message is
+            "You are not authorized to access equipment assignments."
+            or "Current user is not assigned to a company."
+            or "You cannot access records outside your company.";
+        return forbidden
+            ? StatusCode(StatusCodes.Status403Forbidden, new { message = exception.Message })
+            : BadRequest(new { message = exception.Message });
     }
 
     private Guid GetCurrentUserId()

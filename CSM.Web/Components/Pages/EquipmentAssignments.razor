@@ -24,10 +24,10 @@
 
         </div>
 
-        <button class="btn btn-primary"
-                @onclick="NewAssignment">
-            + New Assignment
-        </button>
+        @if (canManage)
+        {
+            <button class="btn btn-primary" @onclick="NewAssignment">+ New Assignment</button>
+        }
 
     </div>
 
@@ -36,6 +36,18 @@
         <div class="text-center py-5">
             <div class="spinner-border"></div>
         </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (signInRequired)
+        {
+            <a id="equipment-assignments-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-equipment-assignments" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (assignments.Count == 0)
     {
@@ -248,27 +260,60 @@
         ReleasedAtUtc = DateTime.Now
     };
 
+    private bool canManage;
+    private bool canRetry = true;
+    private bool signInRequired;
+    private string? errorMessage;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadAsync();
+    }
 
-        var allAssignments =
-            await EquipmentService.GetAssignmentsAsync();
-
-        assignments = allAssignments
-            .Where(x => x.ConstructionSiteId == SiteId)
-            .OrderByDescending(x => x.AssignedAtUtc)
-            .ToList();
-
-        loading = false;
-
-        await InvokeAsync(StateHasChanged);
+    private async Task LoadAsync()
+    {
+        loading = true;
+        assignments = [];
+        releasingAssignment = null;
+        canManage = false;
+        canRetry = true;
+        signInRequired = false;
+        errorMessage = null;
+        try
+        {
+            var all = await EquipmentService.GetAssignmentsAsync();
+            assignments = all.Where(x => x.ConstructionSiteId == SiteId)
+                .OrderByDescending(x => x.AssignedAtUtc).ToList();
+            // Read and mutation endpoints share the controller and service role gates.
+            canManage = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view equipment assignments.",
+                _ => "Unable to load equipment assignments. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load equipment assignments. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
     }
 
     private void ReleaseAssignment(
         EquipmentAssignmentResponse assignment)
     {
+        if (!canManage) return;
         releasingAssignment = assignment;
 
         releaseDate = DateTime.Now;
@@ -289,7 +334,7 @@
 
     private async Task ConfirmRelease()
     {
-        if (releasingAssignment is null)
+        if (!canManage || releasingAssignment is null)
             return;
 
         releaseModel.ReleasedAtUtc = releaseDate;
@@ -313,8 +358,8 @@
 
     private void NewAssignment()
     {
-        Navigation.NavigateTo(
-            $"/equipment/assignments/create/{SiteId}");
+        if (canManage)
+            Navigation.NavigateTo($"/equipment/assignments/create/{SiteId}");
     }
 
     private void GoBack()

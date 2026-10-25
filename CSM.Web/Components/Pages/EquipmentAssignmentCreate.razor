@@ -20,6 +20,24 @@
         <h2 class="mb-0">New Equipment Assignment</h2>
     </div>
 
+    @if (loading)
+    {
+        <p>Loading assignment form...</p>
+    }
+    else if (!canManage)
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (signInRequired)
+        {
+            <a id="equipment-assignment-create-sign-in" class="btn btn-primary" href="@SignInUrl">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-equipment-assignment-create" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        }
+    }
+    else
+    {
     <EditForm Model="model"
               OnValidSubmit="Save"
               FormName="EquipmentAssignmentCreate">
@@ -92,6 +110,7 @@
         </div>
 
     </EditForm>
+    }
 
 </div>
 
@@ -107,19 +126,64 @@
     private List<EquipmentResponse> equipment = [];
     private List<SiteResponse> sites = [];
 
+    private bool loading = true;
+    private bool canManage;
+    private bool canRetry = true;
+    private bool signInRequired;
+    private string? errorMessage;
+    private string SignInUrl => "/login?returnUrl=" +
+        Uri.EscapeDataString($"/equipment/assignments/create/{SiteId}");
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (firstRender) await LoadAsync();
+    }
 
-        equipment = await EquipmentService.GetEquipmentAsync();
-        sites = await ProjectService.GetSitesAsync();
-        model.ConstructionSiteId = SiteId;
-
-        await InvokeAsync(StateHasChanged);
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        canRetry = true;
+        signInRequired = false;
+        errorMessage = null;
+        equipment = [];
+        sites = [];
+        try
+        {
+            // Verify the assignment endpoint before loading or displaying creation data.
+            _ = await EquipmentService.GetAssignmentsAsync();
+            equipment = await EquipmentService.GetEquipmentAsync();
+            sites = await ProjectService.GetSitesAsync();
+            model.ConstructionSiteId = SiteId;
+            canManage = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create equipment assignments.",
+                _ => "Unable to load assignment form. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load assignment form. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task Save()
     {
+        if (!canManage) return;
+
         await EquipmentService.CreateAssignmentAsync(model);
 
         Navigation.NavigateTo($"/equipment/assignments/site/{SiteId}");

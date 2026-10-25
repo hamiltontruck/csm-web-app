@@ -186,9 +186,18 @@
 
             var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers
                 .ParseQuery(Navigation.ToAbsoluteUri(Navigation.Uri).Query);
-            // Only the equipment recovery destination is supported; default logins keep Dashboard.
-            var destination = query.TryGetValue("returnUrl", out var returnUrl) &&
-                returnUrl.ToString() == "/equipment/create" ? "/equipment/create" : "/dashboard";
+            // Accept only supported local equipment recovery routes.
+            var destination = "/dashboard";
+            if (query.TryGetValue("returnUrl", out var returnUrl))
+            {
+                var requested = returnUrl.ToString();
+                const string assignmentPrefix = "/equipment/assignments/create/";
+                if (requested == "/equipment/create")
+                    destination = "/equipment/create";
+                else if (requested.StartsWith(assignmentPrefix, StringComparison.Ordinal) &&
+                    Guid.TryParse(requested[assignmentPrefix.Length..], out var siteId))
+                    destination = assignmentPrefix + siteId.ToString("D");
+            }
             Navigation.NavigateTo(destination, true);
         }
         catch (Exception ex)
