@@ -49,10 +49,7 @@ public sealed class StockMovementsController : ControllerBase
         }
         catch (StockMovementManagementException ex)
         {
-            return BadRequest(new
-            {
-                message = ex.Message
-            });
+            return MovementError(ex);
         }
     }
 
@@ -74,11 +71,19 @@ public sealed class StockMovementsController : ControllerBase
         }
         catch (StockMovementManagementException ex)
         {
-            return BadRequest(new
-            {
-                message = ex.Message
-            });
+            return MovementError(ex);
         }
+    }
+
+    private ObjectResult MovementError(StockMovementManagementException exception)
+    {
+        var forbidden = exception.Message is
+            "You are not authorized to access stock movements."
+            or "You are not authorized to access this stock movement."
+            or "Current user is not assigned to a company.";
+        return forbidden
+            ? StatusCode(StatusCodes.Status403Forbidden, new { message = exception.Message })
+            : BadRequest(new { message = exception.Message });
     }
 
     private Guid GetCurrentUserId()
