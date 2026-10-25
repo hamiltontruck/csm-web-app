@@ -3056,7 +3056,7 @@ namespace CSM.Infrastructure.Persistence.Migrations
                 table: "BudgetLines",
                 columns: new[] { "BudgetId", "CostCodeId" },
                 unique: true,
-                filter: "[IsDeleted] = 0");
+                filter: "\"IsDeleted\" = FALSE");
 
             migrationBuilder.CreateIndex(
                 name: "IX_BudgetLines_CostCodeId",
