@@ -40,6 +40,15 @@
         <div class="alert alert-danger" role="alert">
             @errorMessage
         </div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="equipment-fuel-create-sign-in" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/fuel/create/{SiteId}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-equipment-fuel-create" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
+
     }
 
     else
