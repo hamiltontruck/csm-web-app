@@ -1,4 +1,9 @@
 using System.Reflection;
+using System.Net;
+using System.Security.Claims;
+using CSM.Api.Controllers;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Bunit;
 using CSM.Application.Common.Exceptions;
 using CSM.Domain.Constants;
@@ -84,6 +89,56 @@ public sealed class StockMovementAccessTests
         Assert.Empty(page.FindAll("[role=alert]"));
     }
 
+
+    [Fact]
+    public async Task Supervisor_receives_403_for_history_and_detail_without_changing_stock()
+    {
+        using var db = Database(AppRoles.Supervisor);
+        db.Users.Single().CompanyId = db.StockItems.Single().CompanyId;
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        var controller = Controller(db);
+        var list = await controller.GetAll(null, null, null, null, null, default);
+        var detail = await controller.GetById(db.StockMovements.First().Id, default);
+        Assert.Equal(403, Assert.IsType<ObjectResult>(list.Result).StatusCode);
+        Assert.Equal(403, Assert.IsType<ObjectResult>(detail.Result).StatusCode);
+        Assert.Equal(8m, db.StockItems.Single().QuantityOnHand);
+        Assert.Equal(4, db.StockMovements.Count());
+    }
+
+    [Fact]
+    public async Task Invalid_date_range_keeps_HTTP_400_validation_response()
+    {
+        using var db = Database(AppRoles.SuperAdmin);
+        var response = await Controller(db).GetAll(null, null, null,
+            DateTime.UtcNow, DateTime.UtcNow.AddDays(-1), default);
+        Assert.IsType<BadRequestObjectResult>(response.Result);
+    }
+
+    [Theory]
+    [InlineData(401, "Your session is missing or has expired. Please sign in again.")]
+    [InlineData(403, "You do not have permission to view stock movements.")]
+    public void History_distinguishes_auth_errors_without_retry_or_empty_state(int status, string expected)
+    {
+        using var context = new TestContext();
+        var inventory = DispatchProxy.Create<IInventoryService, InventoryProxy>();
+        ((InventoryProxy)(object)inventory).Status = (HttpStatusCode)status;
+        context.Services.AddSingleton(inventory);
+        var page = context.RenderComponent<StockMovementsSite>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Equal(expected, page.Find("[role=alert]").TextContent.Trim()));
+        Assert.Empty(page.FindAll("#retry-stock-movements"));
+        Assert.DoesNotContain("No stock movements found.", page.Markup);
+        Assert.DoesNotContain("private API diagnostic", page.Markup);
+        Assert.Contains("Back", page.Markup);
+        Assert.Equal(status == 401, page.FindAll("#stock-movements-sign-in").Count == 1);
+    }
+
+    private static StockMovementsController Controller(ApplicationDbContext db) =>
+        new(new StockMovementService(db)) {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, ActorId.ToString())], "test"))
+            }}
+        };
+
     private static readonly Guid ActorId = Guid.NewGuid();
     private static readonly Guid SiteId = Guid.NewGuid();
     private static readonly Guid MaterialId = Guid.NewGuid();
@@ -119,7 +174,9 @@ public sealed class StockMovementAccessTests
     public class InventoryProxy : DispatchProxy
     {
         public bool Fail { get; set; }
+        public HttpStatusCode? Status { get; set; }
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Status.HasValue ? Task.FromException<List<CSM.Web.Models.Procurement.StockMovementResponse>>(new HttpRequestException("private API diagnostic", null, Status)) :
             Fail ? Task.FromException<List<CSM.Web.Models.Procurement.StockMovementResponse>>(new HttpRequestException("400")) :
             Task.FromResult(new List<CSM.Web.Models.Procurement.StockMovementResponse> {
                 new() { ConstructionSiteId = SiteId, SiteName = "Hamilton Test Site", MaterialName = "Cement",
