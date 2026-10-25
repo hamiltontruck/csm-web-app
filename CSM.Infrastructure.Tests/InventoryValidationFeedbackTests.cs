@@ -197,6 +197,7 @@ public sealed class InventoryValidationFeedbackTests
     private static TestContext Context(Api handler)
     {
         var context = new TestContext();
+        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, AuthProxy>());
         context.Services.AddSingleton<IInventoryService>(Service(Client(handler)));
         context.Services.AddSingleton(DispatchProxy.Create<IProjectService, ProjectProxy>());
         return context;
@@ -210,7 +211,10 @@ public sealed class InventoryValidationFeedbackTests
 
     public class AuthProxy : DispatchProxy
     {
-        protected override object? Invoke(MethodInfo? method, object?[]? args) => Task.CompletedTask;
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            method!.Name == nameof(IAuthService.GetPermissionsAsync)
+                ? Task.FromResult<IReadOnlyCollection<string>>(new[] { "Procurement_Inventory_Adjust" })
+                : Task.CompletedTask;
     }
 
     public class ProjectProxy : DispatchProxy

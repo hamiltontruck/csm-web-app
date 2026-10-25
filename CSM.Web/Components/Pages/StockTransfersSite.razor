@@ -4,6 +4,7 @@
 @using CSM.Web.Models.Procurement
 @using CSM.Web.Services
 
+@inject IAuthService AuthService
 @inject IInventoryService InventoryService
 @inject NavigationManager Navigation
 @inject IProjectService ProjectService
@@ -31,11 +32,14 @@ else
                 <div class="text-muted">Stock Transfers</div>
             </div>
 
+            @if (canCreate)
+            {
             <button class="btn btn-primary"
                     @onclick="NewTransfer">
                 <i class="bi bi-plus-lg"></i>
                 New Transfer
             </button>
+            }
         </div>
 
         @if (transfers.Count == 0)
@@ -119,6 +123,7 @@ else
 
     private bool loading = true;
     private bool loaded;
+    private bool canCreate;
 
     private string siteName = "";
 
@@ -129,7 +134,16 @@ else
 
         loaded = true;
 
-        Console.WriteLine("STEP 1");
+        try
+        {
+            var permissions = await AuthService.GetPermissionsAsync();
+            canCreate = permissions.Contains("Procurement_Inventory_Adjust");
+        }
+        catch (Exception)
+        {
+            // Fail closed for creation; the history request retains its own API authorization.
+            canCreate = false;
+        }
 
         var all = await InventoryService.GetStockTransfersAsync();
 
@@ -156,5 +170,8 @@ else
         => Navigation.NavigateTo("/stock-transfers");
 
     void NewTransfer()
-        => Navigation.NavigateTo($"/stock-transfers/create/{SiteId}");
+    {
+        if (canCreate)
+            Navigation.NavigateTo($"/stock-transfers/create/{SiteId}");
+    }
 }
