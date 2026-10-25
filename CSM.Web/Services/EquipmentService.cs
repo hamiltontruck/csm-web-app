@@ -406,8 +406,7 @@ public class EquipmentService : IEquipmentService
 
             var body = await response.Content.ReadAsStringAsync();
 
-            if (!response.IsSuccessStatusCode)
-                throw new Exception(body);
+            response.EnsureSuccessStatusCode();
 
             return System.Text.Json.JsonSerializer.Deserialize<
                 List<EquipmentFuelLogResponse>>(
@@ -463,8 +462,7 @@ public class EquipmentService : IEquipmentService
 
             var body = await response.Content.ReadAsStringAsync();
 
-            if (!response.IsSuccessStatusCode)
-                throw new Exception(body);
+            response.EnsureSuccessStatusCode();
         }
 
         public async Task<List<EquipmentHourLogResponse>> GetHourLogsAsync(
