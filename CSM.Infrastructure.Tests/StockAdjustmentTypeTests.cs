@@ -18,6 +18,7 @@ public sealed class StockAdjustmentTypeTests
     public void Visible_adjustment_type_matches_saved_direction(string selected, bool expected)
     {
         using var context = new TestContext();
+        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, StockAdjustmentAccessTests.AdjustmentAuth>());
         context.Services.AddSingleton(DispatchProxy.Create<IProjectService, ProjectProxy>());
         context.Services.AddSingleton(DispatchProxy.Create<IInventoryService, InventoryProxy>());
         var page = context.RenderComponent<StockAdjustmentCreate>();
