@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.Procurement.EquipmentDowntime;
 using CSM.Application.Procurement.EquipmentDowntime.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
 public sealed class EquipmentDowntimeController : ControllerBase
 {
     private readonly IEquipmentDowntimeService _service;
@@ -41,7 +41,7 @@ public sealed class EquipmentDowntimeController : ControllerBase
         }
         catch (EquipmentDowntimeManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return DowntimeError(ex);
         }
     }
 
@@ -61,7 +61,7 @@ public sealed class EquipmentDowntimeController : ControllerBase
         }
         catch (EquipmentDowntimeManagementException ex)
         {
-            return NotFound(new { message = ex.Message });
+            return DowntimeError(ex, notFound: true);
         }
     }
 
@@ -84,7 +84,7 @@ public sealed class EquipmentDowntimeController : ControllerBase
         }
         catch (EquipmentDowntimeManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return DowntimeError(ex);
         }
     }
 
@@ -106,7 +106,7 @@ public sealed class EquipmentDowntimeController : ControllerBase
         }
         catch (EquipmentDowntimeManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return DowntimeError(ex);
         }
     }
 
@@ -129,8 +129,21 @@ public sealed class EquipmentDowntimeController : ControllerBase
         }
         catch (EquipmentDowntimeManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return DowntimeError(ex);
         }
+    }
+
+    private ObjectResult DowntimeError(EquipmentDowntimeManagementException exception, bool notFound = false)
+    {
+        var forbidden = exception.Message is
+            "You are not authorized to manage equipment downtime."
+            or "You are not authorized to access this equipment downtime record."
+            or "Current user is not assigned to a company.";
+        if (forbidden)
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = exception.Message });
+        return notFound
+            ? NotFound(new { message = exception.Message })
+            : BadRequest(new { message = exception.Message });
     }
 
     private Guid GetCurrentUserId()

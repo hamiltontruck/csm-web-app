@@ -36,9 +36,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">
-            @errorMessage
-        </div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (signInRequired)
+        {
+            <a id="equipment-downtime-create-sign-in" class="btn btn-primary" href="@SignInUrl">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-equipment-downtime-create" class="btn btn-primary" @onclick="LoadFormAsync">Retry</button>
+        }
     }
     else
     {
@@ -201,45 +207,70 @@
 
     private string? errorMessage;
 
+    private bool canManage;
+    private bool canRetry = true;
+    private bool signInRequired;
+    private string SignInUrl => "/login?returnUrl=" +
+        Uri.EscapeDataString($"/equipment/downtime/create/{SiteId}");
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadFormAsync();
+    }
 
+    private async Task LoadFormAsync()
+    {
+        loading = true;
+        canManage = false;
+        canRetry = true;
+        signInRequired = false;
+        errorMessage = null;
+        equipmentList = [];
+        siteName = string.Empty;
         try
         {
-            var sites =
-                await ProjectService.GetSitesAsync();
-
-            var site =
-                sites.FirstOrDefault(x => x.Id == SiteId);
-
+            // Check downtime access before loading creation options or displaying fields.
+            _ = await EquipmentService.GetDowntimeAsync();
+            var sites = await ProjectService.GetSitesAsync();
+            var site = sites.FirstOrDefault(x => x.Id == SiteId);
             if (site is null)
             {
                 errorMessage = "Construction site was not found.";
+                canRetry = false;
+                return;
             }
-            else
-            {
-                siteName = site.Name;
-
-                model.ConstructionSiteId = SiteId;
-
-                equipmentList =
-                    await EquipmentService.GetEquipmentAsync();
-            }
+            siteName = site.Name;
+            model.ConstructionSiteId = SiteId;
+            equipmentList = await EquipmentService.GetEquipmentAsync();
+            canManage = true;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create equipment downtime.",
+                _ => "Unable to load downtime form. Please try again."
+            };
         }
-
-        loading = false;
-
-        await InvokeAsync(StateHasChanged);
+        catch (Exception)
+        {
+            errorMessage = "Unable to load downtime form. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task CreateDowntime()
     {
+        if (!canManage) return;
+
         errorMessage = null;
 
         try
