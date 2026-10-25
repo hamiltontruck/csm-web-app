@@ -34,7 +34,7 @@ public sealed class StockAdjustmentsController : ControllerBase
         }
         catch (StockAdjustmentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return AdjustmentError(ex);
         }
     }
 
@@ -56,11 +56,18 @@ public sealed class StockAdjustmentsController : ControllerBase
         }
         catch (StockAdjustmentManagementException ex)
         {
-            return BadRequest(new
-            {
-                message = ex.Message
-            });
+            return AdjustmentError(ex);
         }
+    }
+
+    private ObjectResult AdjustmentError(StockAdjustmentManagementException exception)
+    {
+        var forbidden = exception.Message is
+            "You are not authorized to manage stock adjustments."
+            or "You are not authorized to access this company."
+            or "Current user is not assigned to a company.";
+        return StatusCode(forbidden ? StatusCodes.Status403Forbidden : StatusCodes.Status400BadRequest,
+            new { message = exception.Message });
     }
 
     private Guid GetCurrentUserId()

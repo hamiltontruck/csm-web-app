@@ -5,6 +5,7 @@
 @using CSM.Web.Models.Sites
 @using CSM.Web.Services
 
+@inject IAuthService AuthService
 @inject IInventoryService InventoryService
 @inject IProjectService ProjectService
 @inject NavigationManager Navigation
@@ -24,10 +25,10 @@
             <div class="text-muted">Stock Adjustments</div>
         </div>
 
-        <button class="btn btn-primary"
-                @onclick="NewAdjustment">
-            New Adjustment
-        </button>
+        @if (!loading && string.IsNullOrWhiteSpace(errorMessage) && canCreate)
+        {
+            <button class="btn btn-primary" @onclick="NewAdjustment">New Adjustment</button>
+        }
     </div>
 
     @if (loading)
@@ -37,7 +38,14 @@
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="alert alert-danger" role="alert">@errorMessage</div>
-        <button id="retry-stock-adjustments" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        @if (signInRequired)
+        {
+            <a id="stock-adjustments-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-stock-adjustments" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (adjustments.Count == 0)
     {
@@ -105,6 +113,9 @@
     private bool loaded;
 
     private string? errorMessage;
+    private bool canRetry = true;
+    private bool signInRequired;
+    private bool canCreate;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -117,13 +128,32 @@
     {
         loading = true;
         errorMessage = null;
+        adjustments = [];
+        siteName = "";
+        canRetry = true;
+        signInRequired = false;
+        canCreate = false;
         try
         {
+            var permissions = await AuthService.GetPermissionsAsync();
+            canCreate = permissions.Contains("Procurement_Inventory_Adjust");
             var all = await InventoryService.GetStockAdjustmentsAsync();
             adjustments = all.Where(x => x.ConstructionSiteId == SiteId)
                 .OrderByDescending(x => x.AdjustmentDateUtc).ToList();
             var sites = await ProjectService.GetSitesAsync();
             siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? "Construction Site";
+        }
+        catch (HttpRequestException ex)
+        {
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view stock adjustments.",
+                _ => "Unable to load stock adjustments. Please try again."
+            };
         }
         catch (Exception)
         {
@@ -140,5 +170,8 @@
         => Navigation.NavigateTo("/stock-adjustments");
 
     void NewAdjustment()
-        => Navigation.NavigateTo($"/stock-adjustments/create/{SiteId}");
+    {
+        if (!loading && string.IsNullOrWhiteSpace(errorMessage) && canCreate)
+            Navigation.NavigateTo($"/stock-adjustments/create/{SiteId}");
+    }
 }

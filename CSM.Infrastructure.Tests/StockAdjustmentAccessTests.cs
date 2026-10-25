@@ -85,6 +85,7 @@ public sealed class StockAdjustmentAccessTests
     public void Site_page_can_retry_loading_without_crashing()
     {
         using var context = new TestContext();
+        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, AdjustmentAuth>());
         context.Services.AddSingleton(DispatchProxy.Create<IInventoryService, InventoryProxy>());
         context.Services.AddSingleton(DispatchProxy.Create<IProjectService, ProjectProxy>());
         var proxy = (InventoryProxy)(object)context.Services.GetRequiredService<IInventoryService>();

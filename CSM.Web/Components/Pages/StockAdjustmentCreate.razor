@@ -6,6 +6,7 @@
 @using CSM.Web.Models.Procurement
 @using CSM.Web.Services
 
+@inject IAuthService AuthService
 @inject IProjectService ProjectService
 @inject IInventoryService InventoryService
 @inject NavigationManager Navigation
@@ -20,6 +21,16 @@
 
     <h2 class="mb-4">New Stock Adjustment</h2>
 
+    @if (!permissionChecked)
+    {
+        <p>Checking stock adjustment permissions...</p>
+    }
+    else if (!canCreate)
+    {
+        <div class="alert alert-danger" role="alert">@permissionMessage</div>
+    }
+    else
+    {
     <div class="card shadow-sm">
         <div class="card-body">
 
@@ -147,6 +158,7 @@
         </div>
     </div>
 
+    }
 </div>
 
 @code {
@@ -164,6 +176,9 @@
     private List<StockBalanceResponse> materials = [];
 
     private bool loaded;
+    private bool permissionChecked;
+    private bool canCreate;
+    private string permissionMessage = "You do not have permission to create stock adjustments.";
     private bool saving;
     private string? errorMessage;
 
@@ -173,6 +188,22 @@
             return;
 
         loaded = true;
+
+        try
+        {
+            var permissions = await AuthService.GetPermissionsAsync();
+            canCreate = permissions.Contains("Procurement_Inventory_Adjust");
+        }
+        catch (Exception)
+        {
+            permissionMessage = "Unable to verify stock adjustment permissions. Please reload the page.";
+        }
+        permissionChecked = true;
+        if (!canCreate)
+        {
+            StateHasChanged();
+            return;
+        }
 
         sites = await ProjectService.GetSitesAsync();
 
@@ -221,6 +252,8 @@
 
 private async Task SaveAdjustment()
 {
+    if (saving || !canCreate) return;
+
     errorMessage = null;
 
     if (model.SiteId == null ||
