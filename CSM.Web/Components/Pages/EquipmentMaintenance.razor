@@ -33,10 +33,10 @@
 
         </div>
 
-        <button class="btn btn-primary"
-                @onclick="NewMaintenance">
-            + New Maintenance
-        </button>
+        @if (canManage)
+        {
+            <button class="btn btn-primary" @onclick="NewMaintenance">+ New Maintenance</button>
+        }
 
     </div>
 
@@ -48,9 +48,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">
-            @errorMessage
-        </div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (signInRequired)
+        {
+            <a id="equipment-maintenance-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-equipment-maintenance" class="btn btn-primary" @onclick="LoadDataAsync">Retry</button>
+        }
     }
     else if (records.Count == 0)
     {
@@ -173,55 +179,63 @@
 
     private string? errorMessage;
 
+    private bool canManage;
+    private bool canRetry = true;
+    private bool signInRequired;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadDataAsync();
+    }
 
+    private async Task LoadDataAsync()
+    {
+        loading = true;
+        records = [];
+        siteName = string.Empty;
+        canManage = false;
+        canRetry = true;
+        signInRequired = false;
+        errorMessage = null;
         try
         {
-            var sites =
-                await ProjectService.GetSitesAsync();
-
-            var site =
-                sites.FirstOrDefault(x => x.Id == SiteId);
-
-            if (site is not null)
-                siteName = site.Name;
-
-            var assignments =
-                await EquipmentService.GetAssignmentsAsync();
-
+            var sites = await ProjectService.GetSitesAsync();
+            siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? string.Empty;
+            var maintenance = await EquipmentService.GetMaintenanceAsync();
+            var assignments = await EquipmentService.GetAssignmentsAsync();
             var equipmentIds = assignments
-                .Where(x =>
-                    x.ConstructionSiteId == SiteId &&
-                    x.ReleasedAtUtc == null)
-                .Select(x => x.EquipmentId)
-                .Distinct()
-                .ToHashSet();
-
-            var maintenance =
-                await EquipmentService.GetMaintenanceAsync();
-
-            records = maintenance
-                .Where(x => equipmentIds.Contains(x.EquipmentId))
-                .ToList();
+                .Where(x => x.ConstructionSiteId == SiteId && x.ReleasedAtUtc == null)
+                .Select(x => x.EquipmentId).Distinct().ToHashSet();
+            records = maintenance.Where(x => equipmentIds.Contains(x.EquipmentId)).ToList();
+            canManage = true;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view equipment maintenance.",
+                _ => "Unable to load equipment maintenance. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load equipment maintenance. Please try again.";
         }
         finally
         {
             loading = false;
-            await InvokeAsync(StateHasChanged);
+            StateHasChanged();
         }
     }
 
     private void NewMaintenance()
     {
-        Navigation.NavigateTo(
-            $"/equipment/maintenance/create/{SiteId}");
+        if (canManage)
+            Navigation.NavigateTo($"/equipment/maintenance/create/{SiteId}");
     }
 
     private void GoBack()

@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.Procurement.EquipmentMaintenance;
 using CSM.Application.Procurement.EquipmentMaintenance.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
 public sealed class EquipmentMaintenanceController : ControllerBase
 {
     private readonly IEquipmentMaintenanceService
@@ -43,7 +43,7 @@ public sealed class EquipmentMaintenanceController : ControllerBase
         }
         catch (EquipmentMaintenanceManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return MaintenanceError(ex);
         }
     }
 
@@ -64,7 +64,7 @@ public sealed class EquipmentMaintenanceController : ControllerBase
         }
         catch (EquipmentMaintenanceManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return MaintenanceError(ex);
         }
     }
 
@@ -91,7 +91,7 @@ public sealed class EquipmentMaintenanceController : ControllerBase
         }
         catch (EquipmentMaintenanceManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return MaintenanceError(ex);
         }
     }
 
@@ -114,8 +114,19 @@ public sealed class EquipmentMaintenanceController : ControllerBase
         }
         catch (EquipmentMaintenanceManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return MaintenanceError(ex);
         }
+    }
+
+    private ObjectResult MaintenanceError(EquipmentMaintenanceManagementException exception)
+    {
+        var forbidden = exception.Message is
+            "You are not authorized to access equipment maintenance records."
+            or "Current user is not assigned to a company."
+            or "You cannot access records outside your company.";
+        return forbidden
+            ? StatusCode(StatusCodes.Status403Forbidden, new { message = exception.Message })
+            : BadRequest(new { message = exception.Message });
     }
 
     private Guid GetCurrentUserId()
