@@ -14,6 +14,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - run: dotnet restore CSM.sln
       - run: dotnet tool install --global dotnet-ef --version 10.0.10
       - run: dotnet ef migrations add ImportedPrivacyPreferences --project CSM.Infrastructure/CSM.Infrastructure.csproj --startup-project CSM.Api/CSM.Api.csproj --output-dir Persistence/Migrations
       - name: Export generated source for review

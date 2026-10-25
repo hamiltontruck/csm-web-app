@@ -285,8 +285,6 @@ public static class DatabaseInitializer
             Enum.GetValues<GranularPermission>());
 
         // Match the roles allowed by AttendanceService.EnsureCanApprove.
-        Grant(AppRoles.SuperAdmin, GranularPermission.HRM_Attendance_Approve);
-        Grant(AppRoles.CompanyAdmin, GranularPermission.HRM_Attendance_Approve);
         Grant(AppRoles.SiteManager, GranularPermission.HRM_Attendance_Approve);
 
         // Inventory service roles need site lookup plus inventory view/adjust permissions.
