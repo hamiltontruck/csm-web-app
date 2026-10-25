@@ -13,10 +13,12 @@ public sealed class UserSessionsService
 
     public UserSessionsService(
         IHttpClientFactory factory,
-        IAuthService authService)
+        IAuthService authService,
+        ProtectedSessionStorage sessionStorage)
     {
         _factory = factory;
         _authService = authService;
+        _sessionStorage = sessionStorage;
     }
 
     public async Task<IReadOnlyList<UserSessionModel>> GetSessionsAsync(

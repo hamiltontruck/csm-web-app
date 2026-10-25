@@ -38,7 +38,7 @@ public sealed class PrivacyDataRequestsController : ControllerBase
             return Forbid();
         }
 
-        var requests = await _dbContext.PrivacyDataRequests
+        var requests = await _dbContext.Set<PrivacyDataRequest>()
             .AsNoTracking()
             .Where(request =>
                 request.UserId == userId &&
@@ -135,7 +135,7 @@ public sealed class PrivacyDataRequestsController : ControllerBase
             RequestedAtUtc = DateTime.UtcNow
         };
 
-        _dbContext.PrivacyDataRequests.Add(request);
+        _dbContext.Set<PrivacyDataRequest>().Add(request);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return CreatedAtAction(

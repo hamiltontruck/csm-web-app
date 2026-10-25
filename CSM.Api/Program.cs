@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using CSM.Infrastructure;
 using CSM.Infrastructure.Persistence;
 using System.Text.Json.Serialization;
@@ -78,6 +79,16 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Optional read-only deployment diagnostic; never applies migrations.
+if (app.Configuration.GetValue<bool>("Database:ReportMigrationStatus"))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var applied = await db.Database.GetAppliedMigrationsAsync();
+    app.Logger.LogInformation("CSM database migration history: {Migrations}",
+        string.Join(",", applied.DefaultIfEmpty("(empty)")));
+}
 
 await DatabaseInitializer.InitializeAsync(app.Services, app.Configuration);
 

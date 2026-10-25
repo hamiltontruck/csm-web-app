@@ -35,6 +35,9 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<AuthService>(sp =>
     (AuthService)sp.GetRequiredService<IAuthService>());
 builder.Services.AddScoped<ProtectedSessionStorage>();
+builder.Services.AddScoped<UserSessionsService>();
+builder.Services.AddScoped<UserPreferencesService>();
+builder.Services.AddScoped<PasswordChangeService>();
 builder.Services.AddScoped<IExecutiveDashboardService,
     ExecutiveDashboardService>();
 
