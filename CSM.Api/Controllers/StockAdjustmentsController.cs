@@ -66,8 +66,9 @@ public sealed class StockAdjustmentsController : ControllerBase
             "You are not authorized to manage stock adjustments."
             or "You are not authorized to access this company."
             or "Current user is not assigned to a company.";
-        return StatusCode(forbidden ? StatusCodes.Status403Forbidden : StatusCodes.Status400BadRequest,
-            new { message = exception.Message });
+        return forbidden
+            ? StatusCode(StatusCodes.Status403Forbidden, new { message = exception.Message })
+            : BadRequest(new { message = exception.Message });
     }
 
     private Guid GetCurrentUserId()
