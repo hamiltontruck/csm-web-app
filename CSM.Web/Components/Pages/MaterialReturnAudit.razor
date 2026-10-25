@@ -15,6 +15,21 @@
         <h4>Loading construction sites...</h4>
     </div>
 }
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="container py-4">
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (signInRequired)
+        {
+            <a id="material-return-audit-sites-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-material-return-audit-sites" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        }
+        <button class="btn btn-outline-secondary ms-2" @onclick="GoBack">Back</button>
+    </div>
+}
 else
 {
     <div class="container py-4">
@@ -63,29 +78,50 @@ else
     private bool loading = true;
     private bool loaded;
 
+    private string? errorMessage;
+    private bool canRetry = true;
+    private bool signInRequired;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || loaded)
-            return;
+        if (!firstRender || loaded) return;
+        loaded = true;
+        await LoadAsync();
+    }
 
+    private async Task LoadAsync()
+    {
+        loading = true;
+        errorMessage = null;
+        sites = [];
+        canRetry = true;
+        signInRequired = false;
         try
         {
             sites = await ProjectService.GetSitesAsync();
-
+        }
+        catch (HttpRequestException ex)
+        {
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view construction sites.",
+                _ => "Unable to load construction sites. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load construction sites. Please try again.";
+        }
+        finally
+        {
             loading = false;
-            loaded = true;
-
             StateHasChanged();
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-        {
-            // JWT not restored yet.
-            // Do not mark as loaded; Blazor will render again after login.
-        }
     }
-
-    void OpenSite(Guid siteId)
-        => Navigation.NavigateTo($"/material-return-audit/site/{siteId}");
 
     void GoBack()
         => Navigation.NavigateTo("/stock-items");
