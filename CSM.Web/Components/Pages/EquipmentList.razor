@@ -21,10 +21,10 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3 class="mb-0">Equipment</h3>
 
-        <button class="btn btn-primary"
-                @onclick="CreateEquipment">
-            + New Equipment
-        </button>
+        @if (canCreate)
+        {
+            <button class="btn btn-primary" @onclick="CreateEquipment">+ New Equipment</button>
+        }
     </div>
 
     @if (loading)
@@ -32,6 +32,18 @@
         <div class="text-center py-5">
             <div class="spinner-border"></div>
         </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (signInRequired)
+        {
+            <a id="equipment-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-equipment" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (equipment.Count == 0)
     {
@@ -90,15 +102,51 @@
     private List<EquipmentResponse> equipment = [];
     private bool loading = true;
 
+    private bool canCreate;
+    private bool canRetry = true;
+    private bool signInRequired;
+    private string? errorMessage;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (firstRender) await LoadAsync();
+    }
 
-        equipment = await EquipmentService.GetEquipmentAsync();
-
-        loading = false;
-
-        await InvokeAsync(StateHasChanged);
+    private async Task LoadAsync()
+    {
+        loading = true;
+        equipment = [];
+        canCreate = false;
+        canRetry = true;
+        signInRequired = false;
+        errorMessage = null;
+        try
+        {
+            equipment = await EquipmentService.GetEquipmentAsync();
+            // Listing and creation share the equipment controller's role gate.
+            canCreate = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view equipment.",
+                _ => "Unable to load equipment. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load equipment. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
     }
 
     private void Open(Guid id)
@@ -108,7 +156,8 @@
 
     private void CreateEquipment()
     {
-        Navigation.NavigateTo("/equipment/create");
+        if (canCreate)
+            Navigation.NavigateTo("/equipment/create");
     }
 
     private static string StatusClass(string status) => status switch

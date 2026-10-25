@@ -13,10 +13,28 @@
 
         <button class="btn btn-outline-secondary"
                 @onclick="GoBack">
-            Cancel
+            Back
         </button>
     </div>
 
+    @if (loading)
+    {
+        <p>Checking equipment access...</p>
+    }
+    else if (!canCreate)
+    {
+        <div class="alert alert-danger" role="alert">@accessError</div>
+        @if (signInRequired)
+        {
+            <a id="equipment-create-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-equipment-create-access" class="btn btn-primary" @onclick="CheckAccessAsync">Retry</button>
+        }
+    }
+    else
+    {
     <EditForm Model="model" OnValidSubmit="Save">
         <DataAnnotationsValidator />
         <ValidationSummary />
@@ -166,6 +184,7 @@
         </div>
 
     </EditForm>
+    }
 
 </div>
 
@@ -173,8 +192,57 @@
     private readonly CreateEquipmentRequest model = new();
     private bool saving;
 
+    private bool loading = true;
+    private bool canCreate;
+    private bool canRetry = true;
+    private bool signInRequired;
+    private string? accessError;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await CheckAccessAsync();
+    }
+
+    private async Task CheckAccessAsync()
+    {
+        loading = true;
+        canCreate = false;
+        canRetry = true;
+        signInRequired = false;
+        accessError = null;
+        try
+        {
+            // GET and POST share the same controller role gate; the API is authoritative.
+            _ = await EquipmentService.GetEquipmentAsync();
+            canCreate = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            accessError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create equipment.",
+                _ => "Unable to verify equipment access. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            accessError = "Unable to verify equipment access. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
     private async Task Save()
     {
+        if (saving || !canCreate) return;
+
         saving = true;
 
         var id = await EquipmentService.CreateEquipmentAsync(model);

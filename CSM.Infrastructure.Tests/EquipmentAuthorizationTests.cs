@@ -15,6 +15,7 @@ public sealed class EquipmentAuthorizationTests
     [InlineData(AppRoles.CompanyAdmin, true)]
     [InlineData(AppRoles.SiteManager, true)]
     [InlineData("UnrelatedRole", false)]
+    [InlineData(AppRoles.Supervisor, false)]
     public async Task Controller_admits_equipment_service_roles_and_rejects_unrelated_role(string role, bool expected)
     {
         var services = new ServiceCollection();
