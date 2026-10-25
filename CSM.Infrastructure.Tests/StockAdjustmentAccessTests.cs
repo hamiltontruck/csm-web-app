@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Net;
 using System.Security.Claims;
 using Bunit;
 using CSM.Api.Controllers;
@@ -111,6 +112,72 @@ public sealed class StockAdjustmentAccessTests
         Assert.IsType<BadRequestObjectResult>(response.Result);
     }
 
+
+    [Fact]
+    public async Task Supervisor_receives_403_for_adjustment_read_and_write_without_stock_changes()
+    {
+        using var db = Database(AppRoles.Supervisor);
+        db.Users.Single().CompanyId = db.StockItems.Single().CompanyId;
+        db.SaveChanges(acceptAllChangesOnSuccess: true);
+        var controller = new StockAdjustmentsController(new StockAdjustmentService(db)) {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, ActorId.ToString())], "test"))
+            }}
+        };
+        Assert.Equal(403, Assert.IsType<ObjectResult>((await controller.GetAll(default)).Result).StatusCode);
+        Assert.Equal(403, Assert.IsType<ObjectResult>((await controller.Create(Request(), default)).Result).StatusCode);
+        Assert.Equal(6m, db.StockItems.Single().QuantityOnHand);
+        Assert.Empty(db.StockMovements);
+    }
+
+    [Theory]
+    [InlineData(401, "Your session is missing or has expired. Please sign in again.")]
+    [InlineData(403, "You do not have permission to view stock adjustments.")]
+    public void Adjustment_history_shows_auth_feedback_without_retry_or_creation(int status, string expected)
+    {
+        using var context = new TestContext();
+        var inventory = DispatchProxy.Create<IInventoryService, InventoryProxy>();
+        ((InventoryProxy)(object)inventory).Status = (HttpStatusCode)status;
+        context.Services.AddSingleton(inventory);
+        context.Services.AddSingleton(DispatchProxy.Create<IProjectService, ProjectProxy>());
+        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, AdjustmentAuth>());
+        var page = context.RenderComponent<StockAdjustmentsSite>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Equal(expected, page.Find("[role=alert]").TextContent.Trim()));
+        Assert.Empty(page.FindAll("#retry-stock-adjustments"));
+        Assert.DoesNotContain("New Adjustment", page.Markup);
+        Assert.DoesNotContain("No stock adjustments recorded", page.Markup);
+        Assert.DoesNotContain("private API diagnostic", page.Markup);
+        Assert.Contains("Back", page.Markup);
+        Assert.Equal(status == 401, page.FindAll("#stock-adjustments-sign-in").Count == 1);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Read_only_user_cannot_open_either_adjustment_create_route(bool siteRoute)
+    {
+        using var context = new TestContext();
+        var auth = DispatchProxy.Create<IAuthService, AdjustmentAuth>();
+        ((AdjustmentAuth)(object)auth).CanAdjust = false;
+        context.Services.AddSingleton(auth);
+        context.Services.AddSingleton(DispatchProxy.Create<IProjectService, ProjectProxy>());
+        context.Services.AddSingleton(DispatchProxy.Create<IInventoryService, InventoryProxy>());
+        var page = context.RenderComponent<StockAdjustmentCreate>(p => p.Add(x => x.SiteId, siteRoute ? SiteId : (Guid?)null));
+        page.WaitForAssertion(() => Assert.Contains("You do not have permission to create stock adjustments.", page.Find("[role=alert]").TextContent));
+        Assert.Empty(page.FindAll("input, select, textarea"));
+        Assert.DoesNotContain("Save Adjustment", page.Markup);
+        Assert.Contains("Back", page.Markup);
+    }
+
+    public class AdjustmentAuth : DispatchProxy
+    {
+        public bool CanAdjust { get; set; } = true;
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Task.FromResult<IReadOnlyCollection<string>>(CanAdjust
+                ? new[] { "Procurement_Inventory_View", "Procurement_Inventory_Adjust" }
+                : new[] { "Procurement_Inventory_View" });
+    }
+
     private static readonly Guid ActorId = Guid.NewGuid();
     private static readonly Guid SiteId = Guid.NewGuid();
     private static readonly Guid MaterialId = Guid.NewGuid();
@@ -158,7 +225,9 @@ public sealed class StockAdjustmentAccessTests
     public class InventoryProxy : DispatchProxy
     {
         public bool Fail { get; set; }
+        public HttpStatusCode? Status { get; set; }
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Status.HasValue ? Task.FromException<List<CSM.Web.Models.Procurement.StockAdjustmentResponse>>(new HttpRequestException("private API diagnostic", null, Status)) :
             Fail ? Task.FromException<List<CSM.Web.Models.Procurement.StockAdjustmentResponse>>(new HttpRequestException("500")) :
             Task.FromResult(new List<CSM.Web.Models.Procurement.StockAdjustmentResponse> {
                 new() { ConstructionSiteId = SiteId, MaterialName = "Cement", Quantity = 2m, QuantityBefore = 6m, QuantityAfter = 8m } });
