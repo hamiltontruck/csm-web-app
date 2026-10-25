@@ -184,7 +184,12 @@
             await SessionStorage.SetAsync("email", result.Email);
             await SessionStorage.SetAsync("roles", result.Roles);
 
-            Navigation.NavigateTo("/dashboard", true);
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers
+                .ParseQuery(Navigation.ToAbsoluteUri(Navigation.Uri).Query);
+            // Only the equipment recovery destination is supported; default logins keep Dashboard.
+            var destination = query.TryGetValue("returnUrl", out var returnUrl) &&
+                returnUrl.ToString() == "/equipment/create" ? "/equipment/create" : "/dashboard";
+            Navigation.NavigateTo(destination, true);
         }
         catch (Exception ex)
         {

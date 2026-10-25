@@ -1,0 +1,68 @@
+using System.Net;
+using System.Reflection;
+using Bunit;
+using CSM.Web.Components.Pages;
+using CSM.Web.Models.Auth;
+using CSM.Web.Models.Equipment;
+using CSM.Web.Services;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+
+namespace CSM.Infrastructure.Tests;
+
+public sealed class EquipmentSignInReturnTests
+{
+    [Fact]
+    public void Equipment_create_sign_in_link_preserves_the_destination()
+    {
+        using var context = new TestContext();
+        context.Services.AddSingleton(DispatchProxy.Create<IEquipmentService, DeniedEquipment>());
+        var page = context.RenderComponent<EquipmentCreate>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("#equipment-create-sign-in")));
+        Assert.Equal("/login?returnUrl=%2Fequipment%2Fcreate",
+            page.Find("#equipment-create-sign-in").GetAttribute("href"));
+    }
+
+    [Theory]
+    [InlineData("/equipment/create", "/equipment/create")]
+    [InlineData(null, "/dashboard")]
+    [InlineData("https://example.test/equipment/create", "/dashboard")]
+    [InlineData("//example.test/equipment/create", "/dashboard")]
+    [InlineData("/equipment/list", "/dashboard")]
+    public void Successful_login_returns_to_the_requested_equipment_form_or_default_dashboard(string? returnUrl, string expected)
+    {
+        using var context = new TestContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.Services.AddDataProtection();
+        context.Services.AddScoped<ProtectedSessionStorage>();
+        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, SuccessfulAuth>());
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(returnUrl is null ? "/login" : "/login?returnUrl=" + Uri.EscapeDataString(returnUrl));
+        var page = context.RenderComponent<Login>();
+        page.Find("#csm-email").Change("supervisor@example.test");
+        page.Find("#csm-password").Change("Test-Only-Password!2026");
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.EndsWith(expected, navigation.Uri));
+        Assert.Empty(page.FindAll("[role=alert]"));
+    }
+
+    public class SuccessfulAuth : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            method!.Name == nameof(IAuthService.LoginAsync)
+                ? Task.FromResult<LoginResponse?>(new() {
+                    AccessToken = "test-access-token", RefreshToken = "test-refresh-token",
+                    Email = "supervisor@example.test", FullName = "Test Supervisor",
+                    Roles = ["Supervisor"]
+                })
+                : throw new InvalidOperationException("Unexpected authentication call.");
+    }
+
+    public class DeniedEquipment : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Task.FromException<List<EquipmentResponse>>(new HttpRequestException("Unauthorized", null, HttpStatusCode.Unauthorized));
+    }
+}

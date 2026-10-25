@@ -26,7 +26,7 @@
         <div class="alert alert-danger" role="alert">@accessError</div>
         @if (signInRequired)
         {
-            <a id="equipment-create-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+            <a id="equipment-create-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fequipment%2Fcreate">Sign in</a>
         }
         else if (canRetry)
         {
