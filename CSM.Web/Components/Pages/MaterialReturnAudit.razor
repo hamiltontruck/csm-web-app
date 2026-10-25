@@ -123,6 +123,9 @@ else
         }
     }
 
+    void OpenSite(Guid siteId)
+        => Navigation.NavigateTo($"/material-return-audit/site/{siteId}");
+
     void GoBack()
         => Navigation.NavigateTo("/stock-items");
 }
