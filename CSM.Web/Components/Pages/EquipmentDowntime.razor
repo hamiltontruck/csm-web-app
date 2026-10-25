@@ -37,10 +37,10 @@
 
         </div>
 
-        <button class="btn btn-primary"
-                @onclick="NewDowntime">
-            + New Downtime
-        </button>
+        @if (canManage)
+        {
+            <button class="btn btn-primary" @onclick="NewDowntime">+ New Downtime</button>
+        }
 
     </div>
 
@@ -56,9 +56,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">
-            @errorMessage
-        </div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (signInRequired)
+        {
+            <a id="equipment-downtime-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (canRetry)
+        {
+            <button id="retry-equipment-downtime" class="btn btn-primary" @onclick="LoadDataAsync">Retry</button>
+        }
     }
     else if (downtimeRecords.Count == 0)
     {
@@ -352,54 +358,62 @@
     private string? closeErrorMessage;
 
 
+    private bool canManage;
+    private bool canRetry = true;
+    private bool signInRequired;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || loaded)
-            return;
-
-        loaded = true;
-
-        await LoadDataAsync();
-
-        await InvokeAsync(StateHasChanged);
+        if (firstRender) await LoadDataAsync();
     }
-
 
     private async Task LoadDataAsync()
     {
+        loaded = false;
+        downtimeRecords = [];
+        siteName = string.Empty;
+        showCloseDialog = false;
+        selectedDowntime = null;
+        canManage = false;
+        canRetry = true;
+        signInRequired = false;
         errorMessage = null;
-
         try
         {
-            var sites =
-                await ProjectService.GetSitesAsync();
-
-            var site =
-                sites.FirstOrDefault(x => x.Id == SiteId);
-
-            if (site is not null)
-            {
-                siteName = site.Name;
-            }
-
-            var all =
-                await EquipmentService.GetDowntimeAsync();
-
-            downtimeRecords = all
-                .Where(x => x.ConstructionSiteId == SiteId)
-                .OrderByDescending(x => x.StartedAtUtc)
-                .ToList();
+            var sites = await ProjectService.GetSitesAsync();
+            siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? string.Empty;
+            var all = await EquipmentService.GetDowntimeAsync();
+            downtimeRecords = all.Where(x => x.ConstructionSiteId == SiteId)
+                .OrderByDescending(x => x.StartedAtUtc).ToList();
+            canManage = true;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden);
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view equipment downtime.",
+                _ => "Unable to load equipment downtime. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load equipment downtime. Please try again.";
+        }
+        finally
+        {
+            loaded = true;
+            StateHasChanged();
         }
     }
-
 
     private void OpenCloseDialog(
         EquipmentDowntimeResponse item)
     {
+        if (!canManage) return;
         selectedDowntime = item;
 
         closeEndedAtUtc = DateTime.Now;
@@ -427,7 +441,7 @@
 
     private async Task ConfirmClose()
     {
-        if (selectedDowntime is null)
+        if (!canManage || selectedDowntime is null)
             return;
 
         closeErrorMessage = null;
@@ -473,8 +487,8 @@
 
     private void NewDowntime()
     {
-        Navigation.NavigateTo(
-            $"/equipment/downtime/create/{SiteId}");
+        if (canManage)
+            Navigation.NavigateTo($"/equipment/downtime/create/{SiteId}");
     }
 
 
