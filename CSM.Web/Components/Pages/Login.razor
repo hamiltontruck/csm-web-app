@@ -193,6 +193,7 @@
                 var requested = returnUrl.ToString();
                 const string assignmentPrefix = "/equipment/assignments/create/";
                 const string downtimePrefix = "/equipment/downtime/create/";
+                const string maintenancePrefix = "/equipment/maintenance/create/";
                 if (requested == "/equipment/create")
                     destination = "/equipment/create";
                 else if (requested.StartsWith(assignmentPrefix, StringComparison.Ordinal) &&
@@ -201,6 +202,9 @@
                 else if (requested.StartsWith(downtimePrefix, StringComparison.Ordinal) &&
                     Guid.TryParse(requested[downtimePrefix.Length..], out var downtimeSiteId))
                     destination = downtimePrefix + downtimeSiteId.ToString("D");
+                else if (requested.StartsWith(maintenancePrefix, StringComparison.Ordinal) &&
+                    Guid.TryParse(requested[maintenancePrefix.Length..], out var maintenanceSiteId))
+                    destination = maintenancePrefix + maintenanceSiteId.ToString("D");
             }
             Navigation.NavigateTo(destination, true);
         }

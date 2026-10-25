@@ -31,6 +31,8 @@ public sealed class EquipmentSignInReturnTests
     [InlineData("https://example.test/equipment/create", "/dashboard")]
     [InlineData("//example.test/equipment/create", "/dashboard")]
     [InlineData("/equipment/list", "/dashboard")]
+    [InlineData("/equipment/maintenance/create/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66", "/equipment/maintenance/create/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66")]
+    [InlineData("/equipment/maintenance/create/invalid", "/dashboard")]
     [InlineData("/equipment/downtime/create/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66", "/equipment/downtime/create/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66")]
     [InlineData("/equipment/downtime/create/invalid", "/dashboard")]
     [InlineData("/equipment/assignments/create/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66", "/equipment/assignments/create/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66")]
