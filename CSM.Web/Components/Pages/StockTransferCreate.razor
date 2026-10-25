@@ -6,6 +6,7 @@
 @using CSM.Web.Models.Procurement
 @using CSM.Web.Models.Sites
 
+@inject IAuthService AuthService
 @inject IProjectService ProjectService
 @inject IInventoryService InventoryService
 @inject NavigationManager Navigation
@@ -26,6 +27,16 @@
         </p>
     </div>
 
+    @if (!permissionChecked)
+    {
+        <p>Checking stock transfer permissions...</p>
+    }
+    else if (!canCreate)
+    {
+        <div class="alert alert-danger" role="alert">@permissionMessage</div>
+    }
+    else
+    {
     <div class="card shadow-sm">
         <div class="card-body">
 
@@ -149,6 +160,7 @@
         </div>
     </div>
 
+    }
 </div>
 
 @code {
@@ -159,6 +171,9 @@
     private List<SiteResponse> sites = [];
     private List<StockBalanceResponse> materials = [];
     private bool loaded;
+    private bool permissionChecked;
+    private bool canCreate;
+    private string permissionMessage = "You do not have permission to create stock transfers.";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -166,6 +181,22 @@
             return;
 
         loaded = true;
+
+        try
+        {
+            var permissions = await AuthService.GetPermissionsAsync();
+            canCreate = permissions.Contains("Procurement_Inventory_Adjust");
+        }
+        catch (Exception)
+        {
+            permissionMessage = "Unable to verify stock transfer permissions. Please reload the page.";
+        }
+        permissionChecked = true;
+        if (!canCreate)
+        {
+            StateHasChanged();
+            return;
+        }
 
         sites = await ProjectService.GetSitesAsync();
 
@@ -238,7 +269,7 @@ private bool saving;
 
 private async Task SaveTransfer()
 {
-    if (saving) return;
+    if (saving || !canCreate) return;
 
     errorMessage = null;
 
