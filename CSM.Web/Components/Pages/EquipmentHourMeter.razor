@@ -33,10 +33,14 @@
 
         </div>
 
+        @if (canManage)
+        {
         <button class="btn btn-primary"
                 @onclick="NewHourLog">
             + New Hour Entry
         </button>
+        }
+
 
     </div>
 
@@ -48,7 +52,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="hour-meter-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/hourmeter/site/{SiteId}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-hour-meter" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (logs.Count == 0)
     {
@@ -155,14 +167,23 @@
     private List<EquipmentHourLogResponse> logs = [];
 
     private bool loading = true;
+    private bool canManage;
+    private System.Net.HttpStatusCode? accessStatus;
 
     private string? errorMessage;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadAsync();
+    }
 
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        accessStatus = null;
+        errorMessage = null;
+        logs = [];
         try
         {
             var sites = await ProjectService.GetSitesAsync();
@@ -188,10 +209,21 @@
                 .Where(x => equipmentIds.Contains(x.EquipmentId))
                 .OrderByDescending(x => x.LoggedAtUtc)
                 .ToList();
+            canManage = true;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            accessStatus = ex.StatusCode;
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view hour meter records.",
+                _ => "Unable to load hour meter records. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load hour meter records. Please try again.";
         }
         finally
         {
@@ -202,6 +234,7 @@
 
     private void NewHourLog()
     {
+        if (!canManage) return;
         Navigation.NavigateTo(
             $"/equipment/hourmeter/create/{SiteId}");
     }
