@@ -28,6 +28,7 @@ public sealed class EquipmentSignInReturnTests
     [Theory]
     [InlineData("/equipment/create", "/equipment/create")]
     [InlineData(null, "/dashboard")]
+    [InlineData("/hr", "/hr")]
     [InlineData("/equipment/timesheet/create/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66", "/equipment/timesheet/create/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66")]
     [InlineData("/equipment/timesheet/create/invalid", "/dashboard")]
     [InlineData("/equipment/timesheet/site/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66", "/equipment/timesheet/site/ae408187-2e4a-41b2-85d9-c4ae6f9e4f66")]
