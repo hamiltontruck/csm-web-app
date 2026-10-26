@@ -199,8 +199,15 @@
                 const string fuelEditPrefix = "/equipment/fuel/edit/";
                 const string fuelSitePrefix = "/equipment/fuel/site/";
                 const string maintenancePrefix = "/equipment/maintenance/create/";
-                if (requested is "/equipment/create" or "/hr" or "/hr/employees" or "/hr/employees/company" or "/hr/employees/site" or "/hr/employees/create")
+                if (requested is "/equipment/create" or "/hr" or "/hr/employees" or "/hr/employees/company" or "/hr/employees/site" or "/hr/employees/create" or "/hr/attendance" or "/hr/attendance/check-in")
                     destination = requested;
+                else if (requested.StartsWith("/hr/attendance/", StringComparison.Ordinal))
+                {
+                    var parts = requested["/hr/attendance/".Length..].Split('/');
+                    if (parts.Length == 2 && parts[0] is "check-out" or "override" &&
+                        Guid.TryParse(parts[1], out var attendanceId))
+                        destination = $"/hr/attendance/{parts[0]}/{attendanceId:D}";
+                }
                 else if (requested.StartsWith("/hr/employees/site/", StringComparison.Ordinal) &&
                     Guid.TryParse(requested["/hr/employees/site/".Length..], out var employeeSiteId))
                     destination = $"/hr/employees/site/{employeeSiteId:D}";
