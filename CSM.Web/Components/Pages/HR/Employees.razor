@@ -33,11 +33,14 @@
                 Back
             </button>
 
+            @if (_canManage)
+            {
             <button class="btn btn-primary"
                     @onclick="CreateEmployee">
                 <i class="bi bi-person-plus me-2"></i>
                 Add Employee
             </button>
+            }
         </div>
     </div>
 
@@ -50,9 +53,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">
-            @_error
-        </div>
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="employees-sign-in" class="btn btn-primary" href="@SignInUrl">Sign in</a>
+        }
+        else if (_accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-employees" class="btn btn-outline-primary" @onclick="ReloadAsync">Retry</button>
+        }
     }
     else if (IsSiteScope && !SiteId.HasValue)
     {
@@ -344,6 +353,8 @@
     private string _statusFilter = string.Empty;
 
     private bool _loading = true;
+    private bool _canManage;
+    private System.Net.HttpStatusCode? _accessStatus;
     private string? _error;
     private List<SiteResponse> _sites = new();
     private List<SiteAssignmentResponse> _siteAssignments = new();
@@ -357,27 +368,49 @@
     private bool IsSiteEmployeeScope =>
         SiteId.HasValue;
 
+    private string SignInUrl => "/login?returnUrl=" + Uri.EscapeDataString(
+        SiteId.HasValue ? $"/hr/employees/site/{SiteId.Value}"
+        : IsSiteScope ? "/hr/employees/site"
+        : string.Equals(Scope, "company", StringComparison.OrdinalIgnoreCase) ? "/hr/employees/company"
+        : "/hr/employees");
+
+    private Task ReloadAsync() => SiteId.HasValue ? LoadSiteEmployees()
+        : IsSiteScope ? LoadSites() : LoadEmployees();
+
+    private void SetLoadError(Exception ex)
+    {
+        _accessStatus = (ex as HttpRequestException)?.StatusCode;
+        _error = _accessStatus switch
+        {
+            System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+            System.Net.HttpStatusCode.Forbidden => "You do not have permission to view employees.",
+            _ => "Unable to load employees. Please try again."
+        };
+    }
+
     private async Task LoadSites()
     {
         _loading = true;
+        _canManage = false;
+        _accessStatus = null;
         _error = null;
+        _employees = [];
+        _sites = [];
+        _siteAssignments = [];
 
         try
         {
             _sites = await ProjectService.GetSitesAsync();
 
-            if (_sites.Count == 0)
-            {
-                _error = "GetSitesAsync returned 0 sites.";
-            }
         }
         catch (Exception ex)
         {
-            _error = $"Failed to load sites: {ex.Message}";
+            SetLoadError(ex);
         }
         finally
         {
             _loading = false;
+            _canManage = string.IsNullOrWhiteSpace(_error);
         }
 
         StateHasChanged();
@@ -386,7 +419,12 @@
     private async Task LoadSiteEmployees()
     {
         _loading = true;
+        _canManage = false;
+        _accessStatus = null;
         _error = null;
+        _employees = [];
+        _sites = [];
+        _siteAssignments = [];
 
         try
         {
@@ -406,11 +444,12 @@
         }
         catch (Exception ex)
         {
-            _error = $"Failed to load site employees: {ex.Message}";
+            SetLoadError(ex);
         }
         finally
         {
             _loading = false;
+            _canManage = string.IsNullOrWhiteSpace(_error);
         }
 
         StateHasChanged();
@@ -418,12 +457,14 @@
 
     private void OpenSiteEmployees(Guid siteId)
     {
+        if (!_canManage) return;
         Navigation.NavigateTo(
             $"/hr/employees/site/{siteId}");
     }
 
     private void ViewSiteEmployee(Guid employeeId)
     {
+        if (!_canManage) return;
         Navigation.NavigateTo(
             $"/hr/employees/details/{employeeId}?siteId={SiteId}");
     }
@@ -447,7 +488,12 @@
     private async Task LoadEmployees()
     {
         _loading = true;
+        _canManage = false;
+        _accessStatus = null;
         _error = null;
+        _employees = [];
+        _sites = [];
+        _siteAssignments = [];
 
         try
         {
@@ -472,11 +518,12 @@
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            SetLoadError(ex);
         }
         finally
         {
             _loading = false;
+            _canManage = string.IsNullOrWhiteSpace(_error);
         }
 
         StateHasChanged();
@@ -484,6 +531,7 @@
 
     private void CreateEmployee()
     {
+        if (!_canManage) return;
         if (SiteId.HasValue)
         {
             var returnUrl =
@@ -511,18 +559,21 @@
 
     private void ViewEmployee(Guid employeeId)
     {
+        if (!_canManage) return;
         Navigation.NavigateTo(
             $"/hr/employees/details/{employeeId}");
     }
 
     private void EditEmployee(Guid employeeId)
     {
+        if (!_canManage) return;
         Navigation.NavigateTo(
             $"/hr/employees/edit/{employeeId}");
     }
 
     private void EditSiteEmployee(Guid employeeId)
     {
+        if (!_canManage) return;
         Navigation.NavigateTo(
             $"/hr/employees/edit/{employeeId}?siteId={SiteId}");
     }

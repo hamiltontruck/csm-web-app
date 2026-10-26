@@ -23,13 +23,28 @@
         </button>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(_error))
+    @if (_loading)
     {
-        <div class="alert alert-danger">
-            @_error
-        </div>
+        <div class="text-center py-5"><div class="spinner-border"></div></div>
     }
-
+    else if (!_canManage)
+    {
+        <div class="alert alert-danger" role="alert">@_loadError</div>
+        @if (_accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="employee-create-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fhr%2Femployees%2Fcreate">Sign in</a>
+        }
+        else if (_accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-employee-create" class="btn btn-outline-primary" @onclick="LoadAccessAsync">Retry</button>
+        }
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
     <div class="card shadow-sm">
         <div class="card-body">
             <EditForm Model="_model" OnValidSubmit="SaveAsync">
@@ -217,6 +232,7 @@
             </EditForm>
         </div>
     </div>
+    }
 </div>
 
 @code {
@@ -239,10 +255,53 @@
     };
 
     private bool _saving;
+    private bool _loading = true;
+    private bool _canManage;
+    private string? _loadError;
+    private System.Net.HttpStatusCode? _accessStatus;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await LoadAccessAsync();
+    }
+
+    private async Task LoadAccessAsync()
+    {
+        _loading = true;
+        _canManage = false;
+        _loadError = null;
+        _accessStatus = null;
+        try
+        {
+            await EmployeeService.GetEmployeesAsync();
+            _canManage = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            _accessStatus = ex.StatusCode;
+            _loadError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create employees.",
+                _ => "Unable to load employee form. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            _loadError = "Unable to load employee form. Please try again.";
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
     private string? _error;
 
     private async Task SaveAsync()
     {
+        if (_saving || !_canManage) return;
         _saving = true;
         _error = null;
 
