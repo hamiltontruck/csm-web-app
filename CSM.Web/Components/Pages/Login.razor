@@ -199,8 +199,8 @@
                 const string fuelEditPrefix = "/equipment/fuel/edit/";
                 const string fuelSitePrefix = "/equipment/fuel/site/";
                 const string maintenancePrefix = "/equipment/maintenance/create/";
-                if (requested == "/equipment/create")
-                    destination = "/equipment/create";
+                if (requested is "/equipment/create" or "/hr")
+                    destination = requested;
                 else if (requested.StartsWith("/equipment/timesheet/", StringComparison.Ordinal))
                 {
                     var parts = requested["/equipment/timesheet/".Length..].Split('/');
