@@ -199,8 +199,11 @@
                 const string fuelEditPrefix = "/equipment/fuel/edit/";
                 const string fuelSitePrefix = "/equipment/fuel/site/";
                 const string maintenancePrefix = "/equipment/maintenance/create/";
-                if (requested is "/equipment/create" or "/hr" or "/hr/employees" or "/hr/employees/company" or "/hr/employees/site" or "/hr/employees/create" or "/hr/attendance" or "/hr/attendance/check-in" or "/hr/site-assignments" or "/hr/site-assignments/create")
+                if (requested is "/equipment/create" or "/hr" or "/hr/employees" or "/hr/employees/company" or "/hr/employees/site" or "/hr/employees/create" or "/hr/attendance" or "/hr/attendance/check-in" or "/hr/site-assignments" or "/hr/site-assignments/create" or "/hr/shifts" or "/hr/shifts/create")
                     destination = requested;
+                else if (requested.StartsWith("/hr/shifts/edit/", StringComparison.Ordinal) &&
+                    Guid.TryParse(requested["/hr/shifts/edit/".Length..], out var shiftId))
+                    destination = $"/hr/shifts/edit/{shiftId:D}";
                 else if (requested.StartsWith("/hr/site-assignments/edit/", StringComparison.Ordinal) &&
                     Guid.TryParse(requested["/hr/site-assignments/edit/".Length..], out var hrAssignmentId))
                     destination = $"/hr/site-assignments/edit/{hrAssignmentId:D}";

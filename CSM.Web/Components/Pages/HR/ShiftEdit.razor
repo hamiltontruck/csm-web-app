@@ -6,6 +6,7 @@
 
 @inject IShiftService ShiftService
 @inject NavigationManager Navigation
+@inject IAuthService AuthService
 
 <PageTitle>Edit Shift</PageTitle>
 
@@ -34,9 +35,16 @@
     }
     else if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">
-            @_error
-        </div>
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="shift-edit-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString($"/hr/shifts/edit/{ShiftId}")}")">Sign in</a>
+        }
+        else if (_accessStatus != System.Net.HttpStatusCode.Forbidden && _accessStatus != System.Net.HttpStatusCode.NotFound)
+        {
+            <button id="retry-shift-edit" class="btn btn-outline-primary" @onclick="LoadShiftAsync">Retry</button>
+        }
+
     }
     else if (_model is not null)
     {
@@ -162,18 +170,23 @@
     private UpdateShiftRequest? _model;
 
     private bool _loading = true;
+    private bool _canSubmit;
+    private System.Net.HttpStatusCode? _accessStatus;
     private bool _saving;
     private string? _error;
     private string? _saveError;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadShiftAsync();
+        if (firstRender) await LoadShiftAsync();
     }
 
     private async Task LoadShiftAsync()
     {
         _loading = true;
+        _canSubmit = false;
+        _accessStatus = null;
+        _model = null;
         _error = null;
 
         try
@@ -182,10 +195,17 @@
 
             if (shift is null)
             {
+                _accessStatus = System.Net.HttpStatusCode.NotFound;
                 _error = "Shift not found.";
                 return;
             }
 
+            if (!(await AuthService.GetPermissionsAsync()).Contains("HRM_Shift_Submit"))
+            {
+                _accessStatus = System.Net.HttpStatusCode.Forbidden;
+                _error = "You do not have permission to edit shifts.";
+                return;
+            }
             _shiftCode = shift.Code;
 
             _startTime = shift.StartTime.ToString("HH:mm");
@@ -200,20 +220,29 @@
                 StandardHours = shift.StandardHours,
                 IsNightShift = shift.IsNightShift
             };
+            _canSubmit = true;
         }
         catch (Exception ex)
         {
-            _error = $"Failed to load shift: {ex.Message}";
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _error = _accessStatus switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to edit shifts.",
+                System.Net.HttpStatusCode.NotFound => "Shift not found.",
+                _ => "Unable to load shift form. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task SaveAsync()
     {
-        if (_model is null)
+        if (_saving || !_canSubmit || _model is null)
         {
             return;
         }

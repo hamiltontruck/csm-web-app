@@ -6,6 +6,7 @@
 
 @inject IShiftService ShiftService
 @inject NavigationManager Navigation
+@inject IAuthService AuthService
 
 <PageTitle>Create Shift</PageTitle>
 
@@ -26,13 +27,28 @@
         </button>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(_error))
+    @if (_loading)
     {
-        <div class="alert alert-danger">
-            @_error
-        </div>
+        <div class="text-center py-5"><div class="spinner-border"></div></div>
     }
-
+    else if (!_canSubmit)
+    {
+        <div class="alert alert-danger" role="alert">@_loadError</div>
+        @if (_accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="shift-create-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString("/hr/shifts/create")}")">Sign in</a>
+        }
+        else if (_accessStatus != System.Net.HttpStatusCode.Forbidden && _accessStatus != System.Net.HttpStatusCode.NotFound)
+        {
+            <button id="retry-shift-create" class="btn btn-outline-primary" @onclick="LoadAccessAsync">Retry</button>
+        }
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
     <div class="card shadow-sm">
         <div class="card-body">
 
@@ -160,6 +176,7 @@
         </div>
     </div>
 
+    }
 </div>
 
 @code {
@@ -174,10 +191,55 @@
     };
 
     private bool _saving;
+    private bool _loading = true;
+    private bool _canSubmit;
+    private string? _loadError;
+    private System.Net.HttpStatusCode? _accessStatus;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await LoadAccessAsync();
+    }
+
+    private async Task LoadAccessAsync()
+    {
+        _loading = true;
+        _canSubmit = false;
+        _loadError = null;
+        _accessStatus = null;
+        try
+        {
+            await ShiftService.GetAllAsync();
+            if (!(await AuthService.GetPermissionsAsync()).Contains("HRM_Shift_Submit"))
+            {
+                _accessStatus = System.Net.HttpStatusCode.Forbidden;
+                _loadError = "You do not have permission to create shifts.";
+                return;
+            }
+            _canSubmit = true;
+        }
+        catch (Exception ex)
+        {
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _loadError = _accessStatus switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create shifts.",
+                _ => "Unable to load shift form. Please try again."
+            };
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
     private string? _error;
 
     private async Task SaveAsync()
     {
+        if (_saving || !_canSubmit) return;
         _saving = true;
         _error = null;
 

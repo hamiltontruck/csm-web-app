@@ -113,20 +113,11 @@ public sealed class ShiftService : IShiftService
     {
         var client = await ClientAsync();
 
-        var response = await client.PutAsJsonAsync(
+        using var response = await client.PutAsJsonAsync(
             $"Shifts/{shiftId}/active-status",
             request);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error =
-                await response.Content.ReadAsStringAsync();
-
-            throw new Exception(
-                $"Shift active status update failed. " +
-                $"HTTP {(int)response.StatusCode} " +
-                $"{response.StatusCode}: {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
             .ReadFromJsonAsync<ShiftResponse>()

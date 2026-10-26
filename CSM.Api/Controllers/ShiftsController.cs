@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.HRM.Shifts;
 using CSM.Application.HRM.Shifts.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,9 +10,14 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.HRManagement)]
+[Authorize]
 public sealed class ShiftsController : ControllerBase
 {
+    private const string ReadRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
+        AppRoles.SiteManager + "," + AppRoles.Supervisor + "," + AppRoles.HrOfficer + "," + AppRoles.HROfficer;
+    private const string WriteRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
+        AppRoles.HrOfficer + "," + AppRoles.HROfficer;
+
     private readonly IShiftService _shiftService;
 
     public ShiftsController(IShiftService shiftService)
@@ -21,6 +26,7 @@ public sealed class ShiftsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = ReadRoles)]
     public async Task<
         ActionResult<IReadOnlyCollection<ShiftResponse>>> GetAll(
         CancellationToken cancellationToken)
@@ -35,11 +41,12 @@ public sealed class ShiftsController : ControllerBase
         }
         catch (ShiftManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpGet("{shiftId:guid}")]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<ShiftResponse>> GetById(
         Guid shiftId,
         CancellationToken cancellationToken)
@@ -55,11 +62,12 @@ public sealed class ShiftsController : ControllerBase
         }
         catch (ShiftManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPost]
+    [Authorize(Roles = WriteRoles)]
     public async Task<ActionResult<ShiftResponse>> Create(
         CreateShiftRequest request,
         CancellationToken cancellationToken)
@@ -78,11 +86,12 @@ public sealed class ShiftsController : ControllerBase
         }
         catch (ShiftManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPut("{shiftId:guid}")]
+    [Authorize(Roles = WriteRoles)]
     public async Task<ActionResult<ShiftResponse>> Update(
         Guid shiftId,
         UpdateShiftRequest request,
@@ -100,11 +109,12 @@ public sealed class ShiftsController : ControllerBase
         }
         catch (ShiftManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPut("{shiftId:guid}/active-status")]
+    [Authorize(Roles = WriteRoles)]
     public async Task<ActionResult<ShiftResponse>> ChangeActiveStatus(
         Guid shiftId,
         ChangeShiftActiveStatusRequest request,
@@ -122,8 +132,24 @@ public sealed class ShiftsController : ControllerBase
         }
         catch (ShiftManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
+    }
+
+    private ObjectResult ErrorResult(ShiftManagementException ex)
+    {
+        var body = new { message = ex.Message };
+        return ex.Message switch
+        {
+            "You are not authorized to access shifts." or
+            "You are not authorized to create or modify shifts." or
+            "Current user is not assigned to a company." or
+            "You cannot access shifts outside your company." or
+            "Current user was not found or is inactive." or
+            "Authenticated user identifier is invalid." => StatusCode(403, body),
+            "Shift was not found." => NotFound(body),
+            _ => BadRequest(body)
+        };
     }
 
     private Guid GetCurrentUserId()
