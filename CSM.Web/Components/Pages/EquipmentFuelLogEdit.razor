@@ -36,7 +36,16 @@
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="equipment-fuel-edit-sign-in" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/fuel/edit/{SiteId}/{FuelLogId}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-equipment-fuel-edit" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
+
     }
     else
     {
@@ -150,6 +159,8 @@
     [Parameter] public Guid FuelLogId { get; set; }
 
     private bool loading = true;
+    private bool canManage;
+    private System.Net.HttpStatusCode? accessStatus;
     private bool saving;
     private string? errorMessage;
     private string siteName = "";
@@ -164,57 +175,54 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadAsync();
+    }
 
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        errorMessage = null;
+        accessStatus = null;
+        equipment = [];
         try
         {
-            var sites = await ProjectService.GetSitesAsync();
-
-            var site = sites.FirstOrDefault(x => x.Id == SiteId);
-
-            if (site != null)
-                siteName = site.Name;
-
-            var assignments = await EquipmentService.GetAssignmentsAsync();
-
-            var equipmentIds = assignments
-                .Where(x =>
-                    x.ConstructionSiteId == SiteId &&
-                    x.ReleasedAtUtc == null)
-                .Select(x => x.EquipmentId)
-                .Distinct()
-                .ToHashSet();
-
-            equipment = (await EquipmentService.GetEquipmentAsync())
-                .Where(x => equipmentIds.Contains(x.Id))
-                .OrderBy(x => x.EquipmentCode)
-                .ToList();
-
             var log = await EquipmentService.GetFuelLogByIdAsync(FuelLogId);
-
-            if (log is not null)
+            var sites = await ProjectService.GetSitesAsync();
+            siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? string.Empty;
+            var assignments = await EquipmentService.GetAssignmentsAsync();
+            var equipmentIds = assignments.Where(x => x.ConstructionSiteId == SiteId && x.ReleasedAtUtc == null)
+                .Select(x => x.EquipmentId).ToHashSet();
+            equipment = (await EquipmentService.GetEquipmentAsync())
+                .Where(x => equipmentIds.Contains(x.Id)).OrderBy(x => x.EquipmentCode).ToList();
+            canManage = true;
+            if (log is null || !equipmentIds.Contains(log.EquipmentId))
             {
-                fuelDate = log.RefueledAtUtc;
-
-               selectedEquipmentId = log.EquipmentId;
-
-               request = new UpdateEquipmentFuelLogRequest
-               {
-                   RefueledAtUtc = log.RefueledAtUtc,
-                   Liters = log.Liters,
-                   UnitPrice = log.UnitPrice,
-                   MeterReading = log.MeterReading,
-                   FuelType = log.FuelType,
-                   SupplierName = log.SupplierName,
-                   InvoiceNumber = log.InvoiceNumber,
-                   Remarks = log.Remarks
-               };
+                errorMessage = "Unable to load fuel entry. Please try again.";
+                return;
             }
+            fuelDate = log.RefueledAtUtc;
+            selectedEquipmentId = log.EquipmentId;
+            request = new UpdateEquipmentFuelLogRequest
+            {
+                RefueledAtUtc = log.RefueledAtUtc, Liters = log.Liters, UnitPrice = log.UnitPrice,
+                MeterReading = log.MeterReading, FuelType = log.FuelType,
+                SupplierName = log.SupplierName, InvoiceNumber = log.InvoiceNumber, Remarks = log.Remarks
+            };
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            accessStatus = ex.StatusCode;
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to edit fuel entries.",
+                _ => "Unable to load fuel entry. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load fuel entry. Please try again.";
         }
         finally
         {
@@ -225,6 +233,7 @@
 
     private async Task SaveAsync()
     {
+        if (saving || !canManage) return;
         saving = true;
         errorMessage = null;
 

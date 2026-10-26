@@ -31,13 +31,28 @@
 
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    @if (loading)
     {
-        <div class="alert alert-danger">
+        <div class="text-center py-5"><div class="spinner-border"></div></div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
             @errorMessage
         </div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="equipment-fuel-create-sign-in" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/fuel/create/{SiteId}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-equipment-fuel-create" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
+
     }
 
+    else
+    {
     <EditForm Model="request" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
 
@@ -154,6 +169,7 @@
         </div>
 
     </EditForm>
+    }
 
 </div>
 
@@ -164,6 +180,9 @@
 
     private string siteName = string.Empty;
 
+    private bool loading = true;
+    private bool canManage;
+    private System.Net.HttpStatusCode? accessStatus;
     private bool saving;
 
     private string? errorMessage;
@@ -179,36 +198,53 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadAsync();
+    }
 
-        var sites = await ProjectService.GetSitesAsync();
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        errorMessage = null;
+        accessStatus = null;
+        equipment = [];
+        try
+        {
+            await EquipmentService.GetFuelLogsAsync();
+            var sites = await ProjectService.GetSitesAsync();
+            siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? string.Empty;
+            var assignments = await EquipmentService.GetAssignmentsAsync();
+            var equipmentIds = assignments.Where(x => x.ConstructionSiteId == SiteId && x.ReleasedAtUtc == null)
+                .Select(x => x.EquipmentId).ToHashSet();
+            equipment = (await EquipmentService.GetEquipmentAsync())
+                .Where(x => equipmentIds.Contains(x.Id)).OrderBy(x => x.EquipmentCode).ToList();
+            canManage = true;
 
-        var site = sites.FirstOrDefault(x => x.Id == SiteId);
-
-        if (site != null)
-            siteName = site.Name;
-
-        var assignments = await EquipmentService.GetAssignmentsAsync();
-
-        var equipmentIds = assignments
-            .Where(x =>
-                x.ConstructionSiteId == SiteId &&
-                x.ReleasedAtUtc == null)
-            .Select(x => x.EquipmentId)
-            .Distinct()
-            .ToHashSet();
-
-        equipment = (await EquipmentService.GetEquipmentAsync())
-            .Where(x => equipmentIds.Contains(x.Id))
-            .OrderBy(x => x.EquipmentCode)
-            .ToList();
-
-        await InvokeAsync(StateHasChanged);
+        }
+        catch (HttpRequestException ex)
+        {
+            accessStatus = ex.StatusCode;
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create fuel entries.",
+                _ => "Unable to load fuel entry form. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load fuel entry form. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task SaveAsync()
     {
+        if (saving || !canManage) return;
         saving = true;
         errorMessage = null;
 

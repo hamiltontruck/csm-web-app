@@ -33,10 +33,13 @@
 
         </div>
 
+        @if (canManage)
+        {
         <button class="btn btn-primary"
                 @onclick="NewFuelLog">
             + New Fuel Entry
         </button>
+        }
 
     </div>
 
@@ -48,7 +51,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="equipment-fuel-sign-in" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/fuel/site/{SiteId}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-equipment-fuel" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (logs.Count == 0)
     {
@@ -184,59 +195,67 @@
     private List<EquipmentFuelLogResponse> logs = [];
 
     private bool loading = true;
+    private bool canManage;
 
     private string? errorMessage;
 
-   protected override async Task OnAfterRenderAsync(bool firstRender)
-   {
-       if (!firstRender)
-           return;
+    private System.Net.HttpStatusCode? accessStatus;
 
-       try
-       {
-           var sites = await ProjectService.GetSitesAsync();
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await LoadAsync();
+    }
 
-           var site = sites.FirstOrDefault(x => x.Id == SiteId);
-
-           if (site != null)
-               siteName = site.Name;
-
-           var assignments = await EquipmentService.GetAssignmentsAsync();
-
-           var equipmentIds = assignments
-               .Where(x =>
-                   x.ConstructionSiteId == SiteId &&
-                   x.ReleasedAtUtc == null)
-               .Select(x => x.EquipmentId)
-               .Distinct()
-               .ToHashSet();
-
-           var fuel = await EquipmentService.GetFuelLogsAsync();
-
-           logs = fuel
-               .Where(x => equipmentIds.Contains(x.EquipmentId))
-               .OrderByDescending(x => x.RefueledAtUtc)
-               .ToList();
-       }
-       catch (Exception ex)
-       {
-           errorMessage = ex.Message;
-       }
-       finally
-       {
-           loading = false;
-           await InvokeAsync(StateHasChanged);
-       }
-   }
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        errorMessage = null;
+        accessStatus = null;
+        logs = [];
+        try
+        {
+            var fuel = await EquipmentService.GetFuelLogsAsync();
+            var sites = await ProjectService.GetSitesAsync();
+            siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? string.Empty;
+            var assignments = await EquipmentService.GetAssignmentsAsync();
+            var equipmentIds = assignments.Where(x => x.ConstructionSiteId == SiteId && x.ReleasedAtUtc == null)
+                .Select(x => x.EquipmentId).ToHashSet();
+            logs = fuel.Where(x => equipmentIds.Contains(x.EquipmentId))
+                .OrderByDescending(x => x.RefueledAtUtc).ToList();
+            canManage = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            accessStatus = ex.StatusCode;
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view fuel consumption.",
+                _ => "Unable to load fuel consumption. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load fuel consumption. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private void NewFuelLog()
     {
+        if (!canManage) return;
         Navigation.NavigateTo(
             $"/equipment/fuel/create/{SiteId}");
     }
 
     private void EditFuelLog(Guid fuelLogId)
     {
+        if (!canManage) return;
         Navigation.NavigateTo(
             $"/equipment/fuel/edit/{SiteId}/{fuelLogId}");
     }
