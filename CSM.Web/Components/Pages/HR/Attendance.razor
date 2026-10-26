@@ -25,11 +25,14 @@
                 Back
             </button>
 
+            @if (_canManage)
+            {
             <button class="btn btn-primary"
-                    @onclick='() => Navigation.NavigateTo("/hr/attendance/check-in")'>
+                    @onclick="OpenCheckIn">
                 <span class="me-1">+</span>
                 Check In
             </button>
+            }
         </div>
     </div>
 
@@ -42,9 +45,16 @@
     }
     else if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">
-            @_error
-        </div>
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="attendance-list-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString("/hr/attendance")}")">Sign in</a>
+        }
+        else if (_accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-attendance-list" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
+
     }
     else
     {
@@ -214,43 +224,77 @@
 @code {
     private List<AttendanceResponse> _attendance = [];
     private bool _loading = true;
+    private bool _canManage;
+    private bool _approving;
     private string? _error;
+    private System.Net.HttpStatusCode? _accessStatus;
 
-    private async Task ApproveAttendance(Guid attendanceId)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _error = null;
-
-        try
-        {
-            await AttendanceService.ApproveAsync(
-                attendanceId,
-                new ApproveAttendanceRequest());
-
-            _attendance = (
-                await AttendanceService.GetAttendancesAsync()
-            ).ToList();
-        }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
+        if (firstRender) await LoadAsync();
     }
 
-    protected override async Task OnInitializedAsync()
+    private async Task LoadAsync()
     {
+        _loading = true;
+        _canManage = false;
+        _error = null;
+        _accessStatus = null;
+        _attendance = [];
         try
         {
-            _attendance = (
-                await AttendanceService.GetAttendancesAsync()
-            ).ToList();
+            _attendance = (await AttendanceService.GetAttendancesAsync()).ToList();
+            _canManage = true;
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            SetFailure(ex, "You do not have permission to view attendance records.",
+                "Unable to load attendance records. Please try again.");
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void SetFailure(Exception ex, string forbidden, string fallback)
+    {
+        _canManage = false;
+        _attendance = [];
+        _accessStatus = (ex as HttpRequestException)?.StatusCode;
+        _error = _accessStatus switch
+        {
+            System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+            System.Net.HttpStatusCode.Forbidden => forbidden,
+            _ => fallback
+        };
+    }
+
+    private async Task ApproveAttendance(Guid attendanceId)
+    {
+        if (!_canManage || _approving) return;
+        _approving = true;
+        _error = null;
+        _accessStatus = null;
+        try
+        {
+            await AttendanceService.ApproveAsync(attendanceId, new ApproveAttendanceRequest());
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            SetFailure(ex, "You do not have permission to approve attendance.",
+                "Unable to approve attendance. Please try again.");
+        }
+        finally
+        {
+            _approving = false;
+        }
+    }
+
+    private void OpenCheckIn()
+    {
+        if (_canManage) Navigation.NavigateTo("/hr/attendance/check-in");
     }
 }
