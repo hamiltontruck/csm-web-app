@@ -33,6 +33,8 @@
 
         </div>
 
+        @if (canManage)
+        {
         <div class="d-flex gap-2">
 
             <button class="btn btn-outline-success"
@@ -47,6 +49,7 @@
             </button>
 
         </div>
+        }
 
     </div>
 
@@ -58,7 +61,16 @@
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="equipment-timesheet-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/timesheet/site/{SiteId}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-equipment-timesheet" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
+
     }
     else if (timesheets.Count == 0)
     {
@@ -161,14 +173,23 @@
     private List<EquipmentTimesheetResponse> timesheets = [];
 
     private bool loading = true;
+    private bool canManage;
+    private System.Net.HttpStatusCode? accessStatus;
 
     private string? errorMessage;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadAsync();
+    }
 
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        accessStatus = null;
+        errorMessage = null;
+        timesheets = [];
         try
         {
             var sites = await ProjectService.GetSitesAsync();
@@ -194,10 +215,21 @@
                 .Where(x => equipmentIds.Contains(x.EquipmentId))
                 .OrderByDescending(x => x.WorkDate)
                 .ToList();
+            canManage = true;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            accessStatus = ex.StatusCode;
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view equipment timesheets.",
+                _ => "Unable to load equipment timesheets. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load equipment timesheets. Please try again.";
         }
         finally
         {
@@ -229,18 +261,21 @@
 
     private void NewTimesheet()
     {
+        if (!canManage) return;
         Navigation.NavigateTo(
             $"/equipment/timesheet/create/{SiteId}");
     }
 
     private void OpenReport()
     {
+        if (!canManage) return;
         Navigation.NavigateTo(
             $"/equipment/timesheet/report/{SiteId}");
     }
 
     private void EditTimesheet(Guid id)
     {
+        if (!canManage) return;
         Navigation.NavigateTo(
             $"/equipment/timesheet/edit/{id}");
     }

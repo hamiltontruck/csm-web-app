@@ -201,6 +201,13 @@
                 const string maintenancePrefix = "/equipment/maintenance/create/";
                 if (requested == "/equipment/create")
                     destination = "/equipment/create";
+                else if (requested.StartsWith("/equipment/timesheet/", StringComparison.Ordinal))
+                {
+                    var parts = requested["/equipment/timesheet/".Length..].Split('/');
+                    if (parts.Length == 2 && parts[0] is "create" or "site" or "report" or "edit" &&
+                        Guid.TryParse(parts[1], out var timesheetRouteId))
+                        destination = $"/equipment/timesheet/{parts[0]}/{timesheetRouteId:D}";
+                }
                 else if (requested.StartsWith(hourCreatePrefix, StringComparison.Ordinal) &&
                     Guid.TryParse(requested[hourCreatePrefix.Length..], out var hourCreateSiteId))
                     destination = hourCreatePrefix + hourCreateSiteId.ToString("D");

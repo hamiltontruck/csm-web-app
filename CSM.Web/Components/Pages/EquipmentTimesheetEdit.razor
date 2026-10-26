@@ -27,9 +27,9 @@
 
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    @if (canManage && !string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
     }
 
     @if (loading)
@@ -37,6 +37,18 @@
         <div class="text-center py-5">
             <div class="spinner-border"></div>
         </div>
+    }
+    else if (!canManage)
+    {
+        <div class="alert alert-danger" role="alert">@loadError</div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="equipment-timesheet-edit-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/timesheet/edit/{Id}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-equipment-timesheet-edit" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else
     {
@@ -231,6 +243,9 @@
     private string siteName = "";
 
     private bool loading = true;
+    private bool canManage;
+    private string? loadError;
+    private System.Net.HttpStatusCode? accessStatus;
 
     private bool saving;
 
@@ -252,9 +267,16 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadAsync();
+    }
 
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        loadError = null;
+        accessStatus = null;
+        equipment = [];
         try
         {
             var item = await EquipmentService.GetTimesheetByIdAsync(Id);
@@ -281,10 +303,21 @@
             equipment = (await EquipmentService.GetEquipmentAsync())
                 .OrderBy(x => x.EquipmentCode)
                 .ToList();
+            canManage = true;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            accessStatus = ex.StatusCode;
+            loadError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to edit equipment timesheets.",
+                _ => "Unable to load equipment timesheet. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            loadError = "Unable to load equipment timesheet. Please try again.";
         }
         finally
         {
@@ -366,6 +399,7 @@
 
     private async Task SaveAsync()
     {
+        if (saving || !canManage) return;
         saving = true;
 
         try

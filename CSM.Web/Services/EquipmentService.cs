@@ -525,12 +525,11 @@ public class EquipmentService : IEquipmentService
             if (equipmentId.HasValue)
                 url += $"?equipmentId={equipmentId.Value}";
 
-            var response = await client.GetAsync(url);
+            using var response = await client.GetAsync(url);
 
+            response.EnsureSuccessStatusCode();
             var body = await response.Content.ReadAsStringAsync();
 
-            if (!response.IsSuccessStatusCode)
-                throw new Exception(body);
 
             return System.Text.Json.JsonSerializer.Deserialize<
                 List<EquipmentTimesheetResponse>>(
@@ -570,12 +569,11 @@ public class EquipmentService : IEquipmentService
         {
             var client = await GetClientAsync();
 
-            var response = await client.GetAsync($"equipmenttimesheets/{id}");
+            using var response = await client.GetAsync($"equipmenttimesheets/{id}");
 
+            response.EnsureSuccessStatusCode();
             var body = await response.Content.ReadAsStringAsync();
 
-            if (!response.IsSuccessStatusCode)
-                throw new Exception(body);
 
             return JsonSerializer.Deserialize<EquipmentTimesheetResponse>(
                 body,

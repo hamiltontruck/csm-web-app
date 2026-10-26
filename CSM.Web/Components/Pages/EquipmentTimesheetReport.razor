@@ -24,6 +24,8 @@
 
     </div>
 
+    @if (!loading && string.IsNullOrWhiteSpace(errorMessage))
+    {
     <div class="row mb-3">
 
         <div class="col-md-3">
@@ -40,11 +42,25 @@
         </div>
 
     </div>
+    }
 @if (loading)
 {
     <div class="text-center py-5">
         <div class="spinner-border"></div>
     </div>
+}
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="equipment-timesheet-report-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/timesheet/report/{SiteId}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-equipment-timesheet-report" class="btn btn-outline-primary" @onclick="LoadReport">Retry</button>
+        }
+
 }
 else
 {
@@ -121,6 +137,8 @@ else
     private DateTime reportDate = DateTime.Today;
 
     private bool loading = true;
+    private string? errorMessage;
+    private System.Net.HttpStatusCode? accessStatus;
 
     private List<EquipmentTimesheetResponse> report = [];
 
@@ -142,45 +160,58 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
-
-        var site = (await ProjectService.GetSitesAsync())
-            .FirstOrDefault(x => x.Id == SiteId);
-
-        siteName = site?.Name ?? "";
-
-        await LoadReport();
-
-        await InvokeAsync(StateHasChanged);
+        if (firstRender) await LoadReport();
     }
 
     private async Task LoadReport()
     {
         loading = true;
-
-        var data = await EquipmentService.GetTimesheetsAsync();
-
-        groups = data
-            .Where(x => x.SiteId == SiteId &&
-                        x.WorkDate.Date == reportDate.Date)
-            .GroupBy(x => new
+        errorMessage = null;
+        accessStatus = null;
+        groups = [];
+        try
+        {
+            var site = (await ProjectService.GetSitesAsync()).FirstOrDefault(x => x.Id == SiteId);
+            siteName = site?.Name ?? "";
+            var data = await EquipmentService.GetTimesheetsAsync();
+            groups = data
+                .Where(x => x.SiteId == SiteId &&
+                            x.WorkDate.Date == reportDate.Date)
+                .GroupBy(x => new
+                {
+                    x.EquipmentId,
+                    x.EquipmentCode,
+                    x.EquipmentName
+                })
+                .Select(g => new EquipmentGroup
+                {
+                    EquipmentId = g.Key.EquipmentId,
+                    EquipmentCode = g.Key.EquipmentCode,
+                    EquipmentName = g.Key.EquipmentName,
+                    Entries = g.OrderBy(x => x.StartTime).ToList()
+                })
+                .OrderBy(x => x.EquipmentCode)
+                .ToList();
+        }
+        catch (HttpRequestException ex)
+        {
+            accessStatus = ex.StatusCode;
+            errorMessage = ex.StatusCode switch
             {
-                x.EquipmentId,
-                x.EquipmentCode,
-                x.EquipmentName
-            })
-            .Select(g => new EquipmentGroup
-            {
-                EquipmentId = g.Key.EquipmentId,
-                EquipmentCode = g.Key.EquipmentCode,
-                EquipmentName = g.Key.EquipmentName,
-                Entries = g.OrderBy(x => x.StartTime).ToList()
-            })
-            .OrderBy(x => x.EquipmentCode)
-            .ToList();
-
-        loading = false;
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view equipment timesheet reports.",
+                _ => "Unable to load equipment timesheet report. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load equipment timesheet report. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private static string ToEthiopian(TimeSpan time)
