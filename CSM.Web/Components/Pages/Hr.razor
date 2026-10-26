@@ -19,7 +19,7 @@
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Employees</h6>
-                    <h2>@_employeeCount</h2>
+                    <h2 title="Summary not available">—</h2>
 
                     <div class="d-grid gap-2 mt-2">
                         <button class="btn btn-primary"
@@ -40,12 +40,31 @@
              <div class="card text-center shadow-sm">
                  <div class="card-body">
                      <h6>Contractors</h6>
-                     <h2>@_contractorCount</h2>
+                     <h2 id="hr-contractor-count">@(_contractorCount?.ToString() ?? "—")</h2>
+                     @if (_loading)
+                     {
+                         <p role="status">Loading contractor summary...</p>
+                     }
+                     else if (!string.IsNullOrWhiteSpace(_summaryError))
+                     {
+                         <div class="alert alert-danger" role="alert">@_summaryError</div>
+                         @if (_accessStatus == System.Net.HttpStatusCode.Unauthorized)
+                         {
+                             <a id="hr-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fhr">Sign in</a>
+                         }
+                         else if (_accessStatus != System.Net.HttpStatusCode.Forbidden)
+                         {
+                             <button id="retry-hr-summary" class="btn btn-outline-primary" @onclick="LoadSummaryAsync">Retry</button>
+                         }
+                     }
 
-                     <button class="btn btn-primary mt-2"
-                             @onclick="OpenContractors">
-                         Manage Contractors
-                     </button>
+                     @if (!_loading && _contractorCount.HasValue)
+                     {
+                         <button class="btn btn-primary mt-2"
+                                 @onclick="OpenContractors">
+                             Manage Contractors
+                         </button>
+                     }
                  </div>
              </div>
          </div>
@@ -57,7 +76,7 @@
 
                 <div class="card-body">
                     <h6>Attendance</h6>
-                    <h2>0%</h2>
+                    <h2 title="Summary not available">—</h2>
                     <button class="btn btn-primary mt-2"
                             @onclick="OpenAttendance">
                         Manage Attendances
@@ -71,7 +90,7 @@
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Site Assignments</h6>
-                    <h2>0</h2>
+                    <h2 title="Summary not available">—</h2>
 
                     <button class="btn btn-primary mt-2"
                             @onclick="OpenSiteAssignments">
@@ -85,7 +104,7 @@
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Shifts</h6>
-                    <h2>0</h2>
+                    <h2 title="Summary not available">—</h2>
 
                     <button class="btn btn-primary mt-2"
                             @onclick="OpenShifts">
@@ -99,7 +118,7 @@
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Leave</h6>
-                    <h2>0</h2>
+                    <h2 title="Summary not available">—</h2>
 
                     <button class="btn btn-primary mt-2"
                             @onclick="OpenLeave">
@@ -113,7 +132,7 @@
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Timesheets</h6>
-                    <h2>0</h2>
+                    <h2 title="Summary not available">—</h2>
                     <button class="btn btn-primary mt-2"
                             @onclick="OpenTimesheets">
                         Manage Timesheets
@@ -126,7 +145,7 @@
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Payroll</h6>
-                    <h2>ETB 0</h2>
+                    <h2 title="Summary not available">—</h2>
 
                     <button class="btn btn-primary mt-2"
                             @onclick="OpenPayroll">
@@ -141,22 +160,46 @@
 </div>
 
 @code {
-    private int _employeeCount = 0;
-    private int _contractorCount;
+    private int? _contractorCount;
+    private bool _loading = true;
+    private string? _summaryError;
+    private System.Net.HttpStatusCode? _accessStatus;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
+        if (firstRender) await LoadSummaryAsync();
+    }
+
+    private async Task LoadSummaryAsync()
+    {
+        _loading = true;
+        _contractorCount = null;
+        _summaryError = null;
+        _accessStatus = null;
+        try
         {
-            return;
+            var contractors = await ContractorService.GetContractorsAsync();
+            _contractorCount = contractors.Count;
         }
-
-        var contractors =
-            await ContractorService.GetContractorsAsync();
-
-        _contractorCount = contractors.Count;
-
-        StateHasChanged();
+        catch (HttpRequestException ex)
+        {
+            _accessStatus = ex.StatusCode;
+            _summaryError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view contractor summaries.",
+                _ => "Unable to load contractor summary. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            _summaryError = "Unable to load contractor summary. Please try again.";
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void OpenCompanyEmployees()
@@ -171,6 +214,7 @@
 
     private void OpenContractors()
     {
+        if (_loading || !_contractorCount.HasValue) return;
         Navigation.NavigateTo("/hr/contractors");
     }
 

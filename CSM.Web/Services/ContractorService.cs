@@ -48,15 +48,8 @@ public sealed class ContractorService : IContractorService
             url += $"?isActive={isActive.Value.ToString().ToLowerInvariant()}";
         }
 
-        var response = await client.GetAsync(url);
-
-        var content = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException(
-                $"Contractors API returned {(int)response.StatusCode}: {content}");
-        }
+        using var response = await client.GetAsync(url);
+        response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<
             IReadOnlyList<ContractorResponse>>() ?? [];
