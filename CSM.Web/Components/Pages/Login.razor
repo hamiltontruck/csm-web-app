@@ -193,6 +193,9 @@
                 var requested = returnUrl.ToString();
                 const string assignmentPrefix = "/equipment/assignments/create/";
                 const string downtimePrefix = "/equipment/downtime/create/";
+                const string fuelCreatePrefix = "/equipment/fuel/create/";
+                const string fuelEditPrefix = "/equipment/fuel/edit/";
+                const string fuelSitePrefix = "/equipment/fuel/site/";
                 const string maintenancePrefix = "/equipment/maintenance/create/";
                 if (requested == "/equipment/create")
                     destination = "/equipment/create";
@@ -205,6 +208,18 @@
                 else if (requested.StartsWith(maintenancePrefix, StringComparison.Ordinal) &&
                     Guid.TryParse(requested[maintenancePrefix.Length..], out var maintenanceSiteId))
                     destination = maintenancePrefix + maintenanceSiteId.ToString("D");
+                else if (requested.StartsWith(fuelCreatePrefix, StringComparison.Ordinal) &&
+                    Guid.TryParse(requested[fuelCreatePrefix.Length..], out var fuelCreateSiteId))
+                    destination = fuelCreatePrefix + fuelCreateSiteId.ToString("D");
+                else if (requested.StartsWith(fuelSitePrefix, StringComparison.Ordinal) &&
+                    Guid.TryParse(requested[fuelSitePrefix.Length..], out var fuelSiteId))
+                    destination = fuelSitePrefix + fuelSiteId.ToString("D");
+                else if (requested.StartsWith(fuelEditPrefix, StringComparison.Ordinal))
+                {
+                    var parts = requested[fuelEditPrefix.Length..].Split('/');
+                    if (parts.Length == 2 && Guid.TryParse(parts[0], out var editSiteId) && Guid.TryParse(parts[1], out var fuelLogId))
+                        destination = $"{fuelEditPrefix}{editSiteId:D}/{fuelLogId:D}";
+                }
             }
             Navigation.NavigateTo(destination, true);
         }

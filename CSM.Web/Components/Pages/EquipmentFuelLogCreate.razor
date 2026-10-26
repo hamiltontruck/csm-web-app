@@ -169,6 +169,7 @@
         </div>
 
     </EditForm>
+    }
 
 </div>
 
@@ -180,6 +181,7 @@
     private string siteName = string.Empty;
 
     private bool loading = true;
+    private bool canManage;
     private System.Net.HttpStatusCode? accessStatus;
     private bool saving;
 
@@ -202,11 +204,13 @@
     private async Task LoadAsync()
     {
         loading = true;
+        canManage = false;
         errorMessage = null;
         accessStatus = null;
         equipment = [];
         try
         {
+            await EquipmentService.GetFuelLogsAsync();
             var sites = await ProjectService.GetSitesAsync();
             siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? string.Empty;
             var assignments = await EquipmentService.GetAssignmentsAsync();
@@ -214,6 +218,7 @@
                 .Select(x => x.EquipmentId).ToHashSet();
             equipment = (await EquipmentService.GetEquipmentAsync())
                 .Where(x => equipmentIds.Contains(x.Id)).OrderBy(x => x.EquipmentCode).ToList();
+            canManage = true;
 
         }
         catch (HttpRequestException ex)
@@ -239,6 +244,7 @@
 
     private async Task SaveAsync()
     {
+        if (saving || !canManage) return;
         saving = true;
         errorMessage = null;
 

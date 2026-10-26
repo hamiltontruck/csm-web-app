@@ -33,10 +33,13 @@
 
         </div>
 
+        @if (canManage)
+        {
         <button class="btn btn-primary"
                 @onclick="NewFuelLog">
             + New Fuel Entry
         </button>
+        }
 
     </div>
 
@@ -192,6 +195,7 @@
     private List<EquipmentFuelLogResponse> logs = [];
 
     private bool loading = true;
+    private bool canManage;
 
     private string? errorMessage;
 
@@ -205,19 +209,21 @@
     private async Task LoadAsync()
     {
         loading = true;
+        canManage = false;
         errorMessage = null;
         accessStatus = null;
         logs = [];
         try
         {
+            var fuel = await EquipmentService.GetFuelLogsAsync();
             var sites = await ProjectService.GetSitesAsync();
             siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? string.Empty;
             var assignments = await EquipmentService.GetAssignmentsAsync();
             var equipmentIds = assignments.Where(x => x.ConstructionSiteId == SiteId && x.ReleasedAtUtc == null)
                 .Select(x => x.EquipmentId).ToHashSet();
-            var fuel = await EquipmentService.GetFuelLogsAsync();
             logs = fuel.Where(x => equipmentIds.Contains(x.EquipmentId))
                 .OrderByDescending(x => x.RefueledAtUtc).ToList();
+            canManage = true;
         }
         catch (HttpRequestException ex)
         {
@@ -242,12 +248,14 @@
 
     private void NewFuelLog()
     {
+        if (!canManage) return;
         Navigation.NavigateTo(
             $"/equipment/fuel/create/{SiteId}");
     }
 
     private void EditFuelLog(Guid fuelLogId)
     {
+        if (!canManage) return;
         Navigation.NavigateTo(
             $"/equipment/fuel/edit/{SiteId}/{fuelLogId}");
     }

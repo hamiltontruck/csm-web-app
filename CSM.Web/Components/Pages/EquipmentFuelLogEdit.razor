@@ -159,6 +159,7 @@
     [Parameter] public Guid FuelLogId { get; set; }
 
     private bool loading = true;
+    private bool canManage;
     private System.Net.HttpStatusCode? accessStatus;
     private bool saving;
     private string? errorMessage;
@@ -180,11 +181,13 @@
     private async Task LoadAsync()
     {
         loading = true;
+        canManage = false;
         errorMessage = null;
         accessStatus = null;
         equipment = [];
         try
         {
+            var log = await EquipmentService.GetFuelLogByIdAsync(FuelLogId);
             var sites = await ProjectService.GetSitesAsync();
             siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? string.Empty;
             var assignments = await EquipmentService.GetAssignmentsAsync();
@@ -192,7 +195,7 @@
                 .Select(x => x.EquipmentId).ToHashSet();
             equipment = (await EquipmentService.GetEquipmentAsync())
                 .Where(x => equipmentIds.Contains(x.Id)).OrderBy(x => x.EquipmentCode).ToList();
-            var log = await EquipmentService.GetFuelLogByIdAsync(FuelLogId);
+            canManage = true;
             if (log is null || !equipmentIds.Contains(log.EquipmentId))
             {
                 errorMessage = "Unable to load fuel entry. Please try again.";
@@ -230,6 +233,7 @@
 
     private async Task SaveAsync()
     {
+        if (saving || !canManage) return;
         saving = true;
         errorMessage = null;
 
