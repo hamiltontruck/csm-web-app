@@ -2,10 +2,12 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @using CSM.Web.Models.HRM
+@using CSM.Web.Services
 @using CSM.Web.Services.HRM
 
 @inject ISiteAssignmentService SiteAssignmentService
 @inject NavigationManager Navigation
+@inject IAuthService AuthService
 
 <PageTitle>Edit Site Assignment</PageTitle>
 
@@ -33,9 +35,16 @@
     }
     else if (!string.IsNullOrWhiteSpace(_errorMessage) && !_loadedSuccessfully)
     {
-        <div class="alert alert-danger">
-            @_errorMessage
-        </div>
+        <div class="alert alert-danger" role="alert">@_errorMessage</div>
+        @if (_accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="hr-assignment-edit-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString($"/hr/site-assignments/edit/{AssignmentId}")}")">Sign in</a>
+        }
+        else if (_accessStatus != System.Net.HttpStatusCode.Forbidden && _accessStatus != System.Net.HttpStatusCode.NotFound)
+        {
+            <button id="retry-hr-assignment-edit" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
+
     }
     else if (_assignment is not null)
     {
@@ -159,11 +168,22 @@
 
     private bool _loading = true;
     private bool _saving;
+    private System.Net.HttpStatusCode? _accessStatus;
     private bool _loadedSuccessfully;
     private string? _errorMessage;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadedSuccessfully = false;
+        _accessStatus = null;
+        _errorMessage = null;
+        _assignment = null;
         try
         {
             _assignment =
@@ -171,7 +191,15 @@
 
             if (_assignment is null)
             {
+                _accessStatus = System.Net.HttpStatusCode.NotFound;
                 _errorMessage = "Site assignment was not found.";
+                return;
+            }
+
+            if (!(await AuthService.GetPermissionsAsync()).Contains("HRM_SiteAssignment_Manage"))
+            {
+                _accessStatus = System.Net.HttpStatusCode.Forbidden;
+                _errorMessage = "You do not have permission to edit site assignments.";
                 return;
             }
 
@@ -185,16 +213,25 @@
         }
         catch (Exception ex)
         {
-            _errorMessage = ex.Message;
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _errorMessage = _accessStatus switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to edit site assignments.",
+                System.Net.HttpStatusCode.NotFound => "Site assignment was not found.",
+                _ => "Unable to load site assignment. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task Save()
     {
+        if (_saving || !_loadedSuccessfully) return;
         _errorMessage = null;
 
         if (_endDate.HasValue && _endDate.Value < _startDate)
