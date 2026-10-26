@@ -28,11 +28,28 @@
         </div>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    @if (loading)
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="text-center py-5"><div class="spinner-border"></div></div>
     }
-
+    else if (!canManage)
+    {
+        <div class="alert alert-danger" role="alert">@loadError</div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="equipment-timesheet-create-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/timesheet/create/{SiteId}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-equipment-timesheet-create" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@errorMessage</div>
+        }
     <EditForm Model="request" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
 
@@ -202,6 +219,7 @@
         </div>
 
     </EditForm>
+    }
 
 </div>
 
@@ -213,6 +231,10 @@
     private string siteName = "";
 
     private bool saving;
+    private bool loading = true;
+    private bool canManage;
+    private string? loadError;
+    private System.Net.HttpStatusCode? accessStatus;
 
     private string? errorMessage;
 
@@ -274,38 +296,67 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadAsync();
+    }
 
-        var sites = await ProjectService.GetSitesAsync();
-
-        var site = sites.FirstOrDefault(x => x.Id == SiteId);
-
-        if (site != null)
-            siteName = site.Name;
-
-        var assignments = await EquipmentService.GetAssignmentsAsync();
-
-        var equipmentIds = assignments
-            .Where(x =>
-                x.ConstructionSiteId == SiteId &&
-                x.ReleasedAtUtc == null)
-            .Select(x => x.EquipmentId)
-            .Distinct()
-            .ToHashSet();
-
-        equipment = (await EquipmentService.GetEquipmentAsync())
-            .Where(x => equipmentIds.Contains(x.Id))
-            .OrderBy(x => x.EquipmentCode)
-            .ToList();
-
-        request.SiteId = SiteId;
-
-        await InvokeAsync(StateHasChanged);
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        loadError = null;
+        accessStatus = null;
+        equipment = [];
+        try
+        {
+            var sites = await ProjectService.GetSitesAsync();
+    
+            var site = sites.FirstOrDefault(x => x.Id == SiteId);
+    
+            if (site != null)
+                siteName = site.Name;
+    
+            var assignments = await EquipmentService.GetAssignmentsAsync();
+    
+            var equipmentIds = assignments
+                .Where(x =>
+                    x.ConstructionSiteId == SiteId &&
+                    x.ReleasedAtUtc == null)
+                .Select(x => x.EquipmentId)
+                .Distinct()
+                .ToHashSet();
+    
+            equipment = (await EquipmentService.GetEquipmentAsync())
+                .Where(x => equipmentIds.Contains(x.Id))
+                .OrderBy(x => x.EquipmentCode)
+                .ToList();
+    
+            request.SiteId = SiteId;
+            canManage = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            accessStatus = ex.StatusCode;
+            loadError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create equipment timesheets.",
+                _ => "Unable to load equipment timesheet form. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            loadError = "Unable to load equipment timesheet form. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task SaveAsync()
     {
+        if (saving || !canManage) return;
         saving = true;
         errorMessage = null;
 
