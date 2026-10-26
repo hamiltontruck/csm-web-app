@@ -74,7 +74,15 @@ public sealed class EmployeeFeedbackTests
         page.WaitForAssertion(() => Assert.Single(page.FindAll("#retry-employees")));
         state.Status = null;
         page.Find("#retry-employees").Click();
-        page.WaitForAssertion(() => Assert.Contains(expected, page.Markup));
+        page.WaitForAssertion(() => {
+            if (scope == "company")
+            {
+                var name = page.Find("tbody tr td:nth-child(2)").TextContent;
+                Assert.Contains("Test", name);
+                Assert.Contains("Employee", name);
+            }
+            else Assert.Contains(expected, page.Markup);
+        });
         Assert.Empty(page.FindAll("[role=alert]"));
         Assert.DoesNotContain("Inactive employee", page.Markup);
         Assert.Contains("Add Employee", page.Markup);
@@ -131,7 +139,7 @@ public sealed class EmployeeFeedbackTests
             if (method!.Name != nameof(IEmployeeService.GetEmployeesAsync)) throw new InvalidOperationException("Unexpected employee mutation.");
             return State.Status.HasValue
                 ? Task.FromException<IReadOnlyList<EmployeeResponse>>(new HttpRequestException("private diagnostic", null, State.Status))
-                : Task.FromResult<IReadOnlyList<EmployeeResponse>>(new List<EmployeeResponse> { new() { FirstName = "Test", LastName = "Employee" } });
+                : Task.FromResult<IReadOnlyList<EmployeeResponse>>(new List<EmployeeResponse> { new() { FirstName = args![1]?.ToString() == "Company" ? "Test" : "General", LastName = "Employee" } });
         }
     }
     public class SitesApi : DispatchProxy
