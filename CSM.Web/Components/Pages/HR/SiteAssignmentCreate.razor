@@ -10,6 +10,7 @@
 @inject IEmployeeService EmployeeService
 @inject IProjectService ProjectService
 @inject NavigationManager Navigation
+@inject IAuthService AuthService
 
 <PageTitle>Create Site Assignment</PageTitle>
 
@@ -34,6 +35,18 @@
         <div class="alert alert-info">
             Loading employees and construction sites...
         </div>
+    }
+    else if (!_loadedSuccessfully)
+    {
+        <div class="alert alert-danger" role="alert">@_errorMessage</div>
+        @if (_accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="hr-assignment-create-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString("/hr/site-assignments/create")}")">Sign in</a>
+        }
+        else if (_accessStatus != System.Net.HttpStatusCode.Forbidden && _accessStatus != System.Net.HttpStatusCode.NotFound)
+        {
+            <button id="retry-hr-assignment-create" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else
     {
@@ -176,32 +189,61 @@
     private string? _remarks;
 
     private bool _loading = true;
+    private bool _loadedSuccessfully;
     private bool _saving;
+    private System.Net.HttpStatusCode? _accessStatus;
     private string? _errorMessage;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadedSuccessfully = false;
+        _accessStatus = null;
+        _errorMessage = null;
+        _employees = [];
+        _sites = [];
         try
         {
             _employees = (await EmployeeService.GetEmployeesAsync("Active"))
                 .ToList();
 
+            if (!(await AuthService.GetPermissionsAsync()).Contains("HRM_SiteAssignment_Manage"))
+            {
+                _accessStatus = System.Net.HttpStatusCode.Forbidden;
+                _errorMessage = "You do not have permission to create site assignments.";
+                return;
+            }
+
             _sites = (await ProjectService.GetSitesForAssignmentAsync())
                 .Where(x => x.IsActive)
                 .ToList();
+            _loadedSuccessfully = true;
         }
         catch (Exception ex)
         {
-            _errorMessage = ex.Message;
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _errorMessage = _accessStatus switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create site assignments.",
+                _ => "Unable to load site assignment form. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task Save()
     {
+        if (_saving || !_loadedSuccessfully) return;
         _errorMessage = null;
 
         if (!_employeeId.HasValue)

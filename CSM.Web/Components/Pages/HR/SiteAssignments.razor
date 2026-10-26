@@ -2,9 +2,11 @@
 @rendermode InteractiveServer
 
 @using CSM.Web.Models.HRM
+@using CSM.Web.Services
 @using CSM.Web.Services.HRM
 @inject ISiteAssignmentService SiteAssignmentService
 @inject NavigationManager Navigation
+@inject IAuthService AuthService
 
 <PageTitle>Site Assignments</PageTitle>
 
@@ -23,10 +25,13 @@
                 Back to HR
             </button>
 
+            @if (canManage)
+            {
             <button class="btn btn-primary"
                     @onclick="CreateAssignment">
                 Add Assignment
             </button>
+            }
         </div>
     </div>
 
@@ -38,9 +43,16 @@
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">
-            @errorMessage
-        </div>
+        <div class="alert alert-danger" role="alert">@errorMessage</div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="hr-assignment-list-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString("/hr/site-assignments")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden && accessStatus != System.Net.HttpStatusCode.NotFound)
+        {
+            <button id="retry-hr-assignment-list" class="btn btn-outline-primary" @onclick="LoadAssignmentsAsync">Retry</button>
+        }
+
     }
     else if (assignments.Count == 0)
     {
@@ -101,10 +113,13 @@
                                         }
                                     </td>
                                     <td>
+                                        @if (canManage)
+                                        {
                                         <button class="btn btn-sm btn-outline-primary"
                                                 @onclick="() => EditAssignment(assignment.Id)">
                                             Edit
                                         </button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -119,30 +134,44 @@
 @code {
     private List<SiteAssignmentResponse> assignments = [];
     private bool isLoading = true;
+    private bool canManage;
+    private System.Net.HttpStatusCode? accessStatus;
     private string? errorMessage;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadAssignmentsAsync();
+        if (firstRender) await LoadAssignmentsAsync();
     }
 
     private async Task LoadAssignmentsAsync()
     {
         isLoading = true;
+        canManage = false;
+        accessStatus = null;
+        assignments = [];
         errorMessage = null;
 
         try
         {
             var result = await SiteAssignmentService.GetAllAsync();
             assignments = result.ToList();
+            canManage = (await AuthService.GetPermissionsAsync()).Contains("HRM_SiteAssignment_Manage");
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            assignments = [];
+            accessStatus = (ex as HttpRequestException)?.StatusCode;
+            errorMessage = accessStatus switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view site assignments.",
+                _ => "Unable to load site assignments. Please try again."
+            };
         }
         finally
         {
             isLoading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -153,11 +182,13 @@
 
     private void CreateAssignment()
     {
+        if (!canManage) return;
         Navigation.NavigateTo("/hr/site-assignments/create");
     }
 
     private void EditAssignment(Guid assignmentId)
     {
+        if (!canManage) return;
         Navigation.NavigateTo($"/hr/site-assignments/edit/{assignmentId}");
     }
 }
