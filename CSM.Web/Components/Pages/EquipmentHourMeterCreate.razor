@@ -28,11 +28,28 @@
         </div>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    @if (loading)
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="text-center py-5"><div class="spinner-border"></div></div>
     }
-
+    else if (!canManage)
+    {
+        <div class="alert alert-danger" role="alert">@loadError</div>
+        @if (accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a id="hour-meter-create-sign-in" class="btn btn-primary" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/hourmeter/create/{SiteId}")}")">Sign in</a>
+        }
+        else if (accessStatus != System.Net.HttpStatusCode.Forbidden)
+        {
+            <button id="retry-hour-meter-create" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@errorMessage</div>
+        }
     <EditForm Model="request" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
 
@@ -137,6 +154,7 @@
         </div>
 
     </EditForm>
+    }
 
 </div>
 
@@ -148,6 +166,10 @@
     private string siteName = "";
 
     private bool saving;
+    private bool loading = true;
+    private bool canManage;
+    private string? loadError;
+    private System.Net.HttpStatusCode? accessStatus;
 
     private string? errorMessage;
 
@@ -166,9 +188,18 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
+        if (firstRender) await LoadAsync();
+    }
 
+    private async Task LoadAsync()
+    {
+        loading = true;
+        canManage = false;
+        loadError = null;
+        accessStatus = null;
+        equipment = [];
+        try
+        {
         var sites = await ProjectService.GetSitesAsync();
 
         var site = sites.FirstOrDefault(x => x.Id == SiteId);
@@ -193,11 +224,33 @@
 
         request.SiteId = SiteId;
 
-        await InvokeAsync(StateHasChanged);
+
+            canManage = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            accessStatus = ex.StatusCode;
+            loadError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create hour meter entries.",
+                _ => "Unable to load hour meter entry form. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            loadError = "Unable to load hour meter entry form. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task SaveAsync()
     {
+        if (saving || !canManage) return;
         saving = true;
         errorMessage = null;
 

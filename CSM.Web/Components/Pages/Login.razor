@@ -191,6 +191,8 @@
             if (query.TryGetValue("returnUrl", out var returnUrl))
             {
                 var requested = returnUrl.ToString();
+                const string hourCreatePrefix = "/equipment/hourmeter/create/";
+                const string hourSitePrefix = "/equipment/hourmeter/site/";
                 const string assignmentPrefix = "/equipment/assignments/create/";
                 const string downtimePrefix = "/equipment/downtime/create/";
                 const string fuelCreatePrefix = "/equipment/fuel/create/";
@@ -199,6 +201,12 @@
                 const string maintenancePrefix = "/equipment/maintenance/create/";
                 if (requested == "/equipment/create")
                     destination = "/equipment/create";
+                else if (requested.StartsWith(hourCreatePrefix, StringComparison.Ordinal) &&
+                    Guid.TryParse(requested[hourCreatePrefix.Length..], out var hourCreateSiteId))
+                    destination = hourCreatePrefix + hourCreateSiteId.ToString("D");
+                else if (requested.StartsWith(hourSitePrefix, StringComparison.Ordinal) &&
+                    Guid.TryParse(requested[hourSitePrefix.Length..], out var hourSiteId))
+                    destination = hourSitePrefix + hourSiteId.ToString("D");
                 else if (requested.StartsWith(assignmentPrefix, StringComparison.Ordinal) &&
                     Guid.TryParse(requested[assignmentPrefix.Length..], out var siteId))
                     destination = assignmentPrefix + siteId.ToString("D");

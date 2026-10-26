@@ -475,12 +475,11 @@ public class EquipmentService : IEquipmentService
             if (equipmentId.HasValue)
                 url += $"?equipmentId={equipmentId.Value}";
 
-            var response = await client.GetAsync(url);
+            using var response = await client.GetAsync(url);
+            response.EnsureSuccessStatusCode();
 
             var body = await response.Content.ReadAsStringAsync();
 
-            if (!response.IsSuccessStatusCode)
-                throw new Exception(body);
 
             return System.Text.Json.JsonSerializer.Deserialize<
                 List<EquipmentHourLogResponse>>(
