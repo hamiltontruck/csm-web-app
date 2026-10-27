@@ -1,13 +1,13 @@
 .csm-login-shell {
-    --csm-forest: #183b2b;
-    --csm-lime: #c5ed63;
-    --csm-ink: #1b2b22;
+    --csm-forest: #102b52;
+    --csm-lime: #f2c14e;
+    --csm-ink: #152b44;
     min-height: 100vh;
     display: grid;
     grid-template-columns: minmax(0, 1.08fr) minmax(460px, .92fr);
     overflow: hidden;
     color: var(--csm-ink);
-    background: #fbfcfa;
+    background: #f6f8fc;
     font-family: Inter, "Segoe UI", Arial, sans-serif;
 }
 .csm-login-shell * { box-sizing: border-box; }
@@ -20,7 +20,7 @@
     justify-content: space-between;
     padding: 32px clamp(30px, 5vw, 74px) 27px;
     color: #f5f7f2;
-    background: radial-gradient(ellipse at 76% 18%, rgba(151,185,119,.2), transparent 31%), linear-gradient(145deg, #1b422f 0%, #173729 53%, #10271e 100%);
+    background: radial-gradient(ellipse at 76% 18%, rgba(151,185,119,.2), transparent 31%), linear-gradient(145deg, #163b70 0%, #102c55 53%, #091c39 100%);
 }
 .csm-login-visual::before {
     content: "";
@@ -106,37 +106,37 @@
     margin-bottom: 22px;
     display: grid;
     place-items: center;
-    border: 1px solid #dce9d7;
+    border: 1px solid #dbe5f5;
     border-radius: 13px;
-    color: #315c40;
-    background: linear-gradient(145deg, #f5f9f1, #e9f2e3);
+    color: #194778;
+    background: linear-gradient(145deg, #f2f6fd, #e7eef9);
     box-shadow: 0 5px 14px rgba(34,72,45,.07);
     font-size: 17px;
     font-weight: 800;
 }
 .csm-form-eyebrow { margin: 0 0 10px; color: #74877a; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
-.csm-login-heading h2 { margin: 0; color: #1d3025; font-size: 31px; line-height: 1.2; font-weight: 700; letter-spacing: -.045em; }
+.csm-login-heading h2 { margin: 0; color: #122b4b; font-size: 31px; line-height: 1.2; font-weight: 700; letter-spacing: -.045em; }
 .csm-login-heading > p:last-child { margin: 8px 0 0; color: #829087; font-size: 12px; }
 .csm-login-form { display: flex; flex-direction: column; }
 .csm-form-field { margin-bottom: 19px; }
-.csm-form-field label { display: block; margin-bottom: 8px; color: #36473d; font-size: 10px; font-weight: 700; }
+.csm-form-field label { display: block; margin-bottom: 8px; color: #293f5c; font-size: 10px; font-weight: 700; }
 .csm-input-frame {
     min-height: 49px;
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 0 13px;
-    border: 1px solid #dfe6df;
+    border: 1px solid #d8e2ef;
     border-radius: 8px;
     background: #fff;
     transition: border-color .18s, box-shadow .18s;
 }
-.csm-input-frame:focus-within { border-color: #648b65; box-shadow: 0 0 0 3px rgba(71,128,74,.12); }
+.csm-input-frame:focus-within { border-color: #c59b2f; box-shadow: 0 0 0 3px rgba(71,128,74,.12); }
 .csm-input-frame > svg { width: 16px; height: 16px; flex: none; fill: none; stroke: #9aa79d; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.csm-input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: #26372b; background: transparent; font: 400 11px Inter, "Segoe UI", Arial, sans-serif; }
+.csm-input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: #193753; background: transparent; font: 400 11px Inter, "Segoe UI", Arial, sans-serif; }
 .csm-input::placeholder { color: #aab4ac; }
-.csm-show-password { flex: none; border: 0; padding: 4px 0 4px 7px; color: #46684e; background: transparent; font: 600 9px Inter, "Segoe UI", Arial, sans-serif; cursor: pointer; }
-.csm-show-password:focus-visible { outline: 2px solid #658d66; outline-offset: 3px; border-radius: 3px; }
+.csm-show-password { flex: none; border: 0; padding: 4px 0 4px 7px; color: #174b89; background: transparent; font: 600 9px Inter, "Segoe UI", Arial, sans-serif; cursor: pointer; }
+.csm-show-password:focus-visible { outline: 2px solid #c59b2f; outline-offset: 3px; border-radius: 3px; }
 .csm-submit-button {
     width: 100%;
     min-height: 48px;
@@ -147,21 +147,21 @@
     gap: 10px;
     border: 0;
     border-radius: 8px;
-    color: #173323;
+    color: #092444;
     background: var(--csm-lime);
     box-shadow: 0 6px 15px rgba(95,128,39,.14);
     font: 700 11px Inter, "Segoe UI", Arial, sans-serif;
     cursor: pointer;
     transition: transform .16s, background .16s, box-shadow .16s;
 }
-.csm-submit-button:hover:not(:disabled) { transform: translateY(-1px); background: #d0f276; box-shadow: 0 9px 19px rgba(95,128,39,.2); }
+.csm-submit-button:hover:not(:disabled) { transform: translateY(-1px); background: #ffd776; box-shadow: 0 9px 19px rgba(95,128,39,.2); }
 .csm-submit-button:focus-visible { outline: 3px solid rgba(71,128,74,.3); outline-offset: 3px; }
 .csm-submit-button:disabled { cursor: wait; opacity: .8; }
 .csm-submit-arrow { font-size: 16px; font-weight: 400; }
-.csm-submit-spinner { width: 13px; height: 13px; border: 2px solid rgba(23,51,35,.26); border-top-color: #173323; border-radius: 50%; animation: csm-spin .7s linear infinite; }
+.csm-submit-spinner { width: 13px; height: 13px; border: 2px solid rgba(23,51,35,.26); border-top-color: #092444; border-radius: 50%; animation: csm-spin .7s linear infinite; }
 @keyframes csm-spin { to { transform: rotate(360deg); } }
 .csm-security-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 16px 0 0; color: #929f95; font-size: 9px; }
-.csm-security-note span { color: #79917b; font-size: 10px; }
+.csm-security-note span { color: #647c9f; font-size: 10px; }
 .csm-login-panel-footer { color: #9aa49c; font-size: 7px; font-weight: 600; letter-spacing: .1em; }
 ::deep .validation-summary-errors {
     margin: 0 0 17px;
@@ -213,3 +213,14 @@
     .csm-login-form-wrap { padding-top: 25px; }
     .csm-login-panel-footer span:last-child { max-width: 125px; text-align: right; }
 }
+
+/* CSM Blue & Gold design refresh — presentation only; preserves sign-in behavior. */
+.csm-login-shell{--csm-blue:#102b52;--csm-blue-strong:#0b2143;--csm-gold:#f2c14e;--csm-ink:#152b44}
+.csm-login-visual{background:radial-gradient(ellipse at 76% 18%,rgba(242,193,78,.16),transparent 32%),linear-gradient(145deg,#163b70 0%,#102b52 55%,#091c39 100%)}
+.csm-login-story h1 em,.csm-eyebrow,.csm-project-arrow{color:var(--csm-gold)}
+.csm-login-panel{background:linear-gradient(145deg,#fff 0%,#f5f8fc 100%)}
+.csm-input-frame:focus-within{border-color:#c59b2f;box-shadow:0 0 0 3px rgba(242,193,78,.2)}
+.csm-submit-button{color:#0b2143;background:var(--csm-gold);box-shadow:0 6px 17px rgba(190,142,31,.19)}
+.csm-submit-button:hover:not(:disabled){background:#ffd776;box-shadow:0 9px 20px rgba(190,142,31,.24)}
+.csm-submit-button:focus-visible,.csm-show-password:focus-visible{outline:3px solid #b78c1f;outline-offset:3px}
+@media(max-width:380px){.csm-login-brand-row{gap:10px}.csm-brand-name{letter-spacing:.1em}.csm-login-story h1{overflow-wrap:anywhere}}
