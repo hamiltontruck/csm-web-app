@@ -1,6 +1,7 @@
 @page "/compliance/document-categories/{Id:guid}/edit"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
+@using System.Net
 @using CSM.Web.Models.Compliance
 @using CSM.Web.Services
 
@@ -34,9 +35,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(_errorMessage))
     {
-        <div class="alert alert-danger">
-            @_errorMessage
-        </div>
+        <div class="alert alert-danger" role="alert">@_errorMessage</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="category-edit-sign-in" class="btn btn-primary" href="@SignInUrl">Sign in</a>
+        }
+        else if (_accessStatus is not HttpStatusCode.Forbidden and not HttpStatusCode.NotFound)
+        {
+            <button id="retry-category-edit" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (_request is not null)
     {
@@ -130,9 +137,20 @@
     private bool _saving;
 
     private string? _errorMessage;
+    private HttpStatusCode? _accessStatus;
+    private string SignInUrl => "/login?returnUrl=" + Uri.EscapeDataString($"/compliance/document-categories/{Id:D}/edit");
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _request = null;
+        _errorMessage = null;
+        _accessStatus = null;
         try
         {
             var category =
@@ -140,6 +158,7 @@
 
             if (category is null)
             {
+                _accessStatus = HttpStatusCode.NotFound;
                 _errorMessage = "Document category was not found.";
                 return;
             }
@@ -154,16 +173,25 @@
         }
         catch (Exception ex)
         {
-            _errorMessage = ex.Message;
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _errorMessage = _accessStatus switch
+            {
+                HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                HttpStatusCode.Forbidden => "You do not have permission to edit this document category.",
+                HttpStatusCode.NotFound => "Document category was not found.",
+                _ => "Unable to load document category. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task Save()
     {
+        if (_saving || _loading || _request is null) return;
         _errorMessage = null;
 
         if (_request is null)
