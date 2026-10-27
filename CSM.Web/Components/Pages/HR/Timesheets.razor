@@ -3,6 +3,8 @@
 
 @using CSM.Web.Models.HRM
 @using CSM.Web.Services
+@using System.Net
+@inject IAuthService AuthService
 @inject ITimesheetService TimesheetService
 @inject NavigationManager Navigation
 
@@ -24,25 +26,28 @@
                 Back
             </button>
 
-            <button class="btn btn-primary"
-                    @onclick="CreateTimesheet">
-                Create Timesheet
-            </button>
+            @if (_canManage)
+            {
+                <button class="btn btn-primary" @onclick="CreateTimesheet">Create Timesheet</button>
+            }
         </div>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <div class="alert alert-danger">
-            @_error
-        </div>
-    }
-
     @if (_loading)
     {
-        <div class="text-muted">
-            Loading timesheets...
-        </div>
+        <div class="text-muted">Loading timesheets...</div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="timesheet-list-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fhr%2Ftimesheets">Sign in</a>
+        }
+        else if (_accessStatus != HttpStatusCode.Forbidden)
+        {
+            <button id="retry-timesheet-list" class="btn btn-outline-primary" @onclick="LoadTimesheetsAsync">Retry</button>
+        }
     }
     else if (_timesheets.Count == 0)
     {
@@ -121,37 +126,49 @@
 @code {
     private List<TimesheetResponse> _timesheets = [];
     private bool _loading = true;
+    private bool _canManage;
     private string? _error;
+    private HttpStatusCode? _accessStatus;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadTimesheetsAsync();
+        if (firstRender) await LoadTimesheetsAsync();
     }
 
     private async Task LoadTimesheetsAsync()
     {
         _loading = true;
         _error = null;
-
+        _accessStatus = null;
+        _canManage = false;
+        _timesheets = [];
         try
         {
             var result = await TimesheetService.GetAllAsync();
-
+            var roles = await AuthService.GetRolesAsync();
             _timesheets = result.ToList();
+            _canManage = TimesheetAccess.CanManage(roles);
         }
         catch (Exception ex)
         {
-            _error = $"Failed to load timesheets: {ex.Message}";
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _error = _accessStatus switch
+            {
+                HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                HttpStatusCode.Forbidden => "You do not have permission to view timesheets.",
+                _ => "Unable to load timesheets. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private void CreateTimesheet()
     {
-        Navigation.NavigateTo("/hr/timesheets/create");
+        if (_canManage) Navigation.NavigateTo("/hr/timesheets/create");
     }
 
     private void OpenTimesheet(Guid timesheetId)
