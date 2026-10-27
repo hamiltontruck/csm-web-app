@@ -13,7 +13,7 @@ public sealed class DocumentVersionService : IDocumentVersionService
     private readonly ApplicationDbContext _dbContext;
     private readonly IDocumentService _documents;
 
-    public DocumentVersionService(ApplicationDbContext dbContext)
+    public DocumentVersionService(ApplicationDbContext dbContext, IDocumentService documents)
     {
         _dbContext = dbContext;
         _documents = documents;
