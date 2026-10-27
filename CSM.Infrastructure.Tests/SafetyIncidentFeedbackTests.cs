@@ -151,8 +151,8 @@ public sealed class SafetyIncidentFeedbackTests
     public class ProjectApi : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name == nameof(IProjectService.GetSitesAsync)
-            ? Task.FromResult<IReadOnlyList<SiteResponse>>(new[] { new SiteResponse { Name = "Test Site" } })
-            : Task.FromResult<IReadOnlyList<ProjectResponse>>(Array.Empty<ProjectResponse>());
+            ? Task.FromResult(new List<SiteResponse> { new SiteResponse { Name = "Test Site" } })
+            : Task.FromResult(new List<ProjectResponse>());
     }
     public class DomainApi : DispatchProxy
     {
