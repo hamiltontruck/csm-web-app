@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.HRM.Timesheets;
 using CSM.Application.HRM.Timesheets.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,9 +10,13 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.HRManagement)]
+[Authorize]
 public sealed class TimesheetsController : ControllerBase
 {
+    private const string ApproveRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager;
+    private const string ManageRoles = ApproveRoles + "," + AppRoles.HrOfficer + "," + AppRoles.HROfficer;
+    private const string ReadRoles = ManageRoles + "," + AppRoles.Supervisor;
+
     private readonly ITimesheetService _timesheetService;
 
     public TimesheetsController(
@@ -22,6 +26,7 @@ public sealed class TimesheetsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = ReadRoles)]
     public async Task<
         ActionResult<IReadOnlyCollection<TimesheetResponse>>> GetAll(
         [FromQuery] Guid? employeeId = null,
@@ -43,11 +48,12 @@ public sealed class TimesheetsController : ControllerBase
         }
         catch (TimesheetManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpGet("{timesheetId:guid}")]
+    [Authorize(Roles = ReadRoles)]
     public async Task<ActionResult<TimesheetResponse>> GetById(
         Guid timesheetId,
         CancellationToken cancellationToken)
@@ -64,11 +70,12 @@ public sealed class TimesheetsController : ControllerBase
         }
         catch (TimesheetManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPost]
+    [Authorize(Roles = ManageRoles)]
     public async Task<ActionResult<TimesheetResponse>> Create(
         CreateTimesheetRequest request,
         CancellationToken cancellationToken)
@@ -88,11 +95,12 @@ public sealed class TimesheetsController : ControllerBase
         }
         catch (TimesheetManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPut("{timesheetId:guid}/submit")]
+    [Authorize(Roles = ManageRoles)]
     public async Task<ActionResult<TimesheetResponse>> Submit(
         Guid timesheetId,
         SubmitTimesheetRequest request,
@@ -111,11 +119,12 @@ public sealed class TimesheetsController : ControllerBase
         }
         catch (TimesheetManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPut("{timesheetId:guid}/review")]
+    [Authorize(Roles = ApproveRoles)]
     public async Task<ActionResult<TimesheetResponse>> Review(
         Guid timesheetId,
         ReviewTimesheetRequest request,
@@ -134,11 +143,12 @@ public sealed class TimesheetsController : ControllerBase
         }
         catch (TimesheetManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPut("{timesheetId:guid}/cancel")]
+    [Authorize(Roles = ManageRoles)]
     public async Task<ActionResult<TimesheetResponse>> Cancel(
         Guid timesheetId,
         CancelTimesheetRequest request,
@@ -157,11 +167,12 @@ public sealed class TimesheetsController : ControllerBase
         }
         catch (TimesheetManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPost("generate")]
+    [Authorize(Roles = ManageRoles)]
     public async Task<ActionResult<TimesheetResponse>> Generate(
         GenerateTimesheetRequest request,
         CancellationToken cancellationToken)
@@ -177,8 +188,26 @@ public sealed class TimesheetsController : ControllerBase
         }
         catch (TimesheetManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
+    }
+
+    private ActionResult ErrorResult(TimesheetManagementException ex)
+    {
+        var body = new { message = ex.Message };
+        return ex.Message switch
+        {
+            "You are not authorized to access timesheets." or
+            "You are not authorized to manage timesheets." or
+            "You are not authorized to approve timesheets." or
+            "You cannot access timesheets outside your company." or
+            "Current user is not assigned to a company." or
+            "Current user was not found." or
+            "Current user account is inactive." or
+            "Authenticated user identifier is missing." => StatusCode(403, body),
+            "Timesheet was not found." => NotFound(body),
+            _ => BadRequest(body)
+        };
     }
 
     private Guid GetCurrentUserId()

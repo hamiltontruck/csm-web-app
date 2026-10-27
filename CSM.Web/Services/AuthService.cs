@@ -84,6 +84,12 @@ public class AuthService : IAuthService
         _companyId = null;
     }
 
+    public async Task<IReadOnlyCollection<string>> GetRolesAsync()
+    {
+        var roles = await _sessionStorage.GetAsync<List<string>>("roles");
+        return roles.Success && roles.Value is not null ? roles.Value : [];
+    }
+
     public async Task<IReadOnlyCollection<string>> GetPermissionsAsync()
     {
         if (_permissions is not null)

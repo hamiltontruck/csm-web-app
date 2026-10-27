@@ -113,20 +113,11 @@ public sealed class TimesheetService : ITimesheetService
     {
         var client = await ClientAsync();
 
-        var response = await client.PutAsJsonAsync(
+        using var response = await client.PutAsJsonAsync(
             $"Timesheets/{timesheetId}/submit",
             request);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error =
-                await response.Content.ReadAsStringAsync();
-
-            throw new Exception(
-                $"Timesheet submission failed. " +
-                $"HTTP {(int)response.StatusCode} " +
-                $"{response.StatusCode}: {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
             .ReadFromJsonAsync<TimesheetResponse>()
@@ -140,20 +131,11 @@ public sealed class TimesheetService : ITimesheetService
     {
         var client = await ClientAsync();
 
-        var response = await client.PutAsJsonAsync(
+        using var response = await client.PutAsJsonAsync(
             $"Timesheets/{timesheetId}/review",
             request);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error =
-                await response.Content.ReadAsStringAsync();
-
-            throw new Exception(
-                $"Timesheet review failed. " +
-                $"HTTP {(int)response.StatusCode} " +
-                $"{response.StatusCode}: {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
             .ReadFromJsonAsync<TimesheetResponse>()
@@ -167,20 +149,11 @@ public sealed class TimesheetService : ITimesheetService
     {
         var client = await ClientAsync();
 
-        var response = await client.PutAsJsonAsync(
+        using var response = await client.PutAsJsonAsync(
             $"Timesheets/{timesheetId}/cancel",
             request);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error =
-                await response.Content.ReadAsStringAsync();
-
-            throw new Exception(
-                $"Timesheet cancellation failed. " +
-                $"HTTP {(int)response.StatusCode} " +
-                $"{response.StatusCode}: {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
             .ReadFromJsonAsync<TimesheetResponse>()

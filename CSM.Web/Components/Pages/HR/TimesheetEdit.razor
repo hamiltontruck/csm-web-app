@@ -3,6 +3,8 @@
 
 @using CSM.Web.Models.HRM
 @using CSM.Web.Services
+@using System.Net
+@inject IAuthService AuthService
 @inject ITimesheetService TimesheetService
 @inject NavigationManager Navigation
 
@@ -24,18 +26,21 @@
         </button>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <div class="alert alert-danger">
-            @_error
-        </div>
-    }
-
     @if (_loading)
     {
-        <div class="text-muted">
-            Loading timesheet...
-        </div>
+        <div class="text-muted">Loading timesheet...</div>
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="timesheet-edit-sign-in" class="btn btn-primary" href="@SignInUrl">Sign in</a>
+        }
+        else if (_accessStatus is not HttpStatusCode.Forbidden and not HttpStatusCode.NotFound)
+        {
+            <button id="retry-timesheet-edit" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (_timesheet is null)
     {
@@ -169,7 +174,7 @@
                             </div>
                         }
 
-                        @if (_timesheet.Status is "Draft" or "Rejected")
+                        @if (_canManage && (_timesheet.Status is "Draft" or "Rejected"))
                         {
                             <EditForm Model="_submitModel"
                                       OnValidSubmit="SubmitAsync">
@@ -193,7 +198,7 @@
                             </EditForm>
                         }
 
-                        @if (_timesheet.Status == "Submitted")
+                        @if (_canApprove && _timesheet.Status == "Submitted")
                         {
                             <EditForm Model="_reviewModel">
 
@@ -228,7 +233,7 @@
                             </EditForm>
                         }
 
-                        @if (_timesheet.Status is not "Cancelled"
+                        @if (_canManage && _timesheet.Status is not "Cancelled"
                             && _timesheet.Status is not "Rejected")
                         {
                             <div class="mt-3">
@@ -281,34 +286,65 @@
     private bool _processing;
     private string? _error;
 
-    protected override async Task OnInitializedAsync()
+    private bool _canManage;
+    private bool _canApprove;
+    private HttpStatusCode? _accessStatus;
+    private string SignInUrl => "/login?returnUrl=" + Uri.EscapeDataString($"/hr/timesheets/edit/{TimesheetId:D}");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadAsync();
+        if (firstRender) await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
         _loading = true;
         _error = null;
-
+        _accessStatus = null;
+        _timesheet = null;
+        _canManage = _canApprove = false;
         try
         {
-            _timesheet =
-                await TimesheetService.GetByIdAsync(TimesheetId);
+            var result = await TimesheetService.GetByIdAsync(TimesheetId);
+            if (result is null)
+            {
+                _accessStatus = HttpStatusCode.NotFound;
+                _error = "Timesheet was not found.";
+                return;
+            }
+            var roles = await AuthService.GetRolesAsync();
+            _timesheet = result;
+            _canManage = TimesheetAccess.CanManage(roles);
+            _canApprove = TimesheetAccess.CanApprove(roles);
         }
         catch (Exception ex)
         {
-            _error =
-                $"Failed to load timesheet: {ex.Message}";
+            SetFailure(ex, "Unable to load timesheet. Please try again.");
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void SetFailure(Exception ex, string fallback)
+    {
+        _timesheet = null;
+        _canManage = _canApprove = false;
+        _accessStatus = (ex as HttpRequestException)?.StatusCode;
+        _error = _accessStatus switch
+        {
+            HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+            HttpStatusCode.Forbidden => "You do not have permission to access or update this timesheet.",
+            HttpStatusCode.NotFound => "Timesheet was not found.",
+            _ => fallback
+        };
     }
 
     private async Task SubmitAsync()
     {
+        if (_processing || !_canManage || _timesheet is null) return;
         _processing = true;
         _error = null;
 
@@ -323,8 +359,7 @@
         }
         catch (Exception ex)
         {
-            _error =
-                $"Failed to submit timesheet: {ex.Message}";
+            SetFailure(ex, "Unable to update timesheet. Please try again.");
         }
         finally
         {
@@ -344,6 +379,7 @@
 
     private async Task ReviewAsync(string status)
     {
+        if (_processing || !_canApprove || _timesheet is null) return;
         _processing = true;
         _error = null;
 
@@ -360,8 +396,7 @@
         }
         catch (Exception ex)
         {
-            _error =
-                $"Failed to review timesheet: {ex.Message}";
+            SetFailure(ex, "Unable to update timesheet. Please try again.");
         }
         finally
         {
@@ -371,6 +406,7 @@
 
     private async Task CancelAsync()
     {
+        if (_processing || !_canManage || _timesheet is null) return;
         _processing = true;
         _error = null;
 
@@ -385,8 +421,7 @@
         }
         catch (Exception ex)
         {
-            _error =
-                $"Failed to cancel timesheet: {ex.Message}";
+            SetFailure(ex, "Unable to update timesheet. Please try again.");
         }
         finally
         {

@@ -3,6 +3,8 @@
 
 @using CSM.Web.Models.HRM
 @using CSM.Web.Services
+@using System.Net
+@inject IAuthService AuthService
 @inject ITimesheetService TimesheetService
 @inject IEmployeeService EmployeeService
 @inject NavigationManager Navigation
@@ -25,21 +27,28 @@
         </button>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <div class="alert alert-danger">
-            @_error
-        </div>
-    }
-
     @if (_loading)
     {
-        <div class="text-muted">
-            Loading employees...
-        </div>
+        <div class="text-muted">Loading employees...</div>
+    }
+    else if (!_canManage)
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="timesheet-create-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fhr%2Ftimesheets%2Fcreate">Sign in</a>
+        }
+        else if (_accessStatus != HttpStatusCode.Forbidden)
+        {
+            <button id="retry-timesheet-create" class="btn btn-outline-primary" @onclick="LoadEmployeesAsync">Retry</button>
+        }
     }
     else
     {
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
         <EditForm Model="_model"
                   OnValidSubmit="CreateAsync">
 
@@ -153,7 +162,7 @@
     private bool _processing;
     private string? _error;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
 
@@ -165,35 +174,61 @@
                 .AddMonths(1)
                 .AddDays(-1);
 
-        await LoadEmployeesAsync();
+
+    }
+
+    private bool _canManage;
+    private HttpStatusCode? _accessStatus;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await LoadEmployeesAsync();
     }
 
     private async Task LoadEmployeesAsync()
     {
         _loading = true;
         _error = null;
-
+        _accessStatus = null;
+        _canManage = false;
+        _employees = [];
+        var loadingEmployees = false;
         try
         {
-            var result =
-                await EmployeeService.GetEmployeesAsync(
-                    status: "Active");
-
+            await TimesheetService.GetAllAsync();
+            if (!TimesheetAccess.CanManage(await AuthService.GetRolesAsync()))
+            {
+                _accessStatus = HttpStatusCode.Forbidden;
+                _error = "You do not have permission to create timesheets.";
+                return;
+            }
+            loadingEmployees = true;
+            var result = await EmployeeService.GetEmployeesAsync(status: "Active");
             _employees = result.ToList();
+            _canManage = true;
         }
         catch (Exception ex)
         {
-            _error =
-                $"Failed to load employees: {ex.Message}";
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _error = _accessStatus switch
+            {
+                HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                HttpStatusCode.Forbidden => loadingEmployees
+                    ? "Employee choices are not available with your current permissions."
+                    : "You do not have permission to create timesheets.",
+                _ => "Unable to load timesheet form. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task CreateAsync()
     {
+        if (_processing || !_canManage) return;
         _processing = true;
         _error = null;
 

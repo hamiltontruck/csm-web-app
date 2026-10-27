@@ -16,5 +16,7 @@ public interface IAuthService
 
     Task LogoutAsync();
 
+    Task<IReadOnlyCollection<string>> GetRolesAsync();
+
     Task<IReadOnlyCollection<string>> GetPermissionsAsync();
 }
