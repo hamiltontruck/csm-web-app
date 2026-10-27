@@ -4,6 +4,8 @@
 @using CSM.Web.Models.HRM
 @using CSM.Web.Services
 
+@using System.Net
+@inject IAuthService AuthService
 @inject IPayrollService PayrollService
 @inject NavigationManager Navigation
 
@@ -25,11 +27,10 @@
                 Back
             </button>
 
-            <button class="btn btn-primary"
-                    @onclick="CreatePayroll">
-                <i class="bi bi-plus-lg me-1"></i>
-                Create Payroll
-            </button>
+            @if (_canManage)
+            {
+                <button class="btn btn-primary" @onclick="CreatePayroll">Create Payroll</button>
+            }
         </div>
     </div>
 
@@ -43,9 +44,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">
-            @_error
-        </div>
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="payroll-list-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fhr%2Fpayroll">Sign in</a>
+        }
+        else if (_accessStatus != HttpStatusCode.Forbidden)
+        {
+            <button id="retry-payroll-list" class="btn btn-outline-primary" @onclick="LoadPayroll">Retry</button>
+        }
     }
     else if (_payroll.Count == 0)
     {
@@ -136,38 +143,52 @@
 
 @code {
     private List<PayrollResponse> _payroll = [];
-    private bool _loading;
+    private bool _loading = true;
+    private bool _canManage;
+    private HttpStatusCode? _accessStatus;
     private string? _error;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadPayroll();
+        if (firstRender) await LoadPayroll();
     }
 
     private async Task LoadPayroll()
     {
         _loading = true;
         _error = null;
+        _accessStatus = null;
+        _canManage = false;
+        _payroll = [];
 
         try
         {
             var payroll = await PayrollService.GetAllAsync();
 
+            var roles = await AuthService.GetRolesAsync();
             _payroll = payroll.ToList();
+            _canManage = roles.Any(role => role is "SuperAdmin" or "CompanyAdmin" or "HrOfficer" or "HROfficer");
         }
         catch (Exception ex)
         {
-            _error = $"Failed to load payroll: {ex.Message}";
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _error = _accessStatus switch
+            {
+                HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                HttpStatusCode.Forbidden => "You do not have permission to view payroll.",
+                _ => "Unable to load payroll. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private void CreatePayroll()
     {
-        Navigation.NavigateTo("/hr/payroll/create");
+        if (_canManage) Navigation.NavigateTo("/hr/payroll/create");
     }
 
     private void OpenPayroll(Guid payrollId)
