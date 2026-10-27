@@ -10,7 +10,7 @@
     display:flex;
     flex-direction:column;
 
-    background:#102f25;
+    background:#102b52;
     overflow:hidden;
 }
 
@@ -21,7 +21,7 @@
     display:flex;
     align-items:center;
     padding:0 22px;
-    background:#102f25;
+    background:#102b52;
     flex-shrink:0;
 }
 
@@ -66,7 +66,7 @@
     padding:0 16px;
     border-radius:10px;
 
-    color:#bed0c7;
+    color:#c8d7ee;
     font-size:18px;
     font-weight:500;
     text-decoration:none;
@@ -127,7 +127,7 @@
 .submenu-level2 ::deep .nav-link{
     height:38px;
     font-size:16px;
-    color:#aac8ba;
+    color:#c1d1e9;
 }
 
 /* ===== SIGN OUT ===== */
@@ -144,7 +144,7 @@
 /* Responsive navigation */
 @media (max-width:640.98px){
     .sidebar{position:relative;top:auto;width:100%;height:auto;min-height:0;overflow:visible;z-index:20;}
-    .top-row{height:58px;padding:0 18px;background:#102f25;}
+    .top-row{height:58px;padding:0 18px;background:#102b52;}
     .navbar-brand{font-size:1.15rem;}
     .navbar-toggler{
         display:grid;
@@ -171,8 +171,8 @@
         width:17px;
         height:2px;
         border-radius:2px;
-        background:#eef6f0;
-        box-shadow:0 -5px #eef6f0,0 5px #eef6f0;
+        background:#f2c14e;
+        box-shadow:0 -5px #f2c14e,0 5px #f2c14e;
         transition:transform .16s ease,box-shadow .16s ease;
     }
     .navbar-toggler:checked{
@@ -189,20 +189,24 @@
         width:17px;
         height:2px;
         border-radius:2px;
-        background:#eef6f0;
+        background:#f2c14e;
         transform:rotate(-45deg);
     }
     .navbar-toggler:focus-visible{
-        outline:3px solid #8fdab3;
+        outline:3px solid #f2c14e;
         outline-offset:3px;
     }
-    .nav-scrollable{display:none;position:absolute;top:58px;left:0;right:0;max-height:calc(100vh - 58px);background:#102f25;overflow-y:auto;box-shadow:0 12px 20px rgba(17,42,32,.2);z-index:30;}
+    .nav-scrollable{display:none;position:absolute;top:58px;left:0;right:0;max-height:calc(100vh - 58px);background:#102b52;overflow-y:auto;box-shadow:0 12px 20px rgba(17,42,32,.2);z-index:30;}
     .navbar-toggler:checked~.nav-scrollable{display:block;}
     .nav-scrollable nav{padding:10px 0 14px;}
     .nav-item{margin:2px 12px;}
     .nav-item ::deep .nav-link{height:42px;font-size:14px;}
     .section-title{padding:13px 24px 7px;}
     .submenu{margin-left:12px;}
-    .signout{display:none;background:#102f25;margin:0;padding:0 12px 14px;border-top:0;}
+    .signout{display:none;background:#102b52;margin:0;padding:0 12px 14px;border-top:0;}
     .navbar-toggler:checked~.signout{display:block;}
 }
+
+/* Blue & Gold active navigation */
+.nav-item ::deep a.active{background:rgba(242,193,78,.16);color:#ffe1a0;box-shadow:inset 3px 0 #f2c14e}
+.nav-item ::deep .nav-link:focus-visible{outline:2px solid #f2c14e;outline-offset:-2px}
