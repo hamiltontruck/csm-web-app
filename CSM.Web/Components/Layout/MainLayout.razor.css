@@ -5,11 +5,12 @@
 }
 
 main {
+    min-width: 0;
     flex: 1;
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, #102b52 0%, #091c39 70%);
+    background: #173f78;
 }
 
 .top-row {

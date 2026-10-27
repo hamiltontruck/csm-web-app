@@ -96,8 +96,8 @@
     background: linear-gradient(145deg, #fff 0%, #f9fbf8 100%);
 }
 .csm-login-panel-head, .csm-login-panel-footer { display: flex; align-items: center; justify-content: space-between; }
-.csm-panel-label { color: #9aa49d; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
-.csm-help-text { color: #87938a; font-size: 9px; text-align: right; }
+.csm-panel-label { color: #66758b; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
+.csm-help-text { color: #66758b; font-size: 9px; text-align: right; }
 .csm-login-form-wrap { width: min(100%, 380px); margin: auto; padding: 38px 0; }
 .csm-login-heading { margin-bottom: 29px; }
 .csm-login-icon {
@@ -114,9 +114,9 @@
     font-size: 17px;
     font-weight: 800;
 }
-.csm-form-eyebrow { margin: 0 0 10px; color: #74877a; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
+.csm-form-eyebrow { margin: 0 0 10px; color: #66758b; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
 .csm-login-heading h2 { margin: 0; color: #122b4b; font-size: 31px; line-height: 1.2; font-weight: 700; letter-spacing: -.045em; }
-.csm-login-heading > p:last-child { margin: 8px 0 0; color: #829087; font-size: 12px; }
+.csm-login-heading > p:last-child { margin: 8px 0 0; color: #66758b; font-size: 12px; }
 .csm-login-form { display: flex; flex-direction: column; }
 .csm-form-field { margin-bottom: 19px; }
 .csm-form-field label { display: block; margin-bottom: 8px; color: #293f5c; font-size: 10px; font-weight: 700; }
@@ -132,9 +132,9 @@
     transition: border-color .18s, box-shadow .18s;
 }
 .csm-input-frame:focus-within { border-color: #c59b2f; box-shadow: 0 0 0 3px rgba(71,128,74,.12); }
-.csm-input-frame > svg { width: 16px; height: 16px; flex: none; fill: none; stroke: #9aa79d; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.csm-input-frame > svg { width: 16px; height: 16px; flex: none; fill: none; stroke: #8493a8; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .csm-input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: #193753; background: transparent; font: 400 11px Inter, "Segoe UI", Arial, sans-serif; }
-.csm-input::placeholder { color: #aab4ac; }
+.csm-input::placeholder { color: #77869b; }
 .csm-show-password { flex: none; border: 0; padding: 4px 0 4px 7px; color: #174b89; background: transparent; font: 600 9px Inter, "Segoe UI", Arial, sans-serif; cursor: pointer; }
 .csm-show-password:focus-visible { outline: 2px solid #c59b2f; outline-offset: 3px; border-radius: 3px; }
 .csm-submit-button {
@@ -160,9 +160,9 @@
 .csm-submit-arrow { font-size: 16px; font-weight: 400; }
 .csm-submit-spinner { width: 13px; height: 13px; border: 2px solid rgba(23,51,35,.26); border-top-color: #092444; border-radius: 50%; animation: csm-spin .7s linear infinite; }
 @keyframes csm-spin { to { transform: rotate(360deg); } }
-.csm-security-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 16px 0 0; color: #929f95; font-size: 9px; }
+.csm-security-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 16px 0 0; color: #66758b; font-size: 9px; }
 .csm-security-note span { color: #647c9f; font-size: 10px; }
-.csm-login-panel-footer { color: #9aa49c; font-size: 7px; font-weight: 600; letter-spacing: .1em; }
+.csm-login-panel-footer { color: #66758b; font-size: 7px; font-weight: 600; letter-spacing: .1em; }
 ::deep .validation-summary-errors {
     margin: 0 0 17px;
     padding: 10px 12px;
@@ -214,13 +214,55 @@
     .csm-login-panel-footer span:last-child { max-width: 125px; text-align: right; }
 }
 
-/* CSM Blue & Gold design refresh — presentation only; preserves sign-in behavior. */
-.csm-login-shell{--csm-blue:#102b52;--csm-blue-strong:#0b2143;--csm-gold:#f2c14e;--csm-ink:#152b44}
-.csm-login-visual{background:radial-gradient(ellipse at 76% 18%,rgba(242,193,78,.16),transparent 32%),linear-gradient(145deg,#163b70 0%,#102b52 55%,#091c39 100%)}
-.csm-login-story h1 em,.csm-eyebrow,.csm-project-arrow{color:var(--csm-gold)}
-.csm-login-panel{background:linear-gradient(145deg,#fff 0%,#f5f8fc 100%)}
-.csm-input-frame:focus-within{border-color:#c59b2f;box-shadow:0 0 0 3px rgba(242,193,78,.2)}
-.csm-submit-button{color:#0b2143;background:var(--csm-gold);box-shadow:0 6px 17px rgba(190,142,31,.19)}
-.csm-submit-button:hover:not(:disabled){background:#ffd776;box-shadow:0 9px 20px rgba(190,142,31,.24)}
-.csm-submit-button:focus-visible,.csm-show-password:focus-visible{outline:3px solid #b78c1f;outline-offset:3px}
-@media(max-width:380px){.csm-login-brand-row{gap:10px}.csm-brand-name{letter-spacing:.1em}.csm-login-story h1{overflow-wrap:anywhere}}
+
+/* Blue and gold finish, matched to the supplied CSM reference. */
+.csm-login-shell {
+    --csm-blue: #173f78;
+    --csm-gold: #c7a544;
+    min-height: 100svh;
+    grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr);
+    background: #f5f7fc;
+}
+.csm-login-visual { background: var(--csm-blue); }
+.csm-login-panel { min-width: 0; min-height: 100svh; background: #f5f7fc; }
+.csm-login-form-wrap {
+    width: min(100%, 440px);
+    padding: clamp(24px, 3vw, 40px);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 8px 28px rgba(23, 63, 120, .04);
+}
+.csm-login-heading h2 { color: var(--csm-blue); }
+.csm-form-field label { font-size: 12px; }
+.csm-input-frame { background: #f5f7fc; border-color: #edf1f7; }
+.csm-input-frame:focus-within { border-color: #ac8626; box-shadow: 0 0 0 3px rgba(199,165,68,.2); }
+.csm-input-frame ::deep .csm-input {
+    width: 100%; min-width: 0; border: 0; outline: 0;
+    background: transparent; color: #193753;
+    font: 400 16px Inter, "Segoe UI", Arial, sans-serif;
+}
+.csm-show-password { min-height: 44px; font-size: 12px; color: #173f78; }
+.csm-submit-button {
+    background: var(--csm-blue); color: #fff; font-size: 14px;
+    border-bottom: 3px solid var(--csm-gold);
+    box-shadow: none;
+}
+.csm-submit-button:hover:not(:disabled) { background: #12335f; box-shadow: 0 6px 16px rgba(23,63,120,.15); }
+.csm-submit-button:focus-visible, .csm-show-password:focus-visible { outline: 3px solid #ac8626; outline-offset: 3px; }
+.csm-submit-spinner { border-color: rgba(255,255,255,.35); border-top-color: #fff; }
+.csm-security-note { font-size: 11px; line-height: 1.5; text-align: center; }
+@media (max-width: 760px) {
+    .csm-login-shell { display: flex; }
+    .csm-login-panel { min-height: auto; padding: 24px; gap: 24px; }
+    .csm-login-form-wrap { padding: 28px 24px; }
+    .csm-login-panel-footer { gap: 16px; line-height: 1.5; }
+}
+@media (max-width: 380px) {
+    .csm-login-panel { padding: 20px 16px; }
+    .csm-login-form-wrap { padding: 24px 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .csm-input-frame, .csm-submit-button { transition: none; }
+    .csm-submit-button:hover:not(:disabled) { transform: none; }
+    .csm-submit-spinner { animation: none; }
+}

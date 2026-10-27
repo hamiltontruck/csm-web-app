@@ -10,7 +10,7 @@
     display:flex;
     flex-direction:column;
 
-    background:#102b52;
+    background:#173f78;
     overflow:hidden;
 }
 
@@ -21,7 +21,7 @@
     display:flex;
     align-items:center;
     padding:0 22px;
-    background:#102b52;
+    background:#173f78;
     flex-shrink:0;
 }
 
@@ -144,7 +144,7 @@
 /* Responsive navigation */
 @media (max-width:640.98px){
     .sidebar{position:relative;top:auto;width:100%;height:auto;min-height:0;overflow:visible;z-index:20;}
-    .top-row{height:58px;padding:0 18px;background:#102b52;}
+    .top-row{height:58px;padding:0 18px;background:#173f78;}
     .navbar-brand{font-size:1.15rem;}
     .navbar-toggler{
         display:grid;
@@ -196,17 +196,22 @@
         outline:3px solid #f2c14e;
         outline-offset:3px;
     }
-    .nav-scrollable{display:none;position:absolute;top:58px;left:0;right:0;max-height:calc(100vh - 58px);background:#102b52;overflow-y:auto;box-shadow:0 12px 20px rgba(17,42,32,.2);z-index:30;}
+    .nav-scrollable{display:none;position:absolute;top:58px;left:0;right:0;max-height:calc(100vh - 58px);background:#173f78;overflow-y:auto;box-shadow:0 12px 20px rgba(17,42,32,.2);z-index:30;}
     .navbar-toggler:checked~.nav-scrollable{display:block;}
     .nav-scrollable nav{padding:10px 0 14px;}
     .nav-item{margin:2px 12px;}
     .nav-item ::deep .nav-link{height:42px;font-size:14px;}
     .section-title{padding:13px 24px 7px;}
     .submenu{margin-left:12px;}
-    .signout{display:none;background:#102b52;margin:0;padding:0 12px 14px;border-top:0;}
+    .signout{display:none;background:#173f78;margin:0;padding:0 12px 14px;border-top:0;}
     .navbar-toggler:checked~.signout{display:block;}
 }
 
 /* Blue & Gold active navigation */
-.nav-item ::deep a.active{background:rgba(242,193,78,.16);color:#ffe1a0;box-shadow:inset 3px 0 #f2c14e}
+.nav-item ::deep a.active{background:#2563eb;color:#fff;box-shadow:inset 3px 0 #c7a544}
 .nav-item ::deep .nav-link:focus-visible{outline:2px solid #f2c14e;outline-offset:-2px}
+
+.navbar-brand { border-bottom: 3px solid #c7a544; padding-bottom: 6px; }
+@media (prefers-reduced-motion: reduce) {
+    .nav-item ::deep .nav-link, .navbar-toggler, .navbar-toggler::before { transition: none; }
+}
