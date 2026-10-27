@@ -172,7 +172,13 @@ public sealed class PayrollService : IPayrollService
                 $"Payroll/{payrollRecordId}/cancel",
                 request);
 
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(
+                $"Failed to cancel payroll. " +
+                $"Status: {(int)response.StatusCode}. {error}");
+        }
 
         return await response.Content
                    .ReadFromJsonAsync<PayrollResponse>()
@@ -191,7 +197,13 @@ public sealed class PayrollService : IPayrollService
                 $"Payroll/{payrollRecordId}/adjustments",
                 request);
 
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(
+                $"Failed to add payroll adjustment. " +
+                $"Status: {(int)response.StatusCode}. {error}");
+        }
 
         return await response.Content
                    .ReadFromJsonAsync<PayrollResponse>()
