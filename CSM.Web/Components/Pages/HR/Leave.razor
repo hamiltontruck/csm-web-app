@@ -4,6 +4,8 @@
 @using CSM.Web.Models.HRM
 @using CSM.Web.Services
 
+@using System.Net
+@inject IAuthService AuthService
 @inject ILeaveService LeaveService
 @inject NavigationManager Navigation
 
@@ -25,10 +27,10 @@
                 Back
             </button>
 
-            <button class="btn btn-primary"
-                    @onclick="CreateLeave">
-                Add Leave
-            </button>
+            @if (_canSubmit)
+            {
+                <button class="btn btn-primary" @onclick="CreateLeave">Add Leave</button>
+            }
         </div>
     </div>
 
@@ -40,9 +42,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">
-            @_error
-        </div>
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="leave-list-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fhr%2Fleave">Sign in</a>
+        }
+        else if (_accessStatus != HttpStatusCode.Forbidden)
+        {
+            <button id="retry-leave-list" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (_leaves.Count == 0)
     {
@@ -101,23 +109,23 @@
                                     </td>
 
                                     <td>
-                                        @if (string.Equals(
+                                        @if (_canReview && string.Equals(
                                             leave.Status,
                                             "Pending",
                                             StringComparison.OrdinalIgnoreCase))
                                         {
                                             <button class="btn btn-sm btn-success me-1"
-                                                    @onclick="() => ApproveLeave(leave.Id)">
+                                                    disabled="@_mutating" @onclick="() => ApproveLeave(leave.Id)">
                                                 Approve
                                             </button>
 
                                             <button class="btn btn-sm btn-danger me-1"
-                                                    @onclick="() => RejectLeave(leave.Id)">
+                                                    disabled="@_mutating" @onclick="() => RejectLeave(leave.Id)">
                                                 Reject
                                             </button>
                                         }
 
-                                        @if (!string.Equals(
+                                        @if (_canReview && !string.Equals(
                                             leave.Status,
                                             "Cancelled",
                                             StringComparison.OrdinalIgnoreCase) &&
@@ -127,7 +135,7 @@
                                             StringComparison.OrdinalIgnoreCase))
                                         {
                                             <button class="btn btn-sm btn-outline-danger"
-                                                    @onclick="() => CancelLeave(leave.Id)">
+                                                    disabled="@_mutating" @onclick="() => CancelLeave(leave.Id)">
                                                 Cancel
                                             </button>
                                         }
@@ -148,79 +156,93 @@
 @code {
     private List<LeaveResponse> _leaves = [];
     private bool _loading = true;
+    private bool _canSubmit;
+    private bool _canReview;
+    private bool _mutating;
     private string? _error;
+    private HttpStatusCode? _accessStatus;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadAsync();
+        if (firstRender) await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
         _loading = true;
         _error = null;
-
+        _accessStatus = null;
+        _canSubmit = _canReview = false;
+        _leaves = [];
         try
         {
             var result = await LeaveService.GetAllAsync();
+            var permissions = await AuthService.GetPermissionsAsync();
             _leaves = result.ToList();
+            _canSubmit = permissions.Contains("HRM_Leave_Submit");
+            _canReview = permissions.Contains("HRM_Leave_Approve");
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            SetFailure(ex, "You do not have permission to view leave requests.",
+                "Unable to load leave requests. Please try again.");
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void SetFailure(Exception ex, string forbidden, string fallback)
+    {
+        _leaves = [];
+        _canSubmit = _canReview = false;
+        _accessStatus = (ex as HttpRequestException)?.StatusCode;
+        _error = _accessStatus switch
+        {
+            HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+            HttpStatusCode.Forbidden => forbidden,
+            _ => fallback
+        };
     }
 
     private void CreateLeave()
     {
-        Navigation.NavigateTo("/hr/leave/create");
+        if (_canSubmit) Navigation.NavigateTo("/hr/leave/create");
     }
 
-    private void GoBack()
+    private void GoBack() => Navigation.NavigateTo("/hr");
+
+    private Task ApproveLeave(Guid id) => RunActionAsync(
+        () => LeaveService.ReviewAsync(id, new ReviewLeaveRequest { Status = "Approved", Remarks = null }));
+
+    private Task RejectLeave(Guid id) => RunActionAsync(
+        () => LeaveService.ReviewAsync(id, new ReviewLeaveRequest { Status = "Rejected", Remarks = null }));
+
+    private Task CancelLeave(Guid id) => RunActionAsync(
+        () => LeaveService.CancelAsync(id, new CancelLeaveRequest { Remarks = null }));
+
+    private async Task RunActionAsync(Func<Task> action)
     {
-        Navigation.NavigateTo("/hr");
-    }
-
-    private async Task ApproveLeave(Guid leaveId)
-    {
-        await LeaveService.ReviewAsync(
-            leaveId,
-            new ReviewLeaveRequest
-            {
-                Status = "Approved",
-                Remarks = null
-            });
-
-        await LoadAsync();
-    }
-
-    private async Task RejectLeave(Guid leaveId)
-    {
-        await LeaveService.ReviewAsync(
-            leaveId,
-            new ReviewLeaveRequest
-            {
-                Status = "Rejected",
-                Remarks = null
-            });
-
-        await LoadAsync();
-    }
-
-    private async Task CancelLeave(Guid leaveId)
-    {
-        await LeaveService.CancelAsync(
-            leaveId,
-            new CancelLeaveRequest
-            {
-                Remarks = null
-            });
-
-        await LoadAsync();
+        if (!_canReview || _mutating) return;
+        _mutating = true;
+        _error = null;
+        _accessStatus = null;
+        try
+        {
+            await action();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            SetFailure(ex, "You do not have permission to review or cancel leave requests.",
+                "Unable to update leave request. Please try again.");
+        }
+        finally
+        {
+            _mutating = false;
+        }
     }
 
     private static string GetStatusClass(string status)
