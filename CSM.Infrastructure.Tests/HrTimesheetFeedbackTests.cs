@@ -9,6 +9,13 @@ using CSM.Web.Models.HRM;
 using CSM.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using CSM.Infrastructure.Persistence;
+using CSM.Domain.Entities.HRM;
+using CSM.Domain.Entities.Identity;
+using CSM.Domain.Enums;
 using Xunit;
 
 namespace CSM.Infrastructure.Tests;
@@ -122,6 +129,48 @@ public sealed class HrTimesheetFeedbackTests
         Assert.Empty(page.FindAll("form, input, textarea"));
         Assert.DoesNotContain("private diagnostic", page.Markup);
     }
+
+    [Fact]
+    public async Task Supervisor_reads_only_company_rows_and_foreign_company_detail_is_denied()
+    {
+        using var db = Database(out var actorId, out var ownId, out var foreignId);
+        var controller = Controller(db, actorId);
+        var result = await controller.GetAll();
+        var rows = Assert.IsAssignableFrom<IReadOnlyCollection<CSM.Application.HRM.Timesheets.Dtos.TimesheetResponse>>(
+            Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(ownId, Assert.Single(rows).Id);
+        var foreign = await controller.GetById(foreignId, default);
+        Assert.Equal(403, Assert.IsType<ObjectResult>(foreign.Result).StatusCode);
+    }
+
+    [Fact]
+    public async Task Supervisor_cannot_cancel_and_existing_timesheets_are_unchanged()
+    {
+        using var db = Database(out var actorId, out var ownId, out _);
+        var result = await Controller(db, actorId).Cancel(ownId, new(null), default);
+        Assert.Equal(403, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        Assert.All(db.Timesheets, row => Assert.Equal(TimesheetStatus.Draft, row.Status));
+    }
+
+    private static ApplicationDbContext Database(out Guid actorId, out Guid ownId, out Guid foreignId)
+    {
+        var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        actorId = Guid.NewGuid(); ownId = Guid.NewGuid(); foreignId = Guid.NewGuid();
+        var companyId = Guid.NewGuid();
+        db.Users.Add(new User { Id = actorId, IsActive = true, CompanyId = companyId, UserRoles = [
+            new UserRole { Id = Guid.NewGuid(), Role = new Role { Id = Guid.NewGuid(), Name = "Supervisor" } } ] });
+        foreach (var pair in new[] { (ownId, companyId), (foreignId, Guid.NewGuid()) })
+            db.Timesheets.Add(new CSM.Domain.Entities.HRM.Timesheet { Id = pair.Item1, CompanyId = pair.Item2,
+                PeriodStartDate = new(2026, 10, 1), PeriodEndDate = new(2026, 10, 31), Status = TimesheetStatus.Draft,
+                Employee = new Employee { Id = Guid.NewGuid(), CompanyId = pair.Item2, EmployeeNumber = pair.Item1.ToString(), FirstName = "Test", LastName = "Employee" } });
+        db.SaveChanges(); return db;
+    }
+
+    private static TimesheetsController Controller(ApplicationDbContext db, Guid actorId) =>
+        new(new CSM.Infrastructure.Services.TimesheetService(db)) { ControllerContext = new ControllerContext {
+            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([
+                new Claim(ClaimTypes.NameIdentifier, actorId.ToString())], "test")) } } };
 
     private static IRenderedFragment Render(TestContext context, string route) => route switch {
         "list" => context.RenderComponent<Timesheets>(),
