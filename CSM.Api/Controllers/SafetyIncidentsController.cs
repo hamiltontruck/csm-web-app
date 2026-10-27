@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.Compliance.SafetyIncidents;
 using CSM.Application.Compliance.SafetyIncidents.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
 public sealed class SafetyIncidentsController : ControllerBase
 {
     private readonly ISafetyIncidentService _safetyIncidentService;
@@ -37,7 +37,7 @@ public sealed class SafetyIncidentsController : ControllerBase
         }
         catch (SafetyIncidentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -58,7 +58,7 @@ public sealed class SafetyIncidentsController : ControllerBase
         }
         catch (SafetyIncidentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -82,7 +82,7 @@ public sealed class SafetyIncidentsController : ControllerBase
         }
         catch (SafetyIncidentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -105,8 +105,23 @@ public sealed class SafetyIncidentsController : ControllerBase
         }
         catch (SafetyIncidentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
+    }
+
+    private ActionResult ErrorResult(SafetyIncidentManagementException ex)
+    {
+        var body = new { message = ex.Message };
+        return ex.Message switch
+        {
+            "You are not authorized to manage safety incidents." or
+            "You are not authorized to access this safety incident." or
+            "Current user is not assigned to a company." or
+            "Authenticated user was not found." or
+            "Authenticated user identifier is invalid." => StatusCode(403, body),
+            "Safety incident was not found." => NotFound(body),
+            _ => BadRequest(body)
+        };
     }
 
     private Guid GetCurrentUserId()

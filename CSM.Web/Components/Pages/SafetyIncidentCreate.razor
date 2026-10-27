@@ -1,6 +1,7 @@
 @page "/compliance/safety-incidents/create"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
+@using System.Net
 @using CSM.Web.Models.Compliance
 @using CSM.Web.Models.HRM
 @using CSM.Web.Models.Projects
@@ -36,6 +37,18 @@
             <div class="spinner-border"></div>
             <div class="mt-2">Loading incident form...</div>
         </div>
+    }
+    else if (!_formReady)
+    {
+        <div class="alert alert-danger" role="alert">@_loadError</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="safety-create-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fcompliance%2Fsafety-incidents%2Fcreate">Sign in</a>
+        }
+        else if (_accessStatus is not HttpStatusCode.Forbidden and not HttpStatusCode.NotFound)
+        {
+            <button id="retry-safety-create" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else
     {
@@ -372,16 +385,32 @@
 
     private bool _loading = true;
     private bool _saving;
+    private bool _formReady;
+    private string? _loadError;
+    private HttpStatusCode? _accessStatus;
 
     private string? _errorMessage;
     private string? _successMessage;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _formReady = false;
+        _loadError = null;
+        _accessStatus = null;
+        _errorMessage = null;
+        _sites = [];
+        _projects = [];
+        _employees = [];
         try
         {
             _loading = true;
 
+            await ComplianceService.GetSafetyIncidentsAsync();
             _sites = await ProjectService.GetSitesAsync();
 
             _employees =
@@ -393,15 +422,34 @@
                     await ProjectService.GetProjectsBySiteAsync(
                         _request.ConstructionSiteId);
             }
+            _formReady = true;
         }
         catch (Exception ex)
         {
-            _errorMessage = ex.Message;
+            SetLoadFailure(ex);
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
+    }
+
+
+    private void SetLoadFailure(Exception ex)
+    {
+        _formReady = false;
+        _sites = [];
+        _projects = [];
+        _employees = [];
+        _accessStatus = (ex as HttpRequestException)?.StatusCode;
+        _loadError = _accessStatus switch
+        {
+            HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+            HttpStatusCode.Forbidden => "You do not have permission to load this safety incident form or its choices.",
+            HttpStatusCode.NotFound => "Safety incident was not found.",
+            _ => "Unable to load safety incident form. Please try again."
+        };
     }
 
     private async Task OnSiteChanged(ChangeEventArgs args)
@@ -429,12 +477,13 @@
         }
         catch (Exception ex)
         {
-            _errorMessage = ex.Message;
+            SetLoadFailure(ex);
         }
     }
 
     private async Task Save()
     {
+        if (_saving || !_formReady) return;
         _errorMessage = null;
         _successMessage = null;
 
