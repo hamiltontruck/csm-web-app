@@ -5,15 +5,16 @@
 }
 
 main {
+    min-width: 0;
     flex: 1;
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    background: #173f78;
 }
 
 .top-row {
-    background-color: #f7f7f7;
+    background-color: #f5f8fc;
     border-bottom: 1px solid #d6d5d5;
     justify-content: flex-end;
     height: 3.5rem;
