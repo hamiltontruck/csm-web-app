@@ -266,3 +266,61 @@
     .csm-submit-button:hover:not(:disabled) { transform: none; }
     .csm-submit-spinner { animation: none; }
 }
+
+
+/* Brand typography for the current CSM login markup. */
+.csm-login-story {
+    position: relative;
+    z-index: 1;
+}
+.csm-gold-rule {
+    display: block;
+    width: 48px;
+    height: 3px;
+    margin-bottom: 18px;
+    border-radius: 999px;
+    background: var(--csm-gold, #c7a544);
+}
+.csm-login-story h1 {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(48px, 6vw, 76px);
+    font-weight: 750;
+    line-height: 1;
+    letter-spacing: -.055em;
+}
+.csm-login-story h2 {
+    margin: 13px 0 0;
+    color: #fff;
+    font-size: clamp(18px, 2vw, 24px);
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: -.02em;
+}
+.csm-login-story > p {
+    margin: 12px 0 0;
+    color: rgba(255, 255, 255, .78);
+    font-size: 13px;
+    line-height: 1.5;
+}
+.csm-login-story > p span {
+    padding: 0 5px;
+    color: var(--csm-gold, #c7a544);
+}
+@media (max-width: 760px) {
+    .csm-login-visual {
+        min-height: 286px;
+        justify-content: center;
+    }
+    .csm-login-story {
+        margin: 0;
+        padding: 0;
+    }
+    .csm-gold-rule { margin-bottom: 14px; }
+    .csm-login-story h1 { font-size: clamp(40px, 10vw, 52px); }
+    .csm-login-story h2 { margin-top: 9px; font-size: 17px; }
+    .csm-login-story > p { margin-top: 8px; font-size: 11px; }
+}
+@media (max-width: 380px) {
+    .csm-login-visual { min-height: 260px; }
+}
