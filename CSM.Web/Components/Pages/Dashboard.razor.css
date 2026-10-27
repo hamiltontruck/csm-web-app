@@ -194,3 +194,29 @@
     .metric-card,.dashboard-panel{transition:none}
     .metric-card:hover,.dashboard-panel:hover{transform:none}
 }
+
+
+/* Blue and gold executive dashboard; presentation only */
+.dashboard-shell{--ink:#152b44;--muted:#667b95;--line:#e1e8f3;--green:#204f91;--green-dark:#102b52;background:#f5f8fc;color:#152b44}
+.dashboard-header{border-bottom-color:#dbe5f3}
+.dashboard-header h1,.panel-heading h2,.metric-value,.budget-total strong{color:#102b52}
+.dashboard-eyebrow{background:#eaf0fa;border-color:#dbe5f3;color:#28517f}
+.metric-card,.dashboard-panel{border-color:#dfe7f2;box-shadow:0 8px 22px rgba(16,43,82,.06)}
+.metric-card-primary{background:linear-gradient(145deg,#163b70,#0b2143);border-color:#163b70;box-shadow:0 12px 28px rgba(16,43,82,.16)}
+.metric-card-primary::after{background:#f2c14e}
+.metric-card-primary .metric-kicker{color:#ffe0a0}
+.metric-icon-green,.metric-icon-blue{background:#e8eef9;color:#204f91}
+.metric-icon-amber{background:#fff3d8;color:#9b6b0c}
+.metric-attention,.operation-count-amber{color:#99690b}
+.budget-progress{background:#e5ecf7}
+.budget-progress span{background:linear-gradient(90deg,#204f91,#f2c14e)}
+.budget-progress-label strong,.budget-note strong{color:#204f91}
+.budget-note,.operations-note{background:#edf3fc}
+.budget-note-mark{background:#dce8f9;color:#204f91}
+.operations-note-icon{color:#204f91}
+.dashboard-live{background:#e9f0fb;border-color:#dbe5f3;color:#204f91}
+.dashboard-button-primary{background:#102b52;color:#fff;border-color:#102b52}
+.dashboard-button-primary:hover{background:#163b70;color:#fff}
+.dashboard-shell :is(a,button,select):focus-visible{outline:3px solid #b88a20;outline-offset:3px}
+@media(max-width:600px){.dashboard-content-grid{grid-template-columns:minmax(0,1fr)}.budget-total{flex-wrap:wrap}.budget-total>div{min-width:0}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:360px){.metric-card{min-width:0}.metric-value{font-size:clamp(24px,8vw,31px)}}
