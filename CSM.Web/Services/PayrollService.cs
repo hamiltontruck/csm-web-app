@@ -58,13 +58,7 @@ public sealed class PayrollService : IPayrollService
 
         using var response = await client.GetAsync(url);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException(
-                $"Failed to load payroll records. " +
-                $"Status: {(int)response.StatusCode}. {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
                    .ReadFromJsonAsync<IReadOnlyCollection<PayrollResponse>>()
@@ -82,13 +76,7 @@ public sealed class PayrollService : IPayrollService
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException(
-                $"Failed to load payroll record. " +
-                $"Status: {(int)response.StatusCode}. {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
             .ReadFromJsonAsync<PayrollResponse>();
@@ -127,13 +115,7 @@ public sealed class PayrollService : IPayrollService
                 $"Payroll/{payrollRecordId}/calculate",
                 request);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException(
-                $"Failed to calculate payroll. " +
-                $"Status: {(int)response.StatusCode}. {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
                    .ReadFromJsonAsync<PayrollResponse>()
@@ -152,13 +134,7 @@ public sealed class PayrollService : IPayrollService
                 $"Payroll/{payrollRecordId}/approve",
                 request);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException(
-                $"Failed to approve payroll. " +
-                $"Status: {(int)response.StatusCode}. {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
                    .ReadFromJsonAsync<PayrollResponse>()
@@ -177,13 +153,7 @@ public sealed class PayrollService : IPayrollService
                 $"Payroll/{payrollRecordId}/paid",
                 request);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException(
-                $"Failed to mark payroll as paid. " +
-                $"Status: {(int)response.StatusCode}. {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
                    .ReadFromJsonAsync<PayrollResponse>()
@@ -250,13 +220,7 @@ public sealed class PayrollService : IPayrollService
             await client.GetAsync(
                 $"Payroll/{payrollRecordId}/payslip");
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new InvalidOperationException(
-                $"Failed to generate payslip. " +
-                $"Status: {(int)response.StatusCode}. {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadAsByteArrayAsync();
     }

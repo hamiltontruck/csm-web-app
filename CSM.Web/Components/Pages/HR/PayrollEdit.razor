@@ -5,6 +5,8 @@
 @using CSM.Web.Services
 @using Microsoft.JSInterop
 
+@using System.Net
+@inject IAuthService AuthService
 @inject IPayrollService PayrollService
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
@@ -37,9 +39,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">
-            @_error
-        </div>
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="payroll-edit-sign-in" class="btn btn-primary" href="@SignInUrl">Sign in</a>
+        }
+        else if (_accessStatus is not HttpStatusCode.Forbidden and not HttpStatusCode.NotFound)
+        {
+            <button id="retry-payroll-edit" class="btn btn-outline-primary" @onclick="LoadPayroll">Retry</button>
+        }
     }
     else if (_payroll is null)
     {
@@ -255,7 +263,7 @@
             </div>
 
             <div class="card-body">
-                @if (_payroll.Status == "Draft")
+                @if (_canManage && _payroll.Status == "Draft")
                 {
                     <EditForm Model="_calculateModel"
                               OnValidSubmit="CalculatePayrollAsync">
@@ -328,7 +336,7 @@
                         Payroll calculation is not available for the current status.
                     </div>
                 }
-                @if (_payroll.Status == "Calculated")
+                @if (_canApprove && _payroll.Status == "Calculated")
                 {
                     <EditForm Model="_approveModel"
                               OnValidSubmit="ApprovePayrollAsync">
@@ -358,7 +366,7 @@
 
                     </EditForm>
                 }
-                @if (_payroll.Status == "Approved")
+                @if (_canApprove && _payroll.Status == "Approved")
                 {
                     <EditForm Model="_paidModel"
                               OnValidSubmit="MarkPaidAsync">
@@ -417,7 +425,11 @@
     public Guid PayrollId { get; set; }
 
     private PayrollResponse? _payroll;
-    private bool _loading;
+    private bool _loading = true;
+    private bool _canManage;
+    private bool _canApprove;
+    private HttpStatusCode? _accessStatus;
+    private string SignInUrl => "/login?returnUrl=" + Uri.EscapeDataString($"/hr/payroll/edit/{PayrollId:D}");
     private string? _error;
 
     private CalculatePayrollRequest _calculateModel = new()
@@ -433,6 +445,7 @@
 
     private async Task CalculatePayrollAsync()
     {
+        if (_processing || !_canManage || _payroll is null) return;
         _processing = true;
         _error = null;
 
@@ -445,8 +458,7 @@
         }
         catch (Exception ex)
         {
-            _error =
-                $"Failed to calculate payroll: {ex.Message}";
+            SetFailure(ex, "Unable to update payroll. Please try again.");
         }
         finally
         {
@@ -456,6 +468,7 @@
 
     private async Task ApprovePayrollAsync()
     {
+        if (_processing || !_canApprove || _payroll is null) return;
         _processing = true;
         _error = null;
 
@@ -470,8 +483,7 @@
         }
         catch (Exception ex)
         {
-            _error =
-                $"Failed to approve payroll: {ex.Message}";
+            SetFailure(ex, "Unable to update payroll. Please try again.");
         }
         finally
         {
@@ -481,6 +493,7 @@
 
     private async Task MarkPaidAsync()
     {
+        if (_processing || !_canApprove || _payroll is null) return;
         _processing = true;
         _error = null;
 
@@ -502,8 +515,7 @@
         }
         catch (Exception ex)
         {
-            _error =
-                $"Failed to mark payroll as paid: {ex.Message}";
+            SetFailure(ex, "Unable to update payroll. Please try again.");
         }
         finally
         {
@@ -513,6 +525,7 @@
 
     private async Task GeneratePayslipAsync()
     {
+        if (_processing || _payroll is null) return;
         _processing = true;
         _error = null;
 
@@ -528,7 +541,7 @@
         }
         catch (Exception ex)
         {
-            _error = $"Failed to generate payslip: {ex.Message}";
+            SetFailure(ex, "Unable to load payslip. Please try again.");
         }
         finally
         {
@@ -536,30 +549,57 @@
         }
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadPayroll();
+        if (firstRender) await LoadPayroll();
     }
 
     private async Task LoadPayroll()
     {
         _loading = true;
         _error = null;
-
+        _accessStatus = null;
+        _canManage = _canApprove = false;
+        _payroll = null;
         try
         {
-            _payroll =
-                await PayrollService.GetByIdAsync(PayrollId);
+            var payroll = await PayrollService.GetByIdAsync(PayrollId);
+            if (payroll is null)
+            {
+                _accessStatus = HttpStatusCode.NotFound;
+                _error = "Payroll record was not found.";
+                return;
+            }
+            var roles = await AuthService.GetRolesAsync();
+            var permissions = await AuthService.GetPermissionsAsync();
+            _payroll = payroll;
+            _canManage = roles.Any(role => role is "SuperAdmin" or "CompanyAdmin" or "HrOfficer" or "HROfficer");
+            _canApprove = roles.Any(role => role is "SuperAdmin" or "CompanyAdmin")
+                && permissions.Contains("HRM_Payroll_Approve");
         }
         catch (Exception ex)
         {
-            _error =
-                $"Failed to load payroll: {ex.Message}";
+            SetFailure(ex, "Unable to load payroll details. Please try again.");
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void SetFailure(Exception ex, string fallback)
+    {
+        _payroll = null;
+        _canManage = _canApprove = false;
+        _accessStatus = (ex as HttpRequestException)?.StatusCode;
+        _error = _accessStatus switch
+        {
+            HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+            HttpStatusCode.Forbidden => "You do not have permission to access or update this payroll record.",
+            HttpStatusCode.NotFound => "Payroll record was not found.",
+            _ => fallback
+        };
     }
 
     private void Back()
