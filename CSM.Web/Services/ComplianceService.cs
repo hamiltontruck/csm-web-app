@@ -232,17 +232,11 @@ public sealed class ComplianceService : IComplianceService
             new StringContent(revisionNotes ?? string.Empty),
             "RevisionNotes");
 
-        var response = await client.PostAsync(
+        using var response = await client.PostAsync(
             $"Documents/{documentId}/upload-version",
             content);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-
-            throw new InvalidOperationException(
-                $"Failed to upload document version. Status: {(int)response.StatusCode}. {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<DocumentVersionResponse>()
             ?? throw new InvalidOperationException(
@@ -265,17 +259,10 @@ public sealed class ComplianceService : IComplianceService
     {
         var client = await ClientAsync();
 
-        var response = await client.GetAsync(
+        using var response = await client.GetAsync(
             $"documents/{documentId}/versions/{versionId}/download");
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-
-            throw new InvalidOperationException(
-                $"Failed to download document version. " +
-                $"Status: {(int)response.StatusCode}. {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         var content = await response.Content.ReadAsByteArrayAsync();
 

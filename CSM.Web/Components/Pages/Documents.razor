@@ -1,6 +1,7 @@
 @page "/compliance/documents"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
+@using System.Net
 @using CSM.Web.Models.Compliance
 @using CSM.Web.Services
 
@@ -20,10 +21,10 @@
         </div>
 
         <div class="d-flex gap-2">
-            <button class="btn btn-primary"
-                    @onclick='() => Navigation.NavigateTo("/compliance/documents/create")'>
-                Add Document
-            </button>
+            @if (_ready)
+            {
+                <button class="btn btn-primary" @onclick="CreateDocument">Add Document</button>
+            }
 
             <button class="btn btn-secondary"
                     @onclick="Back">
@@ -40,9 +41,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(_errorMessage))
     {
-        <div class="alert alert-danger">
-            @_errorMessage
-        </div>
+        <div class="alert alert-danger" role="alert">@_errorMessage</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="document-list-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fcompliance%2Fdocuments">Sign in</a>
+        }
+        else if (_accessStatus is not HttpStatusCode.Forbidden and not HttpStatusCode.NotFound)
+        {
+            <button id="retry-document-list" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
     else if (_documents.Count == 0)
     {
@@ -150,24 +157,49 @@
 
     private bool _loading = true;
     private string? _errorMessage;
+    private bool _ready;
+    private HttpStatusCode? _accessStatus;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _ready = false;
+        _documents = [];
+        _errorMessage = null;
+        _accessStatus = null;
         try
         {
             var documents =
                 await ComplianceService.GetDocumentsAsync();
 
             _documents = documents.ToList();
+            _ready = true;
         }
         catch (Exception ex)
         {
-            _errorMessage = ex.Message;
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _errorMessage = _accessStatus switch
+            {
+                HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                HttpStatusCode.Forbidden => "You do not have permission to view documents.",
+                _ => "Unable to load documents. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void CreateDocument()
+    {
+        if (_ready) Navigation.NavigateTo("/compliance/documents/create");
     }
 
     private void EditDocument(Guid id)

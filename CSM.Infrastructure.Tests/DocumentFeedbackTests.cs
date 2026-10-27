@@ -54,8 +54,8 @@ public sealed class DocumentFeedbackTests
 
     [Theory]
     [InlineData("You are not authorized to access this document.", 403)]
-    [InlineData("Document category was not found.", 404)]
-    [InlineData("Document category code is required.", 400)]
+    [InlineData("Document was not found.", 404)]
+    [InlineData("Document number is required.", 400)]
     public async Task Controller_preserves_access_missing_and_validation_semantics(string message, int expected)
     {
         var api = DispatchProxy.Create<CSM.Application.Compliance.Documents.IDocumentService, DomainApi>();
@@ -106,7 +106,7 @@ public sealed class DocumentFeedbackTests
         using var context = Context(out var state);
         state.Missing = true;
         var page = Render(context, route);
-        page.WaitForAssertion(() => Assert.Contains("Document category was not found.", page.Markup));
+        page.WaitForAssertion(() => Assert.Contains("Document was not found.", page.Markup));
         Assert.Empty(page.FindAll("form, input, select, textarea, #retry-document-" + route));
     }
 

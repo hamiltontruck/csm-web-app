@@ -3,6 +3,7 @@
 
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
+@using System.Net
 @using CSM.Web.Models.Compliance
 @using CSM.Web.Services
 @using Microsoft.AspNetCore.Components.Forms
@@ -38,11 +39,17 @@
     }
     else if (!string.IsNullOrWhiteSpace(_errorMessage))
     {
-        <div class="alert alert-danger">
-            @_errorMessage
-        </div>
+        <div class="alert alert-danger" role="alert">@_errorMessage</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="document-edit-sign-in" class="btn btn-primary" href="@SignInUrl">Sign in</a>
+        }
+        else if (_accessStatus is not HttpStatusCode.Forbidden and not HttpStatusCode.NotFound)
+        {
+            <button id="retry-document-edit" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
     }
-    else
+    else if (_ready)
     {
         <EditForm Model="_request" OnValidSubmit="Save">
             <DataAnnotationsValidator />
@@ -213,7 +220,7 @@
             </div>
         </EditForm>
     }
-    @if (!_loading && string.IsNullOrWhiteSpace(_errorMessage))
+    @if (_ready && !_loading && string.IsNullOrWhiteSpace(_errorMessage))
     {
         <div class="card shadow-sm mt-4">
             <div class="card-body">
@@ -278,7 +285,7 @@
         </div>
     }
 
-    @if (!_loading && string.IsNullOrWhiteSpace(_errorMessage))
+    @if (_ready && !_loading && string.IsNullOrWhiteSpace(_errorMessage))
     {
         <div class="card shadow-sm mt-4">
             <div class="card-body">
@@ -386,7 +393,7 @@
     }
 </div>
 
-@if (_selectedVersion is not null)
+@if (_ready && _selectedVersion is not null)
 {
     <div class="modal fade show d-block"
          tabindex="-1"
@@ -535,7 +542,9 @@
 
     private bool _loading = true;
     private bool _saving;
-    private bool _loaded;
+    private bool _ready;
+    private HttpStatusCode? _accessStatus;
+    private string SignInUrl => "/login?returnUrl=" + Uri.EscapeDataString($"/compliance/documents/{Id:D}/edit");
     private string? _errorMessage;
     private IBrowserFile? _selectedFile;
     private string? _revisionNotes;
@@ -546,6 +555,7 @@
     private async Task DownloadVersion(
         DocumentVersionResponse version)
     {
+        if (!_ready || _downloadingVersionId.HasValue) return;
         try
         {
             _downloadingVersionId = version.Id;
@@ -563,7 +573,7 @@
         }
         catch (Exception ex)
         {
-            _uploadError = ex.Message;
+            SetFailure(ex, "Unable to load or upload document version. Please try again.");
         }
         finally
         {
@@ -573,11 +583,21 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _loaded)
-            return;
+        if (firstRender) await LoadAsync();
+    }
 
-        _loaded = true;
-
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _ready = false;
+        _errorMessage = null;
+        _accessStatus = null;
+        _versions = [];
+        _versionsError = null;
+        _selectedFile = null;
+        _selectedVersion = null;
+        _uploadError = null;
+        _uploadMessage = null;
         try
         {
             var document =
@@ -585,7 +605,8 @@
 
             if (document is null)
             {
-                _errorMessage = "Document not found.";
+                _accessStatus = HttpStatusCode.NotFound;
+                _errorMessage = "Document was not found.";
                 return;
             }
 
@@ -632,19 +653,34 @@
 
             _versions =
                 await ComplianceService.GetDocumentVersionsAsync(Id);
+            _ready = true;
         }
         catch (Exception ex)
         {
-            _errorMessage = ex.Message;
-            _versionsError = ex.Message;
+            SetFailure(ex, "Unable to load document and version history. Please try again.");
         }
         finally
         {
             _loading = false;
             _versionsLoading = false;
+            await InvokeAsync(StateHasChanged);
         }
+    }
 
-        StateHasChanged();
+    private void SetFailure(Exception ex, string fallback)
+    {
+        _ready = false;
+        _versions = [];
+        _selectedVersion = null;
+        _selectedFile = null;
+        _accessStatus = (ex as HttpRequestException)?.StatusCode;
+        _errorMessage = _accessStatus switch
+        {
+            HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+            HttpStatusCode.Forbidden => "You do not have permission to access this document or its versions.",
+            HttpStatusCode.NotFound => "Document or version was not found.",
+            _ => fallback
+        };
     }
 
     private void OnFileSelected(InputFileChangeEventArgs e)
@@ -656,6 +692,7 @@
 
     private async Task UploadVersion()
     {
+        if (!_ready || _uploading || _saving) return;
         _uploadError = null;
         _uploadMessage = null;
 
@@ -701,6 +738,7 @@
 
     private async Task Save()
     {
+        if (!_ready || _saving || _uploading) return;
         _errorMessage = null;
 
         if (string.IsNullOrWhiteSpace(_request.DocumentNumber))
