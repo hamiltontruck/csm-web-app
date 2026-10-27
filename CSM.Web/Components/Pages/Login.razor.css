@@ -1,13 +1,13 @@
 .csm-login-shell {
-    --csm-forest: #183b2b;
-    --csm-lime: #c5ed63;
-    --csm-ink: #1b2b22;
+    --csm-forest: #102b52;
+    --csm-lime: #f2c14e;
+    --csm-ink: #152b44;
     min-height: 100vh;
     display: grid;
     grid-template-columns: minmax(0, 1.08fr) minmax(460px, .92fr);
     overflow: hidden;
     color: var(--csm-ink);
-    background: #fbfcfa;
+    background: #f6f8fc;
     font-family: Inter, "Segoe UI", Arial, sans-serif;
 }
 .csm-login-shell * { box-sizing: border-box; }
@@ -20,7 +20,7 @@
     justify-content: space-between;
     padding: 32px clamp(30px, 5vw, 74px) 27px;
     color: #f5f7f2;
-    background: radial-gradient(ellipse at 76% 18%, rgba(151,185,119,.2), transparent 31%), linear-gradient(145deg, #1b422f 0%, #173729 53%, #10271e 100%);
+    background: radial-gradient(ellipse at 76% 18%, rgba(151,185,119,.2), transparent 31%), linear-gradient(145deg, #163b70 0%, #102c55 53%, #091c39 100%);
 }
 .csm-login-visual::before {
     content: "";
@@ -96,8 +96,8 @@
     background: linear-gradient(145deg, #fff 0%, #f9fbf8 100%);
 }
 .csm-login-panel-head, .csm-login-panel-footer { display: flex; align-items: center; justify-content: space-between; }
-.csm-panel-label { color: #9aa49d; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
-.csm-help-text { color: #87938a; font-size: 9px; text-align: right; }
+.csm-panel-label { color: #66758b; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
+.csm-help-text { color: #66758b; font-size: 9px; text-align: right; }
 .csm-login-form-wrap { width: min(100%, 380px); margin: auto; padding: 38px 0; }
 .csm-login-heading { margin-bottom: 29px; }
 .csm-login-icon {
@@ -106,37 +106,37 @@
     margin-bottom: 22px;
     display: grid;
     place-items: center;
-    border: 1px solid #dce9d7;
+    border: 1px solid #dbe5f5;
     border-radius: 13px;
-    color: #315c40;
-    background: linear-gradient(145deg, #f5f9f1, #e9f2e3);
+    color: #194778;
+    background: linear-gradient(145deg, #f2f6fd, #e7eef9);
     box-shadow: 0 5px 14px rgba(34,72,45,.07);
     font-size: 17px;
     font-weight: 800;
 }
-.csm-form-eyebrow { margin: 0 0 10px; color: #74877a; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
-.csm-login-heading h2 { margin: 0; color: #1d3025; font-size: 31px; line-height: 1.2; font-weight: 700; letter-spacing: -.045em; }
-.csm-login-heading > p:last-child { margin: 8px 0 0; color: #829087; font-size: 12px; }
+.csm-form-eyebrow { margin: 0 0 10px; color: #66758b; font-size: 8px; font-weight: 700; letter-spacing: .16em; }
+.csm-login-heading h2 { margin: 0; color: #122b4b; font-size: 31px; line-height: 1.2; font-weight: 700; letter-spacing: -.045em; }
+.csm-login-heading > p:last-child { margin: 8px 0 0; color: #66758b; font-size: 12px; }
 .csm-login-form { display: flex; flex-direction: column; }
 .csm-form-field { margin-bottom: 19px; }
-.csm-form-field label { display: block; margin-bottom: 8px; color: #36473d; font-size: 10px; font-weight: 700; }
+.csm-form-field label { display: block; margin-bottom: 8px; color: #293f5c; font-size: 10px; font-weight: 700; }
 .csm-input-frame {
     min-height: 49px;
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 0 13px;
-    border: 1px solid #dfe6df;
+    border: 1px solid #d8e2ef;
     border-radius: 8px;
     background: #fff;
     transition: border-color .18s, box-shadow .18s;
 }
-.csm-input-frame:focus-within { border-color: #648b65; box-shadow: 0 0 0 3px rgba(71,128,74,.12); }
-.csm-input-frame > svg { width: 16px; height: 16px; flex: none; fill: none; stroke: #9aa79d; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.csm-input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: #26372b; background: transparent; font: 400 11px Inter, "Segoe UI", Arial, sans-serif; }
-.csm-input::placeholder { color: #aab4ac; }
-.csm-show-password { flex: none; border: 0; padding: 4px 0 4px 7px; color: #46684e; background: transparent; font: 600 9px Inter, "Segoe UI", Arial, sans-serif; cursor: pointer; }
-.csm-show-password:focus-visible { outline: 2px solid #658d66; outline-offset: 3px; border-radius: 3px; }
+.csm-input-frame:focus-within { border-color: #c59b2f; box-shadow: 0 0 0 3px rgba(71,128,74,.12); }
+.csm-input-frame > svg { width: 16px; height: 16px; flex: none; fill: none; stroke: #8493a8; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.csm-input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: #193753; background: transparent; font: 400 11px Inter, "Segoe UI", Arial, sans-serif; }
+.csm-input::placeholder { color: #77869b; }
+.csm-show-password { flex: none; border: 0; padding: 4px 0 4px 7px; color: #174b89; background: transparent; font: 600 9px Inter, "Segoe UI", Arial, sans-serif; cursor: pointer; }
+.csm-show-password:focus-visible { outline: 2px solid #c59b2f; outline-offset: 3px; border-radius: 3px; }
 .csm-submit-button {
     width: 100%;
     min-height: 48px;
@@ -147,22 +147,22 @@
     gap: 10px;
     border: 0;
     border-radius: 8px;
-    color: #173323;
+    color: #092444;
     background: var(--csm-lime);
     box-shadow: 0 6px 15px rgba(95,128,39,.14);
     font: 700 11px Inter, "Segoe UI", Arial, sans-serif;
     cursor: pointer;
     transition: transform .16s, background .16s, box-shadow .16s;
 }
-.csm-submit-button:hover:not(:disabled) { transform: translateY(-1px); background: #d0f276; box-shadow: 0 9px 19px rgba(95,128,39,.2); }
+.csm-submit-button:hover:not(:disabled) { transform: translateY(-1px); background: #ffd776; box-shadow: 0 9px 19px rgba(95,128,39,.2); }
 .csm-submit-button:focus-visible { outline: 3px solid rgba(71,128,74,.3); outline-offset: 3px; }
 .csm-submit-button:disabled { cursor: wait; opacity: .8; }
 .csm-submit-arrow { font-size: 16px; font-weight: 400; }
-.csm-submit-spinner { width: 13px; height: 13px; border: 2px solid rgba(23,51,35,.26); border-top-color: #173323; border-radius: 50%; animation: csm-spin .7s linear infinite; }
+.csm-submit-spinner { width: 13px; height: 13px; border: 2px solid rgba(23,51,35,.26); border-top-color: #092444; border-radius: 50%; animation: csm-spin .7s linear infinite; }
 @keyframes csm-spin { to { transform: rotate(360deg); } }
-.csm-security-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 16px 0 0; color: #929f95; font-size: 9px; }
-.csm-security-note span { color: #79917b; font-size: 10px; }
-.csm-login-panel-footer { color: #9aa49c; font-size: 7px; font-weight: 600; letter-spacing: .1em; }
+.csm-security-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 16px 0 0; color: #66758b; font-size: 9px; }
+.csm-security-note span { color: #647c9f; font-size: 10px; }
+.csm-login-panel-footer { color: #66758b; font-size: 7px; font-weight: 600; letter-spacing: .1em; }
 ::deep .validation-summary-errors {
     margin: 0 0 17px;
     padding: 10px 12px;
@@ -212,4 +212,57 @@
     .csm-login-panel { padding-inline: 19px; }
     .csm-login-form-wrap { padding-top: 25px; }
     .csm-login-panel-footer span:last-child { max-width: 125px; text-align: right; }
+}
+
+
+/* Blue and gold finish, matched to the supplied CSM reference. */
+.csm-login-shell {
+    --csm-blue: #173f78;
+    --csm-gold: #c7a544;
+    min-height: 100svh;
+    grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr);
+    background: #f5f7fc;
+}
+.csm-login-visual { background: var(--csm-blue); }
+.csm-login-panel { min-width: 0; min-height: 100svh; background: #f5f7fc; }
+.csm-login-form-wrap {
+    width: min(100%, 440px);
+    padding: clamp(24px, 3vw, 40px);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 8px 28px rgba(23, 63, 120, .04);
+}
+.csm-login-heading h2 { color: var(--csm-blue); }
+.csm-form-field label { font-size: 12px; }
+.csm-input-frame { background: #f5f7fc; border-color: #edf1f7; }
+.csm-input-frame:focus-within { border-color: #ac8626; box-shadow: 0 0 0 3px rgba(199,165,68,.2); }
+.csm-input-frame ::deep .csm-input {
+    width: 100%; min-width: 0; border: 0; outline: 0;
+    background: transparent; color: #193753;
+    font: 400 16px Inter, "Segoe UI", Arial, sans-serif;
+}
+.csm-show-password { min-height: 44px; font-size: 12px; color: #173f78; }
+.csm-submit-button {
+    background: var(--csm-blue); color: #fff; font-size: 14px;
+    border-bottom: 3px solid var(--csm-gold);
+    box-shadow: none;
+}
+.csm-submit-button:hover:not(:disabled) { background: #12335f; box-shadow: 0 6px 16px rgba(23,63,120,.15); }
+.csm-submit-button:focus-visible, .csm-show-password:focus-visible { outline: 3px solid #ac8626; outline-offset: 3px; }
+.csm-submit-spinner { border-color: rgba(255,255,255,.35); border-top-color: #fff; }
+.csm-security-note { font-size: 11px; line-height: 1.5; text-align: center; }
+@media (max-width: 760px) {
+    .csm-login-shell { display: flex; }
+    .csm-login-panel { min-height: auto; padding: 24px; gap: 24px; }
+    .csm-login-form-wrap { padding: 28px 24px; }
+    .csm-login-panel-footer { gap: 16px; line-height: 1.5; }
+}
+@media (max-width: 380px) {
+    .csm-login-panel { padding: 20px 16px; }
+    .csm-login-form-wrap { padding: 24px 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .csm-input-frame, .csm-submit-button { transition: none; }
+    .csm-submit-button:hover:not(:disabled) { transform: none; }
+    .csm-submit-spinner { animation: none; }
 }
