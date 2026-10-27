@@ -1,6 +1,7 @@
 @page "/compliance/document-categories/create"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
+@using System.Net
 @using CSM.Web.Models.Compliance
 @using CSM.Web.Services
 
@@ -25,6 +26,24 @@
         </button>
     </div>
 
+    @if (_loading)
+    {
+        <div class="alert alert-info">Loading document category form...</div>
+    }
+    else if (!_formReady)
+    {
+        <div class="alert alert-danger" role="alert">@_loadError</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="category-create-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fcompliance%2Fdocument-categories%2Fcreate">Sign in</a>
+        }
+        else if (_accessStatus is not HttpStatusCode.Forbidden and not HttpStatusCode.NotFound)
+        {
+            <button id="retry-category-create" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button>
+        }
+    }
+    else
+    {
     @if (!string.IsNullOrWhiteSpace(_errorMessage))
     {
         <div class="alert alert-danger">
@@ -104,6 +123,7 @@
         </div>
     </div>
 
+    }
 </div>
 
 @code {
@@ -113,10 +133,48 @@
     };
 
     private bool _saving;
+    private bool _loading = true;
+    private bool _formReady;
+    private string? _loadError;
+    private HttpStatusCode? _accessStatus;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _formReady = false;
+        _loadError = null;
+        _accessStatus = null;
+        try
+        {
+            await ComplianceService.GetDocumentCategoriesAsync();
+            _formReady = true;
+        }
+        catch (Exception ex)
+        {
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _loadError = _accessStatus switch
+            {
+                HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                HttpStatusCode.Forbidden => "You do not have permission to create document categories.",
+                _ => "Unable to load document category form. Please try again."
+            };
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
     private string? _errorMessage;
 
     private async Task Save()
     {
+        if (_saving || !_formReady) return;
         _errorMessage = null;
 
         if (string.IsNullOrWhiteSpace(_request.CategoryCode))

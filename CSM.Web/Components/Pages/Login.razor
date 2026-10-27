@@ -121,8 +121,14 @@
                 const string fuelEditPrefix = "/equipment/fuel/edit/";
                 const string fuelSitePrefix = "/equipment/fuel/site/";
                 const string maintenancePrefix = "/equipment/maintenance/create/";
-                if (requested is "/equipment/create" or "/hr" or "/hr/employees" or "/hr/employees/company" or "/hr/employees/site" or "/hr/employees/create" or "/hr/attendance" or "/hr/attendance/check-in" or "/hr/site-assignments" or "/hr/site-assignments/create" or "/hr/shifts" or "/hr/shifts/create" or "/hr/leave" or "/hr/leave/create" or "/hr/timesheets" or "/hr/timesheets/create" or "/hr/payroll" or "/hr/payroll/create" or "/compliance/safety-incidents" or "/compliance/safety-incidents/create")
+                if (requested is "/equipment/create" or "/hr" or "/hr/employees" or "/hr/employees/company" or "/hr/employees/site" or "/hr/employees/create" or "/hr/attendance" or "/hr/attendance/check-in" or "/hr/site-assignments" or "/hr/site-assignments/create" or "/hr/shifts" or "/hr/shifts/create" or "/hr/leave" or "/hr/leave/create" or "/hr/timesheets" or "/hr/timesheets/create" or "/hr/payroll" or "/hr/payroll/create" or "/compliance/safety-incidents" or "/compliance/safety-incidents/create" or "/compliance/document-categories" or "/compliance/document-categories/create")
                     destination = requested;
+                else if (requested.StartsWith("/compliance/document-categories/", StringComparison.Ordinal))
+                {
+                    var parts = requested["/compliance/document-categories/".Length..].Split('/');
+                    if (parts.Length == 2 && parts[1] == "edit" && Guid.TryParse(parts[0], out var categoryId))
+                        destination = $"/compliance/document-categories/{categoryId:D}/edit";
+                }
                 else if (requested.StartsWith("/compliance/safety-incidents/", StringComparison.Ordinal))
                 {
                     var parts = requested["/compliance/safety-incidents/".Length..].Split('/');

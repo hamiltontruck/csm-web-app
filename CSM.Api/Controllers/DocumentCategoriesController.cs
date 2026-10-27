@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.Compliance.DocumentCategories;
 using CSM.Application.Compliance.DocumentCategories.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
 public sealed class DocumentCategoriesController : ControllerBase
 {
     private readonly IDocumentCategoryService _documentCategoryService;
@@ -39,7 +39,7 @@ public sealed class DocumentCategoriesController : ControllerBase
         }
         catch (DocumentCategoryManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -60,7 +60,7 @@ public sealed class DocumentCategoriesController : ControllerBase
         }
         catch (DocumentCategoryManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -84,7 +84,7 @@ public sealed class DocumentCategoriesController : ControllerBase
         }
         catch (DocumentCategoryManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -107,8 +107,23 @@ public sealed class DocumentCategoriesController : ControllerBase
         }
         catch (DocumentCategoryManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
+    }
+
+    private ActionResult ErrorResult(DocumentCategoryManagementException ex)
+    {
+        var body = new { message = ex.Message };
+        return ex.Message switch
+        {
+            "You are not authorized to manage document categories." or
+            "You are not authorized to access this document category." or
+            "Current user is not assigned to a company." or
+            "Authenticated user was not found." or
+            "Authenticated user identifier is invalid." => StatusCode(403, body),
+            "Document category was not found." => NotFound(body),
+            _ => BadRequest(body)
+        };
     }
 
     private Guid GetCurrentUserId()

@@ -1,6 +1,7 @@
 @page "/compliance/document-categories"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
+@using System.Net
 @using CSM.Web.Models.Compliance
 @using CSM.Web.Services
 
@@ -26,10 +27,10 @@
                 Back
             </button>
 
-            <button class="btn btn-primary"
-                    @onclick='() => Navigation.NavigateTo("/compliance/document-categories/create")'>
-                Add Category
-            </button>
+            @if (_canManage)
+            {
+                <button class="btn btn-primary" @onclick="CreateCategory">Add Category</button>
+            }
         </div>
     </div>
 
@@ -42,9 +43,15 @@
     }
     else if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">
-            @_error
-        </div>
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="category-list-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fcompliance%2Fdocument-categories">Sign in</a>
+        }
+        else if (_accessStatus is not HttpStatusCode.Forbidden and not HttpStatusCode.NotFound)
+        {
+            <button id="retry-category-list" class="btn btn-outline-primary" @onclick="LoadCategoriesAsync">Retry</button>
+        }
     }
     else if (_categories.Count == 0)
     {
@@ -58,11 +65,10 @@
                     Create the first document category.
                 </p>
 
-                <button class="btn btn-primary"
-                        @onclick="CreateCategory">
-                    <i class="bi bi-plus-lg me-1"></i>
-                    Add Category
-                </button>
+                @if (_canManage)
+                {
+                    <button class="btn btn-primary" @onclick="CreateCategory">Add Category</button>
+                }
             </div>
         </div>
     }
@@ -147,16 +153,21 @@
 
     private bool _loading = true;
     private string? _error;
+    private bool _canManage;
+    private HttpStatusCode? _accessStatus;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadCategoriesAsync();
+        if (firstRender) await LoadCategoriesAsync();
     }
 
     private async Task LoadCategoriesAsync()
     {
         _loading = true;
         _error = null;
+        _accessStatus = null;
+        _canManage = false;
+        _categories = [];
 
         try
         {
@@ -164,19 +175,28 @@
                 await ComplianceService.GetDocumentCategoriesAsync();
 
             _categories = categories.ToList();
+            _canManage = true;
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _error = _accessStatus switch
+            {
+                HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                HttpStatusCode.Forbidden => "You do not have permission to view document categories.",
+                _ => "Unable to load document categories. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private void CreateCategory()
     {
+        if (!_canManage) return;
         Navigation.NavigateTo(
             "/compliance/document-categories/create");
     }
