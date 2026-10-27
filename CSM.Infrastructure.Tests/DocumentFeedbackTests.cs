@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.EntityFrameworkCore;
 
 namespace CSM.Infrastructure.Tests;
@@ -150,6 +152,41 @@ public sealed class DocumentFeedbackTests
             Assert.Equal("authorized.pdf", Assert.Single(await service.GetByDocumentAsync(actorId, docId, default)).FileName);
         else
             await Assert.ThrowsAsync<DocumentManagementException>(() => service.GetByDocumentAsync(actorId, docId, default));
+    }
+
+    [Theory]
+    [InlineData(false, 401)] [InlineData(false, 403)] [InlineData(false, 500)]
+    [InlineData(true, 401)] [InlineData(true, 403)] [InlineData(true, 500)]
+    public async Task File_clients_preserve_status_without_response_body(bool upload, int status)
+    {
+        using var context = new TestContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.Services.AddDataProtection();
+        context.Services.AddScoped<ProtectedSessionStorage>();
+        using var http = new HttpClient(new Response((HttpStatusCode)status)) { BaseAddress = new Uri("https://api.test/api/") };
+        var service = new ComplianceService(new Factory(http), context.Services.GetRequiredService<ProtectedSessionStorage>());
+        var error = await Assert.ThrowsAsync<HttpRequestException>(async () => {
+            if (upload) await service.UploadDocumentVersionAsync(Guid.NewGuid(), new BrowserFile(), null);
+            else await service.DownloadDocumentVersionAsync(Guid.NewGuid(), Guid.NewGuid());
+        });
+        Assert.Equal((HttpStatusCode)status, error.StatusCode);
+        Assert.DoesNotContain("private diagnostic", error.Message);
+    }
+
+    private sealed class Factory(HttpClient http) : IHttpClientFactory { public HttpClient CreateClient(string name) => http; }
+    private sealed class Response(HttpStatusCode status) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) =>
+            Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("private diagnostic") });
+    }
+    private sealed class BrowserFile : IBrowserFile
+    {
+        public string Name => "test.txt";
+        public DateTimeOffset LastModified => DateTimeOffset.UnixEpoch;
+        public long Size => 3;
+        public string ContentType => "text/plain";
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) =>
+            new MemoryStream(new byte[] { 1, 2, 3 });
     }
 
     private static IRenderedFragment Render(TestContext context, string route) => route switch {
