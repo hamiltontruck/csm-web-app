@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.Compliance.Documents;
 using CSM.Application.Compliance.Documents.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -13,7 +13,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
 public sealed class DocumentsController : ControllerBase
 {
     private readonly IDocumentService _documentService;
@@ -40,7 +40,7 @@ public sealed class DocumentsController : ControllerBase
         }
         catch (DocumentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -61,7 +61,7 @@ public sealed class DocumentsController : ControllerBase
         }
         catch (DocumentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -85,7 +85,7 @@ public sealed class DocumentsController : ControllerBase
         }
         catch (DocumentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -108,7 +108,7 @@ public sealed class DocumentsController : ControllerBase
         }
         catch (DocumentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
     [HttpPost("{id:guid}/upload-version")]
@@ -118,26 +118,48 @@ public sealed class DocumentsController : ControllerBase
         [FromForm] UploadDocumentVersionRequest request,
         CancellationToken cancellationToken)
     {
-        var userId = Guid.Parse(
-            User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-        var result = await _documentService.UploadVersionAsync(
-            userId,
-            id,
-            request.File.OpenReadStream(),
-            request.File.FileName,
-            request.File.ContentType,
-            request.File.Length,
-            request.RevisionNotes,
-            cancellationToken);
-
-        return Ok(result);
+        try
+        {
+            await using var stream = request.File.OpenReadStream();
+            var result = await _documentService.UploadVersionAsync(
+                GetCurrentUserId(),
+                id,
+                stream,
+                request.File.FileName,
+                request.File.ContentType,
+                request.File.Length,
+                request.RevisionNotes,
+                cancellationToken);
+            return Ok(result);
+        }
+        catch (DocumentManagementException ex)
+        {
+            return ErrorResult(ex);
+        }
     }
 
 
 
 
 
+
+    private ActionResult ErrorResult(DocumentManagementException ex)
+    {
+        var body = new { message = ex.Message };
+        return ex.Message switch
+        {
+            "You are not authorized to manage documents." or
+            "You are not authorized to access this document." or
+            "You can only access documents in your own company." or
+            "Current user is not assigned to a company." or
+            "Current user not found." or
+            "Authenticated user was not found." or
+            "Authenticated user identifier is invalid." => StatusCode(403, body),
+            "Document was not found." or "Document not found." or
+            "Document version not found." or "Document version file was not found." => NotFound(body),
+            _ => BadRequest(body)
+        };
+    }
 
     private Guid GetCurrentUserId()
     {

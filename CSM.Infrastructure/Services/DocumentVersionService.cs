@@ -11,10 +11,12 @@ namespace CSM.Infrastructure.Services;
 public sealed class DocumentVersionService : IDocumentVersionService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly IDocumentService _documents;
 
-    public DocumentVersionService(ApplicationDbContext dbContext)
+    public DocumentVersionService(ApplicationDbContext dbContext, IDocumentService documents)
     {
         _dbContext = dbContext;
+        _documents = documents;
     }
 
     public async Task<IReadOnlyCollection<DocumentVersionResponse>>
@@ -180,27 +182,14 @@ public sealed class DocumentVersionService : IDocumentVersionService
         Guid documentId,
         CancellationToken cancellationToken)
     {
-        var currentUser = await _dbContext.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
-                cancellationToken)
-            ?? throw new DocumentManagementException(
-                "Current user not found.");
+        // Reuse document authorization before reading versions, changing metadata, or opening a file.
+        await _documents.GetByIdAsync(currentUserId, documentId, cancellationToken);
 
         var document = await _dbContext.Documents
             .SingleOrDefaultAsync(
-                x => x.Id == documentId,
+                x => x.Id == documentId && !x.IsDeleted,
                 cancellationToken)
-            ?? throw new DocumentManagementException(
-                "Document not found.");
-
-        if (currentUser.CompanyId != null &&
-            document.CompanyId != currentUser.CompanyId)
-        {
-            throw new DocumentManagementException(
-                "You can only access documents in your own company.");
-        }
+            ?? throw new DocumentManagementException("Document not found.");
 
         return document;
     }

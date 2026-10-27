@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.Compliance.Documents;
 using CSM.Application.Compliance.Documents.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/documents/{documentId:guid}/versions")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
 public sealed class DocumentVersionsController : ControllerBase
 {
     private readonly IDocumentVersionService _service;
@@ -37,7 +37,7 @@ public sealed class DocumentVersionsController : ControllerBase
         }
         catch (DocumentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -59,7 +59,7 @@ public sealed class DocumentVersionsController : ControllerBase
         }
         catch (DocumentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
@@ -85,8 +85,26 @@ public sealed class DocumentVersionsController : ControllerBase
         }
         catch (DocumentManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
+    }
+
+    private ActionResult ErrorResult(DocumentManagementException ex)
+    {
+        var body = new { message = ex.Message };
+        return ex.Message switch
+        {
+            "You are not authorized to manage documents." or
+            "You are not authorized to access this document." or
+            "You can only access documents in your own company." or
+            "Current user is not assigned to a company." or
+            "Current user not found." or
+            "Authenticated user was not found." or
+            "Authenticated user identifier is invalid." => StatusCode(403, body),
+            "Document was not found." or "Document not found." or
+            "Document version not found." or "Document version file was not found." => NotFound(body),
+            _ => BadRequest(body)
+        };
     }
 
     private Guid GetCurrentUserId()
