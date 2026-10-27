@@ -105,20 +105,11 @@ public sealed class LeaveService : ILeaveService
     {
         var client = await ClientAsync();
 
-        var response = await client.PutAsJsonAsync(
+        using var response = await client.PutAsJsonAsync(
             $"Leaves/{leaveRequestId}/review",
             request);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error =
-                await response.Content.ReadAsStringAsync();
-
-            throw new Exception(
-                $"Leave review failed. " +
-                $"HTTP {(int)response.StatusCode} " +
-                $"{response.StatusCode}: {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
             .ReadFromJsonAsync<LeaveResponse>()
@@ -132,20 +123,11 @@ public sealed class LeaveService : ILeaveService
     {
         var client = await ClientAsync();
 
-        var response = await client.PutAsJsonAsync(
+        using var response = await client.PutAsJsonAsync(
             $"Leaves/{leaveRequestId}/cancel",
             request);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var error =
-                await response.Content.ReadAsStringAsync();
-
-            throw new Exception(
-                $"Leave cancellation failed. " +
-                $"HTTP {(int)response.StatusCode} " +
-                $"{response.StatusCode}: {error}");
-        }
+        response.EnsureSuccessStatusCode();
 
         return await response.Content
             .ReadFromJsonAsync<LeaveResponse>()

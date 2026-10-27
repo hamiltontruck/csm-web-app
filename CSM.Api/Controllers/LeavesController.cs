@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.HRM.Leaves;
 using CSM.Application.HRM.Leaves.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,9 +10,14 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.HRManagement)]
+[Authorize]
 public sealed class LeavesController : ControllerBase
 {
+    private const string SubmitRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
+        AppRoles.SiteManager + "," + AppRoles.Supervisor + "," + AppRoles.HrOfficer + "," + AppRoles.HROfficer;
+    private const string ReviewRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
+        AppRoles.SiteManager + "," + AppRoles.HrOfficer + "," + AppRoles.HROfficer;
+
     private readonly ILeaveService _leaveService;
 
     public LeavesController(ILeaveService leaveService)
@@ -21,6 +26,7 @@ public sealed class LeavesController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = SubmitRoles)]
     public async Task<
         ActionResult<IReadOnlyCollection<LeaveResponse>>> GetAll(
         [FromQuery] Guid? employeeId,
@@ -42,11 +48,12 @@ public sealed class LeavesController : ControllerBase
         }
         catch (LeaveManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpGet("{leaveRequestId:guid}")]
+    [Authorize(Roles = SubmitRoles)]
     public async Task<ActionResult<LeaveResponse>> GetById(
         Guid leaveRequestId,
         CancellationToken cancellationToken)
@@ -63,11 +70,12 @@ public sealed class LeavesController : ControllerBase
         }
         catch (LeaveManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPost]
+    [Authorize(Roles = SubmitRoles)]
     public async Task<ActionResult<LeaveResponse>> Create(
         CreateLeaveRequest request,
         CancellationToken cancellationToken)
@@ -90,11 +98,12 @@ public sealed class LeavesController : ControllerBase
         }
         catch (LeaveManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPut("{leaveRequestId:guid}/review")]
+    [Authorize(Roles = ReviewRoles)]
     public async Task<ActionResult<LeaveResponse>> Review(
         Guid leaveRequestId,
         ReviewLeaveRequest request,
@@ -113,11 +122,12 @@ public sealed class LeavesController : ControllerBase
         }
         catch (LeaveManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPut("{leaveRequestId:guid}/cancel")]
+    [Authorize(Roles = ReviewRoles)]
     public async Task<ActionResult<LeaveResponse>> Cancel(
         Guid leaveRequestId,
         CancelLeaveRequest request,
@@ -136,8 +146,28 @@ public sealed class LeavesController : ControllerBase
         }
         catch (LeaveManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return ErrorResult(ex);
         }
+    }
+
+    private ActionResult ErrorResult(LeaveManagementException ex)
+    {
+        var body = new { message = ex.Message };
+        return ex.Message switch
+        {
+            "You are not authorized to access leave requests." or
+            "You are not authorized to create leave requests." or
+            "You are not authorized to review leave requests." or
+            "You are not authorized to cancel leave requests." or
+            "You cannot access leave requests outside your company." or
+            "Employee does not belong to your company." or
+            "Current user is not assigned to a company." or
+            "Current user was not found." or
+            "Current user account is inactive." or
+            "Authenticated user identifier is invalid." => StatusCode(403, body),
+            "Leave request was not found." => NotFound(body),
+            _ => BadRequest(body)
+        };
     }
 
     private Guid GetCurrentUserId()

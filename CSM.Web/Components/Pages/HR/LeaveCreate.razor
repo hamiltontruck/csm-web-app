@@ -4,6 +4,8 @@
 @using CSM.Web.Models.HRM
 @using CSM.Web.Services
 
+@using System.Net
+@inject IAuthService AuthService
 @inject ILeaveService LeaveService
 @inject IEmployeeService EmployeeService
 @inject NavigationManager Navigation
@@ -31,6 +33,18 @@
         <div class="alert alert-info">
             Loading employees...
         </div>
+    }
+    else if (!_canSubmit)
+    {
+        <div class="alert alert-danger" role="alert">@_loadError</div>
+        @if (_accessStatus == HttpStatusCode.Unauthorized)
+        {
+            <a id="leave-create-sign-in" class="btn btn-primary" href="/login?returnUrl=%2Fhr%2Fleave%2Fcreate">Sign in</a>
+        }
+        else if (_accessStatus != HttpStatusCode.Forbidden)
+        {
+            <button id="retry-leave-create" class="btn btn-outline-primary" @onclick="LoadEmployeesAsync">Retry</button>
+        }
     }
     else
     {
@@ -170,36 +184,62 @@
     private bool _saving;
     private string? _error;
 
-    protected override async Task OnInitializedAsync()
+    private bool _canSubmit;
+    private string? _loadError;
+    private HttpStatusCode? _accessStatus;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadEmployeesAsync();
+        if (firstRender) await LoadEmployeesAsync();
     }
 
     private async Task LoadEmployeesAsync()
     {
         _loading = true;
         _error = null;
-
+        _loadError = null;
+        _accessStatus = null;
+        _canSubmit = false;
+        _employees = [];
+        var loadingEmployees = false;
         try
         {
-            var employees =
-                await EmployeeService.GetEmployeesAsync(
-                    status: "Active");
+            await LeaveService.GetAllAsync();
+            var permissions = await AuthService.GetPermissionsAsync();
+            if (!permissions.Contains("HRM_Leave_Submit"))
+            {
+                _accessStatus = HttpStatusCode.Forbidden;
+                _loadError = "You do not have permission to create leave requests.";
+                return;
+            }
 
+            loadingEmployees = true;
+            var employees = await EmployeeService.GetEmployeesAsync(status: "Active");
             _employees = employees.ToList();
+            _canSubmit = true;
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _loadError = _accessStatus switch
+            {
+                HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                HttpStatusCode.Forbidden => loadingEmployees
+                    ? "Employee choices are not available with your current permissions."
+                    : "You do not have permission to create leave requests.",
+                _ => "Unable to load leave request form. Please try again."
+            };
         }
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task SaveAsync()
     {
+        if (_saving || !_canSubmit) return;
         _saving = true;
         _error = null;
 
