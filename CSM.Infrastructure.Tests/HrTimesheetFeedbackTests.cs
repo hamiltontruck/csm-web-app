@@ -164,7 +164,7 @@ public sealed class HrTimesheetFeedbackTests
             db.Timesheets.Add(new CSM.Domain.Entities.HRM.Timesheet { Id = pair.Item1, CompanyId = pair.Item2,
                 PeriodStartDate = new(2026, 10, 1), PeriodEndDate = new(2026, 10, 31), Status = TimesheetStatus.Draft,
                 Employee = new Employee { Id = Guid.NewGuid(), CompanyId = pair.Item2, EmployeeNumber = pair.Item1.ToString(), FirstName = "Test", LastName = "Employee" } });
-        db.SaveChanges(); return db;
+        db.SaveChanges(true); return db;
     }
 
     private static TimesheetsController Controller(ApplicationDbContext db, Guid actorId) =>
