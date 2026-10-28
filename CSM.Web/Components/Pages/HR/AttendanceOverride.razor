@@ -3,7 +3,9 @@
 
 @using CSM.Web.Models.HRM
 @using CSM.Web.Services
+@using CSM.Web.Services.HRM
 
+@inject IAuthService AuthService
 @inject IAttendanceService AttendanceService
 @inject NavigationManager Navigation
 
@@ -251,6 +253,14 @@
             _attendance =
                 await AttendanceService.GetAttendanceAsync(
                     AttendanceId);
+
+            if (!AttendanceAccess.CanReview(await AuthService.GetRolesAsync()))
+            {
+                _attendance = null;
+                _accessStatus = System.Net.HttpStatusCode.Forbidden;
+                _loadError = "You do not have permission to override attendance records.";
+                return;
+            }
 
             _checkInLocal =
                 _attendance.CheckInAtUtc?.ToLocalTime();
