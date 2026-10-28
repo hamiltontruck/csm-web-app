@@ -52,12 +52,11 @@ else if (_dashboard is null)
 }
 else
 {
-    <main class="executive-dashboard">
+    <div class="executive-dashboard">
         <header class="dashboard-header">
             <div>
-                <p class="dashboard-eyebrow"><span class="status-dot"></span> OPERATIONS OVERVIEW</p>
-                <h1>Good to see you, @_userName</h1>
-                <p class="dashboard-subtitle">Here’s the latest across your construction portfolio.</p>
+                <h1>Executive Overview</h1>
+                <p class="dashboard-subtitle">Business performance at a glance</p>
             </div>
             <div class="dashboard-header-meta">
                 <span class="dashboard-date">@DateTime.Now.ToString("dddd, dd MMMM yyyy")</span>
@@ -67,28 +66,24 @@ else
 
         <section class="metric-grid" aria-label="Portfolio metrics">
             <article class="metric-card metric-card-primary">
-                <div class="metric-top"><span class="metric-icon">▦</span><span class="metric-kicker">IN PROGRESS</span></div>
-                <div class="metric-value">@_dashboard.ActiveProjects</div>
                 <div class="metric-label">Active projects</div>
+                <div class="metric-value">@_dashboard.ActiveProjects</div>
                 <div class="metric-foot"><span>Portfolio-wide</span></div>
             </article>
             <article class="metric-card">
-                <div class="metric-top"><span class="metric-icon metric-icon-green">✓</span><span class="metric-kicker">DELIVERED</span></div>
-                <div class="metric-value">@_dashboard.CompletedProjects</div>
                 <div class="metric-label">Completed projects</div>
+                <div class="metric-value">@_dashboard.CompletedProjects</div>
                 <div class="metric-foot"><span class="metric-positive">●</span><span>Successfully handed over</span></div>
             </article>
             <article class="metric-card">
-                <div class="metric-top"><span class="metric-icon metric-icon-blue">♙</span><span class="metric-kicker">YOUR PEOPLE</span></div>
-                <div class="metric-value">@_dashboard.TotalEmployees</div>
                 <div class="metric-label">Team members</div>
+                <div class="metric-value">@_dashboard.TotalEmployees</div>
                 <div class="metric-foot"><span>Across your organization</span></div>
             </article>
             <article class="metric-card metric-card-alert">
-                <div class="metric-top"><span class="metric-icon metric-icon-amber">↗</span><span class="metric-kicker">NEEDS ATTENTION</span></div>
-                <div class="metric-value">@_dashboard.OpenDelays</div>
                 <div class="metric-label">Open project delays</div>
-                <div class="metric-foot"><span class="metric-attention">Review required</span></div>
+                <div class="metric-value">@_dashboard.OpenDelays</div>
+                <div class="metric-foot"><span class="metric-attention">@(_dashboard.OpenDelays > 0 ? "Review required" : "No open delays")</span></div>
             </article>
         </section>
 
@@ -116,7 +111,7 @@ else
             <article class="dashboard-panel operations-panel">
                 <div class="panel-heading">
                     <div><p class="panel-overline">SITE OPERATIONS</p><h2>Daily pulse</h2></div>
-                    <span class="pulse-indicator"><i></i> Action needed</span>
+                    <span class="pulse-indicator"><i></i> @(_dashboard.OpenSafetyIncidents > 0 || _dashboard.LowStockItems > 0 ? "Action needed" : "Up to date")</span>
                 </div>
                 <div class="operation-row">
                     <span class="operation-symbol operation-symbol-red">!</span>
@@ -136,7 +131,7 @@ else
             </article>
         </section>
         <footer class="dashboard-footer"><span>Hamilton Business Group <span class="footer-separator">/</span> Construction Site Management</span><span>CSM • Executive view</span></footer>
-    </main>
+    </div>
 }
 </div>
 

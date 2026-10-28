@@ -1,108 +1,14 @@
-.page {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
-
-main {
-    min-width: 0;
-    flex: 1;
-}
-
-.sidebar {
-    background: #173f78;
-}
-
-.top-row {
-    background-color: #f5f8fc;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
-    display: flex;
-    align-items: center;
-}
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        white-space: nowrap;
-        margin-left: 1.5rem;
-        text-decoration: none;
-    }
-
-    .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-        text-decoration: underline;
-    }
-
-    .top-row ::deep a:first-child {
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-@media (max-width: 640.98px) {
-    .top-row {
-        justify-content: space-between;
-    }
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        margin-left: 0;
-    }
-}
-
-@media (min-width: 641px) {
-    .page {
-        flex-direction: row;
-    }
-
-    .sidebar {
-        width: 250px;
-        flex: 0 0 250px;
-        height: 100vh;
-        position: sticky;
-        top: 0;
-    }
-
-    .top-row {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
-
-    .top-row.auth ::deep a:first-child {
-        flex: 1;
-        text-align: right;
-        width: 0;
-    }
-
-    .top-row, article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
-    }
-}
-
-#blazor-error-ui {
-    color-scheme: light only;
-    background: lightyellow;
-    bottom: 0;
-    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
-    box-sizing: border-box;
-    display: none;
-    left: 0;
-    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
-    position: fixed;
-    width: 100%;
-    z-index: 1000;
-}
-
-    #blazor-error-ui .dismiss {
-        cursor: pointer;
-        position: absolute;
-        right: 0.75rem;
-        top: 0.5rem;
-    }
-
-@media (max-width: 640.98px) {
-    .page { display: flex; flex-direction: column; }
-    .page > .sidebar { width: 100%; height: auto; min-height: 0; position: relative; flex: 0 0 auto; }
-    .top-row { display: none; }
-    .page > main { min-width: 0; width: 100%; }
-    .page > main article { padding-left: 0 !important; padding-right: 0 !important; }
+.page { display: flex; min-height: 100svh; background: #f3f6fc; color: #173d76; }
+.page > .sidebar { width: 232px; flex: 0 0 232px; position: sticky; top: 0; height: 100svh; background: #193e75; z-index: 20; }
+main { min-width: 0; flex: 1; }
+article.content { padding: 24px; min-width: 0; }
+/* Dashboard owns its full-width white heading and pale content background. */
+article.content:has(.dashboard-shell) { padding: 0; }
+#blazor-error-ui { display: none; position: fixed; bottom: 0; left: 0; width: 100%; padding: 12px 20px; z-index: 1000; background: #fff4cf; color: #664c12; box-shadow: 0 -2px 8px #173d7620; }
+#blazor-error-ui .dismiss { position: absolute; right: 12px; top: 10px; cursor: pointer; }
+@media (max-width: 991px) {
+    .page { flex-direction: column; }
+    .page > .sidebar { width: 100%; flex: 0 0 auto; height: auto; position: sticky; top: 0; }
+    main { width: 100%; }
+    article.content { padding: 20px 16px; }
 }
