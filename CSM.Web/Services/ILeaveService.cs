@@ -4,6 +4,8 @@ namespace CSM.Web.Services;
 
 public interface ILeaveService
 {
+    Task<IReadOnlyCollection<LeaveEmployeeOptionResponse>> GetEmployeeOptionsAsync();
+
     Task<IReadOnlyCollection<LeaveResponse>> GetAllAsync(
         Guid? employeeId = null,
         DateOnly? fromDate = null,

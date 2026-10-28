@@ -4,6 +4,10 @@ namespace CSM.Application.HRM.Leaves;
 
 public interface ILeaveService
 {
+    Task<IReadOnlyCollection<LeaveEmployeeOptionResponse>> GetEmployeeOptionsAsync(
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<LeaveResponse>> GetAllAsync(
         Guid currentUserId,
         Guid? employeeId = null,

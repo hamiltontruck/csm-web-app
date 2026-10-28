@@ -7,7 +7,6 @@
 @using System.Net
 @inject IAuthService AuthService
 @inject ILeaveService LeaveService
-@inject IEmployeeService EmployeeService
 @inject NavigationManager Navigation
 
 <PageTitle>Create Leave Request</PageTitle>
@@ -46,6 +45,10 @@
             <button id="retry-leave-create" class="btn btn-outline-primary" @onclick="LoadEmployeesAsync">Retry</button>
         }
     }
+    else if (_employees.Count == 0)
+    {
+        <div class="alert alert-info">No active employees are available for leave requests.</div>
+    }
     else
     {
         <EditForm Model="_model"
@@ -80,12 +83,7 @@
                                 {
                                     <option value="@employee.Id">
                                         @employee.EmployeeNumber -
-                                        @employee.FirstName
-                                        @if (!string.IsNullOrWhiteSpace(employee.MiddleName))
-                                        {
-                                            <text> @employee.MiddleName</text>
-                                        }
-                                        @employee.LastName
+                                        @employee.DisplayName
                                     </option>
                                 }
                             </InputSelect>
@@ -178,7 +176,7 @@
         EndDate = DateOnly.FromDateTime(DateTime.Today)
     };
 
-    private List<EmployeeResponse> _employees = [];
+    private List<LeaveEmployeeOptionResponse> _employees = [];
 
     private bool _loading = true;
     private bool _saving;
@@ -214,7 +212,7 @@
             }
 
             loadingEmployees = true;
-            var employees = await EmployeeService.GetEmployeesAsync(status: "Active");
+            var employees = await LeaveService.GetEmployeeOptionsAsync();
             _employees = employees.ToList();
             _canSubmit = true;
         }
@@ -239,7 +237,7 @@
 
     private async Task SaveAsync()
     {
-        if (_saving || !_canSubmit) return;
+        if (_saving || !_canSubmit || _employees.Count == 0) return;
         _saving = true;
         _error = null;
 

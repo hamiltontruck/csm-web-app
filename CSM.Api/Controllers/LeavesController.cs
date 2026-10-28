@@ -25,6 +25,21 @@ public sealed class LeavesController : ControllerBase
         _leaveService = leaveService;
     }
 
+    [HttpGet("employee-options")]
+    [Authorize(Roles = SubmitRoles)]
+    public async Task<ActionResult<IReadOnlyCollection<LeaveEmployeeOptionResponse>>> GetEmployeeOptions(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _leaveService.GetEmployeeOptionsAsync(GetCurrentUserId(), cancellationToken));
+        }
+        catch (LeaveManagementException ex)
+        {
+            return ErrorResult(ex);
+        }
+    }
+
     [HttpGet]
     [Authorize(Roles = SubmitRoles)]
     public async Task<
