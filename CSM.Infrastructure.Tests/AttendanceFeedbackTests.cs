@@ -106,6 +106,47 @@ public sealed class AttendanceFeedbackTests
         Assert.Empty(page.FindAll("#retry-attendance-list"));
     }
 
+    [Theory]
+    [InlineData("SuperAdmin", true)]
+    [InlineData("CompanyAdmin", true)]
+    [InlineData("SiteManager", true)]
+    [InlineData("Supervisor", false)]
+    [InlineData("HrOfficer", false)]
+    [InlineData("HROfficer", false)]
+    public void Read_record_access_does_not_grant_review_buttons(string role, bool review)
+    {
+        using var context = Context(out var state);
+        state.Role = role;
+        state.ApprovalCase = true;
+        var page = Render(context, "list");
+        page.WaitForAssertion(() => Assert.Contains("Test Employee", page.Markup));
+        Assert.Contains("Check In", page.Markup);
+        Assert.Equal(review, page.FindAll("button").Any(b => b.TextContent.Trim() == "Approve"));
+        Assert.Equal(review, page.FindAll("button").Any(b => b.TextContent.Trim() == "Override"));
+    }
+
+    [Theory]
+    [InlineData("SuperAdmin", true)]
+    [InlineData("CompanyAdmin", true)]
+    [InlineData("SiteManager", true)]
+    [InlineData("Supervisor", false)]
+    [InlineData("HrOfficer", false)]
+    [InlineData("HROfficer", false)]
+    public void Direct_override_requires_existing_review_role(string role, bool review)
+    {
+        using var context = Context(out var state);
+        state.Role = role;
+        var page = Render(context, "override");
+        if (review)
+            page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("input, select, textarea")));
+        else
+        {
+            page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+            Assert.Equal("You do not have permission to override attendance records.", page.Find("[role=alert]").TextContent.Trim());
+            Assert.Empty(page.FindAll("input, select, textarea, #retry-attendance-override"));
+        }
+    }
+
     private static IRenderedFragment Render(TestContext context, string kind) => kind switch {
         "list" => context.RenderComponent<Attendance>(),
         "check-in" => context.RenderComponent<AttendanceCheckIn>(),
@@ -121,18 +162,27 @@ public sealed class AttendanceFeedbackTests
         ((AttendanceApi)(object)attendance).State = state;
         var employee = DispatchProxy.Create<IEmployeeService, EmployeeApi>();
         ((EmployeeApi)(object)employee).State = state;
+        var auth = DispatchProxy.Create<IAuthService, Auth>();
+        ((Auth)(object)auth).State = state;
+        context.Services.AddSingleton(auth);
         context.Services.AddSingleton(attendance);
         context.Services.AddSingleton(employee);
         context.Services.AddSingleton(DispatchProxy.Create<IProjectService, Sites>());
         return context;
     }
-    public sealed class State { public HttpStatusCode? Status; public bool OptionsDenied; public bool ApprovalCase; }
+    public sealed class State { public string Role = "CompanyAdmin"; public HttpStatusCode? Status; public bool OptionsDenied; public bool ApprovalCase; }
     private static AttendanceResponse Record(bool approvedCase) => new() {
         Id = Id, EmployeeId = Id, ConstructionSiteId = SiteId, EmployeeName = "Test Employee",
         SiteName = "Hamilton Test Site", Status = "Present", Source = "Manual",
         CheckInAtUtc = DateTime.UtcNow.AddHours(-2), CheckOutAtUtc = approvedCase ? DateTime.UtcNow : null,
         RequiresApproval = approvedCase
     };
+    public class Auth : DispatchProxy
+    {
+        public State State = null!;
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Task.FromResult<IReadOnlyCollection<string>>(new[] { State.Role });
+    }
     public class AttendanceApi : DispatchProxy
     {
         public State State = null!;

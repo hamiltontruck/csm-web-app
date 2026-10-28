@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.HRM.Attendances;
 using CSM.Application.HRM.Attendances.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,9 +10,13 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.HRManagement)]
+[Authorize]
 public sealed class AttendancesController : ControllerBase
 {
+    private const string RecordRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
+        AppRoles.SiteManager + "," + AppRoles.Supervisor + "," + AppRoles.HrOfficer + "," + AppRoles.HROfficer;
+    private const string ReviewRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager;
+
     private readonly IAttendanceService _attendanceService;
 
     public AttendancesController(
@@ -22,6 +26,7 @@ public sealed class AttendancesController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = RecordRoles)]
     public async Task<
         ActionResult<IReadOnlyCollection<AttendanceResponse>>> GetAll(
         [FromQuery] Guid? employeeId,
@@ -45,12 +50,12 @@ public sealed class AttendancesController : ControllerBase
         }
         catch (AttendanceManagementException ex)
         {
-            return BadRequest(
-                new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpGet("{attendanceId:guid}")]
+    [Authorize(Roles = RecordRoles)]
     public async Task<ActionResult<AttendanceResponse>> GetById(
         Guid attendanceId,
         CancellationToken cancellationToken)
@@ -67,12 +72,12 @@ public sealed class AttendancesController : ControllerBase
         }
         catch (AttendanceManagementException ex)
         {
-            return BadRequest(
-                new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPost("check-in")]
+    [Authorize(Roles = RecordRoles)]
     public async Task<ActionResult<AttendanceResponse>> CheckIn(
         CheckInRequest request,
         CancellationToken cancellationToken)
@@ -95,12 +100,12 @@ public sealed class AttendancesController : ControllerBase
         }
         catch (AttendanceManagementException ex)
         {
-            return BadRequest(
-                new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 
     [HttpPut("{attendanceId:guid}/check-out")]
+    [Authorize(Roles = RecordRoles)]
     public async Task<ActionResult<AttendanceResponse>> CheckOut(
         Guid attendanceId,
         CheckOutRequest request,
@@ -119,9 +124,32 @@ public sealed class AttendancesController : ControllerBase
         }
         catch (AttendanceManagementException ex)
         {
-            return BadRequest(
-                new { message = ex.Message });
+            return ErrorResult(ex);
         }
+    }
+
+    private ActionResult ErrorResult(AttendanceManagementException ex)
+    {
+        var body = new { message = ex.Message };
+        return ex.Message switch
+        {
+            "You are not authorized to access attendance." or
+            "You are not authorized to record attendance." or
+            "You are not authorized to approve attendance." or
+            "You are not authorized to override attendance." or
+            "Current user is not assigned to a company." or
+            "Current user was not found or is inactive." or
+            "Authenticated user identifier is invalid." or
+            "You cannot access attendance outside your company." or
+            "Employee does not belong to your company." or
+            "Construction site does not belong to your company." or
+            "Shift does not belong to your company." => StatusCode(403, body),
+            "Attendance was not found." or
+            "Employee was not found." or
+            "Construction site was not found." or
+            "Shift was not found." => NotFound(body),
+            _ => BadRequest(body)
+        };
     }
 
     private Guid GetCurrentUserId()
@@ -139,6 +167,7 @@ public sealed class AttendancesController : ControllerBase
     }
 
     [HttpPut("{attendanceId:guid}/approve")]
+    [Authorize(Roles = ReviewRoles)]
     public async Task<ActionResult<AttendanceResponse>> Approve(
         Guid attendanceId,
         ApproveAttendanceRequest request,
@@ -157,11 +186,11 @@ public sealed class AttendancesController : ControllerBase
         }
         catch (AttendanceManagementException ex)
         {
-            return BadRequest(
-                new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
     [HttpPut("{attendanceId:guid}/override")]
+    [Authorize(Roles = ReviewRoles)]
     public async Task<ActionResult<AttendanceResponse>> Override(
         Guid attendanceId,
         OverrideAttendanceRequest request,
@@ -180,8 +209,7 @@ public sealed class AttendancesController : ControllerBase
         }
         catch (AttendanceManagementException ex)
         {
-            return BadRequest(
-                new { message = ex.Message });
+            return ErrorResult(ex);
         }
     }
 }
