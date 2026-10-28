@@ -65,8 +65,8 @@ public sealed class AttendanceAccessTests
     {
         using var db = Database(role, out var actor, out var own, out _);
         var controller = Controller(db, actor);
-        Assert.Equal(403, Assert.IsType<ObjectResult>((await controller.Approve(own, new(), default)).Result).StatusCode);
-        Assert.Equal(403, Assert.IsType<ObjectResult>((await controller.Override(own, new(), default)).Result).StatusCode);
+        Assert.Equal(403, Assert.IsType<ObjectResult>((await controller.Approve(own, new(null), default)).Result).StatusCode);
+        Assert.Equal(403, Assert.IsType<ObjectResult>((await controller.Override(own, new(null, null, CSM.Domain.Enums.AttendanceStatus.Present, "Test", null), default)).Result).StatusCode);
         Assert.False(db.Attendances.Single(x => x.Id == own).IsApproved);
         Assert.DoesNotContain(db.ChangeTracker.Entries(), x => x.State is EntityState.Modified or EntityState.Added or EntityState.Deleted);
     }
