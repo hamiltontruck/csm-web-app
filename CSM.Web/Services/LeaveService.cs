@@ -36,6 +36,13 @@ public sealed class LeaveService : ILeaveService
         return client;
     }
 
+    public async Task<IReadOnlyCollection<LeaveEmployeeOptionResponse>> GetEmployeeOptionsAsync()
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<List<LeaveEmployeeOptionResponse>>(
+            "Leaves/employee-options") ?? [];
+    }
+
     public async Task<IReadOnlyCollection<LeaveResponse>>
         GetAllAsync(
             Guid? employeeId = null,

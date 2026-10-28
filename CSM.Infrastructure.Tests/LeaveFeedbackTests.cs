@@ -220,6 +220,9 @@ public sealed class LeaveFeedbackTests
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch {
+            nameof(ILeaveService.GetEmployeeOptionsAsync) => State.OptionsDenied
+                ? Task.FromException<IReadOnlyCollection<LeaveEmployeeOptionResponse>>(new HttpRequestException("private diagnostic", null, HttpStatusCode.Forbidden))
+                : Task.FromResult<IReadOnlyCollection<LeaveEmployeeOptionResponse>>(new List<LeaveEmployeeOptionResponse> { new() { Id = Id, EmployeeNumber = "EMP-001", DisplayName = "Test Employee" } }),
             nameof(ILeaveService.GetAllAsync) => State.Status.HasValue
                 ? Task.FromException<IReadOnlyCollection<LeaveResponse>>(new HttpRequestException("private diagnostic", null, State.Status))
                 : Task.FromResult<IReadOnlyCollection<LeaveResponse>>(new List<LeaveResponse> { new() { Id = Id, EmployeeName = "Test Employee", Status = "Pending" } }),

@@ -19,6 +19,26 @@ public sealed class LeaveService : ILeaveService
         _dbContext = dbContext;
     }
 
+    public async Task<IReadOnlyCollection<LeaveEmployeeOptionResponse>> GetEmployeeOptionsAsync(
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanCreate(actor);
+        var companyId = GetActorCompanyId(actor);
+
+        var employees = await _dbContext.Employees.AsNoTracking()
+            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.Status == EmployeeStatus.Active)
+            .OrderBy(x => x.EmployeeNumber).ThenBy(x => x.Id)
+            .Select(x => new { x.Id, x.EmployeeNumber, x.FirstName, x.MiddleName, x.LastName })
+            .ToListAsync(cancellationToken);
+
+        return employees.Select(x => new LeaveEmployeeOptionResponse(
+            x.Id, x.EmployeeNumber,
+            string.Join(" ", new[] { x.FirstName, x.MiddleName, x.LastName }
+                .Where(name => !string.IsNullOrWhiteSpace(name))))).ToList();
+    }
+
     public async Task<IReadOnlyCollection<LeaveResponse>> GetAllAsync(
         Guid currentUserId,
         Guid? employeeId = null,
