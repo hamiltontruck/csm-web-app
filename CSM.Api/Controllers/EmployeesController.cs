@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
-using CSM.Application.Common.Security;
+using CSM.Domain.Constants;
 using CSM.Application.HRM.Employees;
 using CSM.Application.HRM.Employees.Dtos;
 using CSM.Domain.Enums;
@@ -14,7 +14,8 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.HRManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
+    AppRoles.HrOfficer + "," + AppRoles.HROfficer)]
 public sealed class EmployeesController : ControllerBase
 {
     private readonly IEmployeeService _employeeService;
