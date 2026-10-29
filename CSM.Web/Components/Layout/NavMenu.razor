@@ -8,17 +8,17 @@
     <!-- Header -->
     <div class="top-row">
         <div class="brand-wrap">
-            <a class="navbar-brand" href="/dashboard" aria-label="CSM overview">CSM</a><span class="brand-rule" aria-hidden="true"></span>
+            <a class="navbar-brand" href="/dashboard" aria-label="CSM overview" @onclick="CloseMenu">CSM</a><span class="brand-rule" aria-hidden="true"></span>
         </div>
     </div>
 
     <button @ref="_menuToggle" type="button" class="navbar-toggler" aria-label="@(_menuOpen ? "Close navigation" : "Open navigation")"
-            aria-expanded="@_menuOpen.ToString().ToLowerInvariant()" aria-controls="workspace-navigation" @onclick="ToggleMenu">
+            aria-expanded="@_menuOpen.ToString().ToLowerInvariant()" aria-controls="workspace-navigation" @onclick="ToggleMenu" @onkeydown="HandleMenuKey">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="@(_menuOpen ? "M6 6l12 12M18 6L6 18" : "M4 6h16M4 12h16M4 18h16")" /></svg>
     </button>
 
     <!-- Scrollable Menu -->
-    <div id="workspace-navigation" class="nav-scrollable @(_menuOpen ? "is-open" : "")" @onclick="CloseMenu" @onkeydown="HandleMenuKey">
+    <div id="workspace-navigation" class="nav-scrollable @(_menuOpen ? "is-open" : "")" @onkeydown="HandleMenuKey">
 
         <nav aria-label="Workspace navigation">
 
@@ -28,7 +28,7 @@
 
             <!-- Dashboard -->
             <div class="nav-item">
-                <NavLink class="nav-link"
+                <NavLink class="nav-link" @onclick="CloseMenu"
                          href="/dashboard"
                          Match="NavLinkMatch.All">
                     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" /></svg>
@@ -42,7 +42,7 @@
             @if (HasPermission("Projects_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link"
+                    <NavLink class="nav-link" @onclick="CloseMenu"
                              href="/project-tracking"
                              Match="NavLinkMatch.All">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v16H3zM8 8v8M12 8v5M16 8v10" /></svg>
@@ -56,7 +56,7 @@
                  HasPermission("Procurement_PurchaseOrder_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/procurement">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/procurement">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10" /></svg>
                         <span>Procurement</span>
                     </NavLink>
@@ -67,7 +67,7 @@
             @if (HasPermission("Procurement_Inventory_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/inventory">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/inventory">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10" /></svg>
                         <span>Inventory</span>
                     </NavLink>
@@ -78,7 +78,7 @@
             @if (HasPermission("Procurement_Inventory_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/equipment">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/equipment">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h11v12H3zM14 9h4l3 4v4h-7M5 17v3h3v-3M16 17v3h3v-3" /></svg>
                         <span>Equipment</span>
                     </NavLink>
@@ -95,7 +95,7 @@
             @if (_isSuperAdmin)
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/companies">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/companies">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V3h14v18M2 21h20M9 7h1M14 7h1M9 11h1M14 11h1M10 21v-6h4v6" /></svg>
                         <span>Companies</span>
                     </NavLink>
@@ -105,7 +105,7 @@
             @if (HasPermission("Users_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/users">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/users">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M2 21v-3a6 6 0 0 1 12 0v3M16 4a4 4 0 0 1 0 8M17 15a5 5 0 0 1 5 5" /></svg>
                         <span>Users</span>
                     </NavLink>
@@ -115,7 +115,7 @@
             @if (HasPermission("Users_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/roles">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/roles">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 4v6c0 5-8 10-8 10S4 17 4 12V6zM9 11h6v5H9zM10 11V9a2 2 0 0 1 4 0v2" /></svg>
                         <span>Role Permissions</span>
                     </NavLink>
@@ -125,7 +125,7 @@
             @if (HasPermission("Users_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/users/audit">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/users/audit">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5v5h5M3 10a9 9 0 1 1 2 8M12 7v6l4 2" /></svg>
                         <span>User Audit</span>
                     </NavLink>
@@ -138,7 +138,7 @@
                  HasPermission("HRM_Leave_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/hr">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/hr">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18H4zM9 9a3 3 0 1 0 6 0 3 3 0 0 0-6 0M7 18a5 5 0 0 1 10 0" /></svg>
                         <span>HR Management</span>
                     </NavLink>
@@ -152,7 +152,7 @@
                  HasPermission("Finance_PettyCash_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link"
+                    <NavLink class="nav-link" @onclick="CloseMenu"
                              href="/finance/sites"
                              Match="NavLinkMatch.Prefix">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h17v15H3zM3 5V3h14M15 10h6v5h-6z" /></svg>
@@ -164,7 +164,7 @@
             @if (HasPermission("Compliance_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/compliance">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/compliance">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 4v6c0 5-8 10-8 10S4 17 4 12V6zM8 12l3 3 5-6" /></svg>
                         <span>Compliance</span>
                     </NavLink>
@@ -175,7 +175,7 @@
                  HasPermission("Reports_FinancialSummary_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/reports">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/reports">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V11h4v10M10 21V7h4v14M16 21V3h4v18" /></svg>
                         <span>Reports</span>
                     </NavLink>
@@ -185,7 +185,7 @@
             @if (HasPermission("Notifications_View"))
             {
                 <div class="nav-item">
-                    <NavLink class="nav-link" href="/notifications">
+                    <NavLink class="nav-link" @onclick="CloseMenu" href="/notifications">
                         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5zM10 21h4" /></svg>
                         <span>Notifications</span>
 
@@ -200,7 +200,7 @@
             }
 
             <div class="nav-item">
-                <NavLink class="nav-link" href="/settings">
+                <NavLink class="nav-link" @onclick="CloseMenu" href="/settings">
                     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 4 4 1v7l-4 1-1 5H9l-1-5-4-1V8l4-1zM9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0" /></svg>
                     <span>Settings & Privacy</span>
                 </NavLink>
@@ -229,7 +229,7 @@
     private void CloseMenu() => _menuOpen = false;
     private async Task HandleMenuKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs args)
     {
-        if (args.Key != "Escape") return;
+        if (args.Key != "Escape" || !_menuOpen) return;
         CloseMenu();
         await _menuToggle.FocusAsync();
     }
