@@ -1,0 +1,37 @@
+name: Role dashboard live checks
+on:
+  push:
+    branches: [qa/role-dashboard-live-check-20261030]
+permissions:
+  contents: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify public assets and dashboard authentication
+        run: |
+          python - <<'PY'
+          import re, urllib.request, urllib.error
+          web = "https://csm-web-app.onrender.com"
+          api = "https://csm-apicsm-api-dockerfile.onrender.com"
+          def get(url, expected):
+              try:
+                  with urllib.request.urlopen(url, timeout=60) as response:
+                      status = response.status
+                      data = response.read()
+              except urllib.error.HTTPError as error:
+                  status = error.code
+                  data = error.read()
+              assert status == expected, (url, status, expected)
+              print(status, url)
+              return data
+          html = get(web + "/login", 200).decode()
+          scripts = re.findall(r'src="([^"]*blazor.web[^"]*\.js)"', html)
+          assert scripts, "Blazor startup script missing"
+          script = scripts[0]
+          script = web + "/" + script.lstrip("/") if not script.startswith("http") else script
+          assert len(get(script, 200)) > 1000
+          for path in ["/api/auth/me", "/api/dashboard/workspace", "/api/dashboard/executive", "/api/Payroll"]:
+              get(api + path, 401)
+          PY
