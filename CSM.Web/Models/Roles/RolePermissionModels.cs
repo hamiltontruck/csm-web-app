@@ -96,5 +96,7 @@ public enum Permission
 
     Reports_View,
     Reports_FinancialSummary_View,
-    Reports_Export
+    Reports_Export,
+
+    HRM_Attendance_Approve
 }

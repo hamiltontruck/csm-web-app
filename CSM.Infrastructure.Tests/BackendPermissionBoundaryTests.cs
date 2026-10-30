@@ -122,6 +122,33 @@ public sealed class BackendPermissionBoundaryTests
         };
     }
 
+    [Theory]
+    [InlineData("CompanyAdmin")]
+    [InlineData("Supervisor")]
+    public async Task Service_rejects_global_grant_changes_without_modifying_existing_permissions(string role)
+    {
+        using var db = Database(role, out var actor);
+        var target = new Role { Name = "Target", GranularPermissions = [new() { Permission = GranularPermission.Projects_View }] };
+        db.Roles.Add(target); db.SaveChanges(true);
+        var service = new CSM.Infrastructure.Services.RolePermissionService(db);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.UpdatePermissionsAsync(actor.Id, target.Id, new([GranularPermission.Users_Delete])));
+        Assert.Equal(GranularPermission.Projects_View, db.RoleGranularPermissions.Single(x => x.RoleId == target.Id).Permission);
+    }
+
+    [Fact]
+    public async Task Superadmin_replaces_only_target_role_grants_and_rejects_invalid_values_before_writing()
+    {
+        using var db = Database("SuperAdmin", out var actor);
+        var target = new Role { Name = "Target", GranularPermissions = [new() { Permission = GranularPermission.Projects_View }] };
+        db.Roles.Add(target); db.SaveChanges(true);
+        var service = new CSM.Infrastructure.Services.RolePermissionService(db);
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdatePermissionsAsync(actor.Id, target.Id, new([(GranularPermission)9999])));
+        Assert.Equal(GranularPermission.Projects_View, db.RoleGranularPermissions.Single(x => x.RoleId == target.Id).Permission);
+        await service.UpdatePermissionsAsync(actor.Id, target.Id, new([GranularPermission.Procurement_Inventory_View, GranularPermission.Procurement_Inventory_View]));
+        Assert.Equal(GranularPermission.Procurement_Inventory_View, db.RoleGranularPermissions.Single(x => x.RoleId == target.Id).Permission);
+        Assert.True(await new PermissionEvaluator(db).HasPermissionAsync(actor.Id, "Users_Edit"));
+    }
+
     private static ServiceProvider Services(ApplicationDbContext db)
     {
         var services = new ServiceCollection().AddLogging();

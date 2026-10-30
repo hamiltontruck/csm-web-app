@@ -5,6 +5,7 @@
 
 @inject RoleWebService RoleService
 @inject NavigationManager Navigation
+@using CSM.Web.Services.Access
 
 <PageTitle>Role Permissions</PageTitle>
 
@@ -59,7 +60,7 @@ else
 
                     <input class="form-check-input"
                            type="checkbox"
-                           @bind="item.Granted"/>
+                           @bind="item.Granted" disabled="@(!CanEdit)"/>
 
                     <label class="form-check-label">
                         @item.Permission
@@ -72,12 +73,19 @@ else
 
         <div class="card-footer text-end">
 
+            @if (CanEdit)
+            {
             <button class="btn btn-primary"
                     @onclick="Save">
 
                 Save Changes
 
             </button>
+            }
+            else
+            {
+                <span>Shared role permissions are read-only. Only a SuperAdmin with permission to edit users can change them.</span>
+            }
 
         </div>
 
@@ -85,6 +93,8 @@ else
 }
 
 @code {
+    [CascadingParameter] public WorkspaceAccess Access { get; set; } = WorkspaceAccess.None;
+    private bool CanEdit => Access.IsIn("SuperAdmin") && Access.Has("Users_Edit");
 
     private List<RoleSummaryModel> roles = [];
 
@@ -123,6 +133,7 @@ else
 
     private async Task Save()
     {
+        if (!CanEdit) return;
         await RoleService.SavePermissionsAsync(
             selectedRoleId,
             permissions);

@@ -220,7 +220,7 @@ public sealed class WorkspaceDashboardTests
             Role = new() { Name = role };
             Actor = new() { CompanyId = Company, IsActive = true, UserRoles = [new() { Role = Role }] };
             Db.Users.Add(Actor);
-            Db.Companies.AddRange(new Company { Id = Company, Name = "Own" }, new Company { Id = OtherCompany, Name = "Foreign" });
+            Db.Companies.AddRange(new Company { Id = Company, Name = "Own", TimeZone = "UTC" }, new Company { Id = OtherCompany, Name = "Foreign", TimeZone = "UTC" });
             Db.ConstructionSites.AddRange(new ConstructionSite { Id = Site, CompanyId = Company, Name = "Assigned" }, new ConstructionSite { Id = OtherSite, CompanyId = Company, Name = "Unassigned" }, new ConstructionSite { Id = ForeignSite, CompanyId = OtherCompany, Name = "Foreign" });
             Db.UserSiteAccesses.Add(new() { UserId = Actor.Id, CompanyId = Company, SiteId = Site, IsActive = true });
             foreach (var (site, company, progress) in new[] { (Site, Company, 25m), (OtherSite, Company, 75m), (ForeignSite, OtherCompany, 100m) })

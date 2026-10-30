@@ -228,6 +228,7 @@ services.AddScoped<
     IAuthorizationHandler,
     PermissionAuthorizationHandler>();
 services.AddScoped<IPermissionEvaluator, PermissionEvaluator>();
+        services.AddScoped<CurrentUserTokenValidator>();
 
 
         services
@@ -242,6 +243,11 @@ services.AddScoped<IPermissionEvaluator, PermissionEvaluator>();
             .AddJwtBearer(options =>
             {
                 options.MapInboundClaims = false;
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = context => context.HttpContext.RequestServices
+                        .GetRequiredService<CurrentUserTokenValidator>().ValidateAsync(context)
+                };
 
                 options.TokenValidationParameters =
                     new TokenValidationParameters

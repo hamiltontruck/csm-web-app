@@ -8,7 +8,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/roles")]
 [Authorize(Policy = "Users.View")]
-public class RolesController : ControllerBase
+public class RolesController : CurrentUserControllerBase
 {
     private readonly IRolePermissionService _service;
 
@@ -35,16 +35,19 @@ public class RolesController : ControllerBase
     }
 
     [HttpPut("{roleId:guid}/permissions")]
+    [Authorize(Roles = CSM.Domain.Constants.AppRoles.SuperAdmin, Policy = "Users.Edit")]
     public async Task<IActionResult> UpdatePermissions(
         Guid roleId,
         UpdateRolePermissionsRequest request,
         CancellationToken cancellationToken)
     {
-        await _service.UpdatePermissionsAsync(
-            roleId,
-            request,
-            cancellationToken);
-
-        return NoContent();
+        try
+        {
+            await _service.UpdatePermissionsAsync(CurrentUserId, roleId, request, cancellationToken);
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new { message = "Role was not found." }); }
+        catch (ArgumentException) { return BadRequest(new { message = "One or more permissions are invalid." }); }
     }
 }
