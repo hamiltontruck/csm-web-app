@@ -52,17 +52,17 @@ public sealed class DashboardSelectionUiTests
     }
 
     [Fact]
-    public async Task Supervisor_sees_available_modules_without_requesting_executive_totals()
+    public async Task Supervisor_sees_project_dashboard_without_financial_cards()
     {
         var service = new DashboardStub();
         using var context = await CreateContext(service, "Supervisor");
         var page = context.RenderComponent<Dashboard>();
-        page.WaitForAssertion(() => Assert.Contains("Workspace overview", page.Markup));
-        Assert.Contains("HR Management", page.Markup);
+        page.WaitForAssertion(() => Assert.Contains("Active projects", page.Markup));
+        Assert.Contains("Project progress", page.Markup);
         Assert.DoesNotContain("Budget overview", page.Markup);
         Assert.DoesNotContain("Open Equipment", page.Markup);
         Assert.DoesNotContain("Open Compliance", page.Markup);
-        Assert.Empty(service.Requests);
+        Assert.Single(service.Requests);
     }
 
     private static async Task<TestContext> CreateContext(DashboardStub service, string role)
