@@ -65,6 +65,7 @@ else
         }
         @if (_dashboard.TotalBudget.HasValue || _dashboard.TotalExpenses.HasValue)
         {
+            <div class="dashboard-content-grid dashboard-finance">
             <section class="dashboard-panel budget-panel" aria-label="Authorized financial activity">
                 <div class="panel-heading"><div><p class="panel-overline">FINANCE</p><h2>Budget overview</h2></div><span class="panel-chip">@_dashboard.CurrencyCode</span></div>
                 <div class="budget-total">
@@ -82,6 +83,7 @@ else
                     <div class="budget-foot"><span>Remaining budget</span><strong>@Money(_dashboard.TotalBudget!.Value - _dashboard.TotalExpenses!.Value)</strong></div>
                 }
             </section>
+            </div>
         }
         @if (!Metrics().Any() && !_dashboard.TotalBudget.HasValue && !_dashboard.TotalExpenses.HasValue)
         {
@@ -130,8 +132,7 @@ else
             _userName = name.Success ? name.Value ?? "" : "";
             if (!_initialized)
             {
-                var roles = await SessionStorage.GetAsync<List<string>>("roles");
-                _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
+                _canSelectCompany = _access.IsIn("SuperAdmin");
                 if (_canSelectCompany) _companies = await DashboardService.GetCompaniesAsync();
                 _initialized = true;
             }

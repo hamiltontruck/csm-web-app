@@ -89,3 +89,6 @@
 }
 @media (min-width: 1440px) { .metric-grid { gap: 18px; } }
 @media (prefers-reduced-motion: reduce) { .dashboard-skeleton { animation: none; } }
+
+/* A single authorized finance panel retains dashboard spacing at every breakpoint. */
+.dashboard-finance { grid-template-columns: minmax(0, 1fr); }

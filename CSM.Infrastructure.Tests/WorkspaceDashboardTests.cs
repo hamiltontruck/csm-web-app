@@ -188,7 +188,7 @@ public sealed class WorkspaceDashboardTests
         await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).Options);
         try
         {
-            await db.Database.EnsureCreatedAsync();
+            await db.Database.MigrateAsync();
             var company = new Company { Code = "DASH", Name = "Dashboard QA" };
             var role = new Role { Name = "Supervisor", NormalizedName = "SUPERVISOR", GranularPermissions = Enum.GetValues<GranularPermission>().Select(p => new RoleGranularPermission { Permission = p }).ToList() };
             var user = new User { Company = company, IsActive = true, Email = "qa@example.test", NormalizedEmail = "QA@EXAMPLE.TEST", UserRoles = [new() { Role = role }] };

@@ -52,7 +52,14 @@ public sealed class WorkspaceDashboardService(ApplicationDbContext db) : IWorksp
             result.OpenDelays = await db.ProjectDelays.AsNoTracking().CountAsync(x => x.CompanyId == company.Id && !x.IsDeleted && !x.IsResolved && projects.Select(p => p.Id).Contains(x.ProjectId), cancellationToken);
         }
         if (Has(GranularPermission.Procurement_Inventory_View) && IsIn("SuperAdmin", "Administrator", "Supervisor", "Storekeeper", "ProcurementOfficer"))
-            result.LowStockItems = await db.StockItems.AsNoTracking().CountAsync(x => x.CompanyId == company.Id && !x.IsDeleted && sites.Contains(x.ConstructionSiteId) && x.QuantityOnHand <= x.ReorderLevel, cancellationToken);
+        {
+            // Stock readers already have company scope; only Supervisor-only actors
+            // are restricted to their active assigned sites by StockBalanceService.
+            var companyStock = IsIn("SuperAdmin", "Administrator", "Storekeeper", "ProcurementOfficer");
+            var stockSites = db.ConstructionSites.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted &&
+                (companyStock || (x.IsActive && sites.Contains(x.Id)))).Select(x => x.Id);
+            result.LowStockItems = await db.StockItems.AsNoTracking().CountAsync(x => x.CompanyId == company.Id && !x.IsDeleted && stockSites.Contains(x.ConstructionSiteId) && x.QuantityOnHand <= x.ReorderLevel, cancellationToken);
+        }
         if (Has(GranularPermission.Compliance_View) && IsIn("SuperAdmin", "CompanyAdmin", "SiteManager"))
             result.OpenSafetyIncidents = await db.SafetyIncidents.AsNoTracking().CountAsync(x => x.CompanyId == company.Id && !x.IsDeleted && sites.Contains(x.ConstructionSiteId) && x.Status != SafetyIncidentStatus.Resolved, cancellationToken);
         if (Has(GranularPermission.HRM_Employee_View) && hrCompany)
