@@ -85,6 +85,7 @@ public sealed class EquipmentFeedbackTests
     private static TestContext Context(out EquipmentApi api)
     {
         var context = new TestContext();
+        WorkspaceTestAccess.Add(context);
         var service = DispatchProxy.Create<IEquipmentService, EquipmentApi>();
         api = (EquipmentApi)(object)service;
         context.Services.AddSingleton(service);

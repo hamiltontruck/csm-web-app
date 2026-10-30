@@ -28,7 +28,9 @@
 
             @if (_canManage)
             {
-                <button class="btn btn-primary" @onclick="CreateTimesheet">Create Timesheet</button>
+                <WorkspaceAction Route="/hr/timesheets/create">
+                    <button class="btn btn-primary" @onclick="CreateTimesheet">Create Timesheet</button>
+            </WorkspaceAction>
             }
         </div>
     </div>
@@ -105,10 +107,12 @@
                                     </td>
 
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-primary"
+                                        <WorkspaceAction Route="/hr/timesheets/edit/{timesheetId}">
+                                            <button class="btn btn-sm btn-outline-primary"
                                                 @onclick="() => OpenTimesheet(timesheet.Id)">
                                             Open
                                         </button>
+            </WorkspaceAction>
                                     </td>
                                 </tr>
                             }

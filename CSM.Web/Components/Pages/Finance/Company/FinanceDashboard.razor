@@ -1,3 +1,4 @@
+@inherits WorkspacePageBase
 @page "/finance"
 @rendermode InteractiveServer
 
@@ -18,9 +19,11 @@
     <!-- Finance Modules -->
     <div class="row g-3 mb-4">
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/finance/company/invoices"))
+        {
+<div class="col-md-6">
             <div class="card h-100 shadow-sm border-0 finance-card"
-                 @onclick='() => Open("/finance/invoices")'
+                 @onclick='() => Open("/finance/company/invoices")'
                  style="cursor:pointer">
                 <div class="card-body">
                     <h4 class="mb-2">🧾 Invoices</h4>
@@ -30,10 +33,13 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/finance/company/payments"))
+        {
+<div class="col-md-6">
             <div class="card h-100 shadow-sm border-0 finance-card"
-                 @onclick='() => Open("/finance/payments")'
+                 @onclick='() => Open("/finance/company/payments")'
                  style="cursor:pointer">
                 <div class="card-body">
                     <h4 class="mb-2">💳 Payments</h4>
@@ -43,8 +49,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/finance/petty-cash"))
+        {
+<div class="col-md-6">
             <div class="card h-100 shadow-sm border-0 finance-card"
                  @onclick='() => Open("/finance/petty-cash")'
                  style="cursor:pointer">
@@ -56,10 +65,13 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/finance/company/budgets"))
+        {
+<div class="col-md-6">
             <div class="card h-100 shadow-sm border-0 finance-card"
-                 @onclick='() => Open("/finance/budgets")'
+                 @onclick='() => Open("/finance/company/budgets")'
                  style="cursor:pointer">
                 <div class="card-body">
                     <h4 class="mb-2">📊 Budgets</h4>
@@ -69,10 +81,13 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/finance/company/expenses"))
+        {
+<div class="col-md-6">
             <div class="card h-100 shadow-sm border-0 finance-card"
-                 @onclick='() => Open("/finance/expenses")'
+                 @onclick='() => Open("/finance/company/expenses")'
                  style="cursor:pointer">
                 <div class="card-body">
                     <h4 class="mb-2">📑 Expenses</h4>
@@ -82,10 +97,13 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/finance/company/cost-codes"))
+        {
+<div class="col-md-6">
             <div class="card h-100 shadow-sm border-0 finance-card"
-                 @onclick='() => Open("/finance/cost-codes")'
+                 @onclick='() => Open("/finance/company/cost-codes")'
                  style="cursor:pointer">
                 <div class="card-body">
                     <h4 class="mb-2">🏷 Cost Codes</h4>
@@ -95,6 +113,7 @@
                 </div>
             </div>
         </div>
+        }
 
     </div>
 

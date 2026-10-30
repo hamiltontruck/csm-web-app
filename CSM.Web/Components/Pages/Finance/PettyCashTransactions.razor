@@ -24,10 +24,12 @@
             </div>
         </div>
 
-        <button class="btn btn-primary"
+        <WorkspaceAction Route="/finance/petty-cash/account/{AccountId}/transactions/create">
+            <button class="btn btn-primary"
                 @onclick="Create">
             <i class="bi bi-plus-lg"></i> New Transaction
         </button>
+            </WorkspaceAction>
     </div>
 
     @if (_loading)

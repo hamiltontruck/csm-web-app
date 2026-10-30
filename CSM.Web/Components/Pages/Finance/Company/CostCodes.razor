@@ -28,11 +28,13 @@
             </div>
         </div>
 
-        <button class="btn btn-primary"
+        <WorkspaceAction Route="/finance/company/cost-codes/create">
+            <button class="btn btn-primary"
                 @onclick="Create">
             <i class="bi bi-plus-lg"></i>
             New Cost Code
         </button>
+            </WorkspaceAction>
     </div>
 
     @if (_loading)
@@ -93,10 +95,12 @@
 
                                 <td>
 
-                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                    <WorkspaceAction Route="/finance/company/cost-codes/{id}/edit">
+                                        <button class="btn btn-sm btn-outline-primary me-1"
                                             @onclick="() => Edit(item.Id)">
                                         Edit
                                     </button>
+            </WorkspaceAction>
 
                                     <button class="btn btn-sm btn-outline-warning"
                                             @onclick="() => Toggle(item)">

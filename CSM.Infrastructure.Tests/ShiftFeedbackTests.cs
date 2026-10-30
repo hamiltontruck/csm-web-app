@@ -199,6 +199,16 @@ public sealed class ShiftFeedbackTests
     private static ShiftsController Controller(ApplicationDbContext db, Guid userId) =>
         new(new CSM.Infrastructure.Services.ShiftService(db)) { ControllerContext = new ControllerContext {
             HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.ToString())], "test")) } } };
+    [Fact]
+    public void Supervisor_with_submit_permission_still_has_no_shift_management_controls()
+    {
+        using var context = Context(out var state);
+        state.Role = "Supervisor";
+        var page = Render(context, "list");
+        page.WaitForAssertion(() => Assert.Contains("Day shift", page.Markup));
+        Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Add Shift") || b.TextContent.Contains("Deactivate") || b.TextContent.Trim() == "Edit");
+    }
+
     private static IRenderedFragment Render(TestContext context, string kind) => kind switch {
         "list" => context.RenderComponent<Shifts>(),
         "create" => context.RenderComponent<ShiftCreate>(),
@@ -211,7 +221,7 @@ public sealed class ShiftFeedbackTests
         var auth = DispatchProxy.Create<IAuthService, Auth>(); ((Auth)(object)auth).State = state;
         context.Services.AddSingleton(api); context.Services.AddSingleton(auth); return context;
     }
-    public sealed class State { public HttpStatusCode? Status; public bool CanSubmit = true; public bool Missing; public bool ActivationDenied; }
+    public sealed class State { public string Role = "CompanyAdmin"; public HttpStatusCode? Status; public bool CanSubmit = true; public bool Missing; public bool ActivationDenied; }
     private static ShiftResponse Record() => new() { Id = Id, Code = "DAY", Name = "Day shift", IsActive = true, StartTime = new(8, 0), EndTime = new(17, 0), StandardHours = 8m };
     public class Api : DispatchProxy
     {
@@ -232,7 +242,7 @@ public sealed class ShiftFeedbackTests
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            Task.FromResult<IReadOnlyCollection<string>>(State.CanSubmit ? new[] { "HRM_Shift_Submit" } : Array.Empty<string>());
+            Task.FromResult<IReadOnlyCollection<string>>(method!.Name == nameof(IAuthService.GetRolesAsync) ? new[] { State.Role } : State.CanSubmit ? new[] { "HRM_Shift_View", "HRM_Shift_Submit" } : new[] { "HRM_Shift_View" });
     }
     private sealed class Factory(HttpClient http) : IHttpClientFactory { public HttpClient CreateClient(string name) => http; }
     private sealed class Response(HttpStatusCode status) : HttpMessageHandler

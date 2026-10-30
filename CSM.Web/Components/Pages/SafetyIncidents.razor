@@ -28,7 +28,9 @@
 
             @if (_canManage)
             {
-                <button class="btn btn-primary" @onclick="CreateIncident">Add Safety Incident</button>
+                <WorkspaceAction Route="/compliance/safety-incidents/create">
+                    <button class="btn btn-primary" @onclick="CreateIncident">Add Safety Incident</button>
+            </WorkspaceAction>
             }
         </div>
     </div>
@@ -63,7 +65,9 @@
 
                 @if (_canManage)
                 {
-                    <button class="btn btn-primary" @onclick="CreateIncident">Add Safety Incident</button>
+                    <WorkspaceAction Route="/compliance/safety-incidents/create">
+                        <button class="btn btn-primary" @onclick="CreateIncident">Add Safety Incident</button>
+            </WorkspaceAction>
                 }
             </div>
         </div>
@@ -160,15 +164,19 @@
                                     </td>
 
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                        <WorkspaceAction Route="/compliance/safety-incidents/{incident.Id}">
+                                            <button class="btn btn-sm btn-outline-secondary me-1"
                                                 @onclick='() => Navigation.NavigateTo($"/compliance/safety-incidents/{incident.Id}")'>
                                             View
                                         </button>
+            </WorkspaceAction>
 
-                                        <button class="btn btn-sm btn-outline-primary"
+                                        <WorkspaceAction Route="/compliance/safety-incidents/{id}/edit">
+                                            <button class="btn btn-sm btn-outline-primary"
                                                 @onclick="() => EditIncident(incident.Id)">
                                             Edit
                                         </button>
+            </WorkspaceAction>
                                     </td>
                                 </tr>
                             }

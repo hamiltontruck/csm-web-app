@@ -1,3 +1,4 @@
+@inherits WorkspacePageBase
 @page "/compliance"
 @rendermode InteractiveServer
 
@@ -9,6 +10,7 @@
 @inject NavigationManager Navigation
 
 <PageTitle>Compliance</PageTitle>
+<WorkspaceAccessFeedback Loaded="AccessLoaded" Error="@AccessError" />
 
 <div class="container-fluid py-3">
 
@@ -16,7 +18,9 @@
 
     <div class="row g-3 mt-3">
 
-        <div class="col-md-4">
+        @if (Access.CanVisit("/compliance/safety-incidents"))
+        {
+<div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body text-center">
                     <h6>Open Incidents</h6>
@@ -29,8 +33,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-md-4">
+        @if (Access.CanVisit("/compliance"))
+        {
+<div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body text-center">
                     <h6>Inspections</h6>
@@ -38,8 +45,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-md-4">
+        @if (Access.CanVisit("/compliance"))
+        {
+<div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body text-center">
                     <h6>Permits</h6>
@@ -47,8 +57,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-md-4">
+        @if (Access.CanVisit("/compliance/document-categories"))
+        {
+<div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body text-center">
                     <h6>Document Categories</h6>
@@ -64,8 +77,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-md-4">
+        @if (Access.CanVisit("/compliance/documents"))
+        {
+<div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body text-center">
                     <h6>Documents</h6>
@@ -81,6 +97,7 @@
                 </div>
             </div>
         </div>
+        }
 
     </div>
 
@@ -89,9 +106,9 @@
 @code {
     private int _openIncidentCount;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAccessLoadedAsync()
     {
-        await LoadOpenIncidentCountAsync();
+        if (Access.CanVisit("/compliance/safety-incidents")) await LoadOpenIncidentCountAsync();
     }
 
     private async Task LoadOpenIncidentCountAsync()

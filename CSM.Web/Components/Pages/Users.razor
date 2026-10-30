@@ -29,10 +29,12 @@
     </div>
 
     <div class="col-md-5 text-end">
-        <button class="btn btn-primary"
+        <WorkspaceAction Route="/users/create">
+            <button class="btn btn-primary"
                 @onclick="NewUser">
             + New User
         </button>
+            </WorkspaceAction>
     </div>
 </div>
 
@@ -79,10 +81,12 @@ else if (string.IsNullOrWhiteSpace(errorMessage))
         {
             <tr>
                 <td>
-                    <a href="/users/@user.Id"
+                    <WorkspaceAction Route="/users/user.Id">
+                        <a href="/users/@user.Id"
                        class="fw-bold text-decoration-none">
                         @user.FullName
-                    </a><br/>
+                    </a>
+            </WorkspaceAction><br/>
                     <small class="text-muted">@user.Email</small>
                 </td>
 
@@ -139,10 +143,12 @@ else if (string.IsNullOrWhiteSpace(errorMessage))
 
                 <td class="text-end">
 
-                    <button class="btn btn-sm btn-outline-primary me-1"
+                    <WorkspaceAction Route="/users/edit/{id}">
+                        <button class="btn btn-sm btn-outline-primary me-1"
                             @onclick="() => Edit(user.Id)">
                         Edit
                     </button>
+            </WorkspaceAction>
 
                     @if (user.IsActive)
                     {

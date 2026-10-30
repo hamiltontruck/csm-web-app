@@ -54,6 +54,8 @@ public sealed class StockTransferPermissionUiTests
     private static TestContext Context(bool canAdjust, out Sites sites, out Inventory inventory)
     {
         var context = new TestContext();
+        WorkspaceTestAccess.Add(context, ["Storekeeper"], canAdjust
+            ? ["Procurement_Inventory_View", "Procurement_Inventory_Adjust", "Sites_View"] : ["Procurement_Inventory_View", "Sites_View"]);
         var auth = DispatchProxy.Create<IAuthService, Auth>();
         ((Auth)(object)auth).CanAdjust = canAdjust;
         var projects = DispatchProxy.Create<IProjectService, Sites>();
@@ -72,8 +74,8 @@ public sealed class StockTransferPermissionUiTests
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
             method!.Name == nameof(IAuthService.GetPermissionsAsync)
                 ? Task.FromResult<IReadOnlyCollection<string>>(CanAdjust
-                    ? new[] { "Procurement_Inventory_View", "Procurement_Inventory_Adjust" }
-                    : new[] { "Procurement_Inventory_View" })
+                    ? new[] { "Procurement_Inventory_View", "Procurement_Inventory_Adjust", "Sites_View" }
+                    : new[] { "Procurement_Inventory_View", "Sites_View" })
                 : Task.CompletedTask;
     }
 

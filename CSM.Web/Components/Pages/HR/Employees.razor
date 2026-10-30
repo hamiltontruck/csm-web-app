@@ -35,11 +35,13 @@
 
             @if (_canManage)
             {
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/hr/employees/create?returnUrl={Uri.EscapeDataString(returnUrl)}">
+                <button class="btn btn-primary"
                     @onclick="CreateEmployee">
                 <i class="bi bi-person-plus me-2"></i>
                 Add Employee
             </button>
+            </WorkspaceAction>
             }
         </div>
     </div>
@@ -104,11 +106,13 @@
                                             @site.City, @site.Region
                                         </div>
 
-                                        <button class="btn btn-primary w-100"
+                                        <WorkspaceAction Route="/hr/employees/site/{siteId}">
+                                            <button class="btn btn-primary w-100"
                                                 @onclick="() => OpenSiteEmployees(site.Id)">
                                             <i class="bi bi-people me-1"></i>
                                             View Employees
                                         </button>
+            </WorkspaceAction>
 
                                     </div>
                                 </div>
@@ -202,15 +206,19 @@
                                         </td>
 
                                         <td class="text-end">
-                                            <button class="btn btn-sm btn-outline-primary me-1"
+                                            <WorkspaceAction Route="/hr/employees/details/{employeeId}?siteId={SiteId}">
+                                                <button class="btn btn-sm btn-outline-primary me-1"
                                                     @onclick="() => ViewSiteEmployee(assignment.EmployeeId)">
                                                 View
                                             </button>
+            </WorkspaceAction>
 
-                                            <button class="btn btn-sm btn-outline-secondary"
+                                            <WorkspaceAction Route="/hr/employees/edit/{employeeId}?siteId={SiteId}">
+                                                <button class="btn btn-sm btn-outline-secondary"
                                                     @onclick="() => EditSiteEmployee(assignment.EmployeeId)">
                                                 Edit
                                             </button>
+            </WorkspaceAction>
                                         </td>
                                     </tr>
                                 }
@@ -321,15 +329,19 @@
                                         </td>
 
                                         <td class="text-end">
-                                            <button class="btn btn-sm btn-outline-primary me-1"
+                                            <WorkspaceAction Route="/hr/employees/details/{employeeId}">
+                                                <button class="btn btn-sm btn-outline-primary me-1"
                                                     @onclick="() => ViewEmployee(employee.Id)">
                                                 View
                                             </button>
+            </WorkspaceAction>
 
-                                            <button class="btn btn-sm btn-outline-secondary"
+                                            <WorkspaceAction Route="/hr/employees/edit/{employeeId}">
+                                                <button class="btn btn-sm btn-outline-secondary"
                                                     @onclick="() => EditEmployee(employee.Id)">
                                                 Edit
                                             </button>
+            </WorkspaceAction>
                                         </td>
                                     </tr>
                                 }

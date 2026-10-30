@@ -1,9 +1,11 @@
+@inherits WorkspacePageBase
 @page "/project-tracking"
 @rendermode InteractiveServer
 
 @inject NavigationManager Navigation
 
 <PageTitle>Project Tracking</PageTitle>
+<WorkspaceAccessFeedback Loaded="AccessLoaded" Error="@AccessError" />
 
 <div class="container-fluid py-4">
 
@@ -16,7 +18,9 @@
 
     <div class="row g-4">
 
-        <div class="col-lg-4">
+        @if (Access.CanVisit("/sites-management"))
+        {
+<div class="col-lg-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
                     <h5>Construction Sites</h5>
@@ -32,8 +36,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-lg-4">
+        @if (Access.CanVisit("/projects"))
+        {
+<div class="col-lg-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
                     <h5>Projects</h5>
@@ -49,8 +56,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-lg-4">
+        @if (Access.CanVisit("/projects"))
+        {
+<div class="col-lg-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
                     <h5>Daily Progress</h5>
@@ -66,8 +76,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-lg-4">
+        @if (Access.CanVisit("/projects"))
+        {
+<div class="col-lg-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
                     <h5>Milestones</h5>
@@ -83,8 +96,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-lg-4">
+        @if (Access.CanVisit("/projects"))
+        {
+<div class="col-lg-4">
             <div class="card shadow-sm h-100 border-0">
                 <div class="card-body">
                     <h5>Resources</h5>
@@ -100,6 +116,7 @@
                 </div>
             </div>
         </div>
+        }
 
     </div>
 

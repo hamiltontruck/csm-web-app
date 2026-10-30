@@ -205,6 +205,16 @@ public sealed class LeaveFeedbackTests
     private static LeavesController Controller(ApplicationDbContext db, Guid userId) =>
         new(new CSM.Infrastructure.Services.LeaveService(db)) { ControllerContext = new ControllerContext {
             HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.ToString())], "test")) } } };
+    [Fact]
+    public void Supervisor_with_review_permission_can_read_but_cannot_review_or_cancel()
+    {
+        using var context = Context(out var state);
+        state.Role = "Supervisor";
+        var page = Render(context, false);
+        page.WaitForAssertion(() => Assert.Contains("Test Employee", page.Markup));
+        Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Trim() is "Approve" or "Reject" or "Cancel");
+    }
+
     private static IRenderedFragment Render(TestContext context, bool create) =>
         create ? context.RenderComponent<LeaveCreate>() : context.RenderComponent<Leave>();
     private static TestContext Context(out State state)
@@ -215,7 +225,7 @@ public sealed class LeaveFeedbackTests
         var auth = DispatchProxy.Create<IAuthService, Auth>(); ((Auth)(object)auth).State = state;
         context.Services.AddSingleton(api); context.Services.AddSingleton(employee); context.Services.AddSingleton(auth); return context;
     }
-    public sealed class State { public HttpStatusCode? Status; public bool CanSubmit = true; public bool CanReview = true; public bool OptionsDenied; public bool ActionDenied; }
+    public sealed class State { public string Role = "CompanyAdmin"; public HttpStatusCode? Status; public bool CanSubmit = true; public bool CanReview = true; public bool OptionsDenied; public bool ActionDenied; }
     public class Api : DispatchProxy
     {
         public State State = null!;
@@ -242,7 +252,7 @@ public sealed class LeaveFeedbackTests
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            Task.FromResult<IReadOnlyCollection<string>>(new[] {
+            Task.FromResult<IReadOnlyCollection<string>>(method!.Name == nameof(IAuthService.GetRolesAsync) ? new[] { State.Role } : new[] { "HRM_Leave_View",
                 State.CanSubmit ? "HRM_Leave_Submit" : "",
                 State.CanReview ? "HRM_Leave_Approve" : "" });
     }

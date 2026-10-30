@@ -94,11 +94,13 @@ else
                                 </td>
 
                                 <td class="text-center">
-                                    <button class="btn btn-sm btn-outline-danger"
+                                    <WorkspaceAction Route="/finance/company/payments" Permission="Finance_Payment_Manage" Roles="SuperAdmin,CompanyAdmin,Accountant">
+<button class="btn btn-sm btn-outline-danger"
                                             @onclick:stopPropagation="true"
                                             @onclick="() => Delete(item.Id)">
                                         Delete
                                     </button>
+</WorkspaceAction>
                                 </td>
 
                             </tr>

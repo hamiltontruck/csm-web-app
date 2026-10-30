@@ -1,0 +1,67 @@
+@using CSM.Web.Services
+@using CSM.Web.Services.Access
+@inject IAuthService Auth
+@inject NavigationManager Navigation
+
+@if (IsPublic || (_checked && _access.CanVisit(_path)))
+{
+    <CascadingValue Value="_access">
+        <RouteView RouteData="RouteData" DefaultLayout="@typeof(Layout.MainLayout)" />
+    </CascadingValue>
+}
+else
+{
+    <LayoutView Layout="@typeof(Layout.MainLayout)">
+        <div class="container py-4">
+            @if (!_checked)
+            {
+                <p role="status">Checking access...</p>
+            }
+            else
+            {
+                <h1>Access unavailable</h1>
+                <p role="alert">@_error</p>
+                <a class="btn btn-outline-primary" href="/dashboard">Back to overview</a>
+                <a class="btn btn-outline-secondary ms-2" href="/login">Sign in</a>
+            }
+        </div>
+    </LayoutView>
+}
+
+@code {
+    [Parameter, EditorRequired] public RouteData RouteData { get; set; } = null!;
+    private WorkspaceAccess _access = WorkspaceAccess.None;
+    private string _path = "";
+    private bool _checked;
+    private bool _needsCheck;
+    private int _version;
+    private string _error = "You do not have permission to open this page.";
+    private bool IsPublic => RouteData.PageType.Name is "Login" or "Home" or "Error" or "NotFound" or "ChangePasswordRequired";
+
+    protected override void OnParametersSet()
+    {
+        var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+        if (_path == path) return;
+        _path = path;
+        _checked = false;
+        _access = WorkspaceAccess.None;
+        _needsCheck = !IsPublic;
+        _version++;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_needsCheck) return;
+        _needsCheck = false;
+        var version = _version;
+        var access = WorkspaceAccess.None;
+        var error = "You do not have permission to open this page.";
+        try { access = new(await Auth.GetRolesAsync(), await Auth.GetPermissionsAsync()); }
+        catch { error = "Unable to load your access. Reload the page or sign in again."; }
+        if (version != _version) return;
+        _access = access;
+        _error = error;
+        _checked = true;
+        await InvokeAsync(StateHasChanged);
+    }
+}

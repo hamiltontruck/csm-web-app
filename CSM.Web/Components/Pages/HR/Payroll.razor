@@ -29,7 +29,9 @@
 
             @if (_canManage)
             {
-                <button class="btn btn-primary" @onclick="CreatePayroll">Create Payroll</button>
+                <WorkspaceAction Route="/hr/payroll/create">
+                    <button class="btn btn-primary" @onclick="CreatePayroll">Create Payroll</button>
+            </WorkspaceAction>
             }
         </div>
     </div>
@@ -125,11 +127,13 @@
                                     </td>
 
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-primary"
+                                        <WorkspaceAction Route="/hr/payroll/edit/{payrollId}">
+                                            <button class="btn btn-sm btn-outline-primary"
                                                 @onclick="() => OpenPayroll(payroll.Id)">
                                             <i class="bi bi-eye me-1"></i>
                                             Open
                                         </button>
+            </WorkspaceAction>
                                     </td>
                                 </tr>
                             }

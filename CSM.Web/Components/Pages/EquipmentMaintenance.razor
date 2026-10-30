@@ -35,7 +35,9 @@
 
         @if (canManage)
         {
-            <button class="btn btn-primary" @onclick="NewMaintenance">+ New Maintenance</button>
+            <WorkspaceAction Route="/equipment/maintenance/create/{SiteId}">
+                <button class="btn btn-primary" @onclick="NewMaintenance">+ New Maintenance</button>
+            </WorkspaceAction>
         }
 
     </div>

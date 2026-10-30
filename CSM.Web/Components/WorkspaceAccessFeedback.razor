@@ -1,0 +1,13 @@
+@if (!Loaded)
+{
+    <p role="status">Loading available modules...</p>
+}
+else if (!string.IsNullOrEmpty(Error))
+{
+    <div class="alert alert-danger" role="alert">@Error <a href="/login">Sign in</a></div>
+}
+
+@code {
+    [Parameter] public bool Loaded { get; set; }
+    [Parameter] public string? Error { get; set; }
+}

@@ -30,10 +30,12 @@ else
                 <div class="text-muted">Selected construction site</div>
             </div>
 
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/goods-receipts/create/{SiteId}">
+                <button class="btn btn-primary"
                     @onclick="NewReceipt">
                 + New Goods Receipt
             </button>
+            </WorkspaceAction>
         </div>
 
         @if (receipts.Count == 0)

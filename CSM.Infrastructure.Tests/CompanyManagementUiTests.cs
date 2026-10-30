@@ -113,7 +113,9 @@ public sealed class CompanyManagementUiTests
     {
         using var api = new Api { Role = role };
         using var context = Context(api);
-        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, Auth>());
+        var menuAuth = DispatchProxy.Create<IAuthService, Auth>();
+        ((Auth)(object)menuAuth).Role = role;
+        context.Services.AddSingleton(menuAuth);
         context.Services.AddSingleton(DispatchProxy.Create<INotificationApiService, Notifications>());
         var menu = context.RenderComponent<CSM.Web.Components.Layout.NavMenu>();
         menu.WaitForAssertion(() => Assert.Equal(visible, menu.FindAll("a[href='/companies']").Count == 1));
@@ -145,9 +147,11 @@ public sealed class CompanyManagementUiTests
 
     public class Auth : DispatchProxy
     {
+        public string Role = "SuperAdmin";
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
             method!.Name switch
             {
+                "GetRolesAsync" => Task.FromResult<IReadOnlyCollection<string>>(new[] { Role }),
                 "GetTokenAsync" => Task.FromResult<string?>("test-token"),
                 "GetPermissionsAsync" => Task.FromResult<IReadOnlyCollection<string>>(Array.Empty<string>()),
                 _ => throw new NotSupportedException(method.Name)

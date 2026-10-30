@@ -24,11 +24,13 @@
             </div>
         </div>
 
-        <button class="btn btn-primary"
+        <WorkspaceAction Route="/vendors/create">
+            <button class="btn btn-primary"
                 @onclick="NewVendor">
             <i class="bi bi-plus-lg"></i>
             New Vendor
         </button>
+            </WorkspaceAction>
     </div>
 
     @if (loading)

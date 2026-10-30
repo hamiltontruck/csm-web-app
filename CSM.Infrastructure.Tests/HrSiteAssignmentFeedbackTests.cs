@@ -109,6 +109,16 @@ public sealed class HrSiteAssignmentFeedbackTests
         Assert.Empty(page.FindAll("input, select, textarea, #retry-hr-assignment-edit"));
     }
 
+    [Fact]
+    public void Supervisor_with_manage_permission_still_has_read_only_site_assignments()
+    {
+        using var context = Context(out var state);
+        state.Role = "Supervisor";
+        var page = Render(context, "list");
+        page.WaitForAssertion(() => Assert.Contains("Test Employee", page.Markup));
+        Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Add Assignment") || b.TextContent.Trim() == "Edit");
+    }
+
     private static IRenderedFragment Render(TestContext context, string kind) => kind switch {
         "list" => context.RenderComponent<SiteAssignments>(),
         "create" => context.RenderComponent<SiteAssignmentCreate>(),
@@ -130,7 +140,7 @@ public sealed class HrSiteAssignmentFeedbackTests
         context.Services.AddSingleton(DispatchProxy.Create<IProjectService, Sites>());
         return context;
     }
-    public sealed class State { public HttpStatusCode? Status; public bool CanManage = true; public bool Missing; }
+    public sealed class State { public string Role = "CompanyAdmin"; public HttpStatusCode? Status; public bool CanManage = true; public bool Missing; }
     private static SiteAssignmentResponse Record() => new() { Id = Id, EmployeeName = "Test Employee", SiteName = "Hamilton Test Site", IsActive = true };
     public class Assignments : DispatchProxy
     {
@@ -169,7 +179,7 @@ public sealed class HrSiteAssignmentFeedbackTests
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            Task.FromResult<IReadOnlyCollection<string>>(State.CanManage
+            Task.FromResult<IReadOnlyCollection<string>>(method!.Name == nameof(IAuthService.GetRolesAsync) ? new[] { State.Role } : State.CanManage
                 ? new[] { "HRM_SiteAssignment_View", "HRM_SiteAssignment_Manage" }
                 : new[] { "HRM_SiteAssignment_View" });
     }

@@ -118,6 +118,7 @@ public sealed class EmployeeFeedbackTests
     private static TestContext Context(out State state)
     {
         var context = new TestContext();
+        WorkspaceTestAccess.Add(context);
         state = new State();
         var employee = DispatchProxy.Create<IEmployeeService, EmployeeApi>();
         ((EmployeeApi)(object)employee).State = state;

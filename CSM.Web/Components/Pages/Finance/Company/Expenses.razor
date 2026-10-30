@@ -24,11 +24,13 @@
             </div>
         </div>
 
-        <button class="btn btn-primary"
+        <WorkspaceAction Route="/finance/company/expenses/create">
+            <button class="btn btn-primary"
                 @onclick="CreateExpense">
             <i class="bi bi-plus-lg me-1"></i>
             New Expense
         </button>
+            </WorkspaceAction>
     </div>
 
     @if (_loading)
@@ -100,10 +102,12 @@
                                     </td>
 
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-primary"
+                                        <WorkspaceAction Route="/finance/company/expenses/{id}">
+                                            <button class="btn btn-sm btn-outline-primary"
                                                 @onclick="() => OpenExpense(expense.Id)">
                                             View
                                         </button>
+            </WorkspaceAction>
                                     </td>
                                 </tr>
                             }

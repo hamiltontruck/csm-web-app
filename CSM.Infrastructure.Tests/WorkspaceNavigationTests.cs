@@ -75,6 +75,7 @@ public sealed class WorkspaceNavigationTests
     {
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch
         {
+            nameof(IAuthService.GetRolesAsync) => Task.FromResult<IReadOnlyCollection<string>>(new[] { "CompanyAdmin" }),
             nameof(IAuthService.GetPermissionsAsync) => Task.FromResult<IReadOnlyCollection<string>>([]),
             nameof(IAuthService.GetTokenAsync) => Task.FromResult<string?>("test-token"),
             _ => throw new InvalidOperationException($"Unexpected auth operation: {method.Name}")

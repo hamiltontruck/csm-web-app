@@ -1,0 +1,26 @@
+@using CSM.Web.Services
+@using CSM.Web.Services.Access
+@inject IServiceProvider Services
+@if (_access.CanVisit(Route) && (Permission is null || _access.Has(Permission)) &&
+    (Roles is null || _access.IsIn(Roles.Split(','))))
+{
+    @ChildContent
+}
+@code {
+    [Parameter, EditorRequired] public string Route { get; set; } = "";
+    [Parameter] public string? Permission { get; set; }
+    [Parameter] public string? Roles { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [CascadingParameter] public WorkspaceAccess? Workspace { get; set; }
+    private WorkspaceAccess _access = WorkspaceAccess.None;
+    protected override void OnParametersSet() => _access = Workspace ?? WorkspaceAccess.None;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || Workspace is not null) return;
+        var auth = Services.GetService(typeof(IAuthService)) as IAuthService;
+        if (auth is null) return;
+        try { _access = new(await auth.GetRolesAsync(), await auth.GetPermissionsAsync()); }
+        catch { _access = WorkspaceAccess.None; }
+        await InvokeAsync(StateHasChanged);
+    }
+}

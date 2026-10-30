@@ -44,10 +44,12 @@ else
                 </div>
             </div>
 
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/projects/{ProjectId}/phases/{PhaseId}/tasks/create">
+                <button class="btn btn-primary"
                     @onclick="NewTask">
                 + New Task
             </button>
+            </WorkspaceAction>
 
         </div>
 
@@ -139,10 +141,12 @@ else
                         Create the first executable work task.
                     </p>
 
-                    <button class="btn btn-primary"
+                    <WorkspaceAction Route="/projects/{ProjectId}/phases/{PhaseId}/tasks/create">
+                        <button class="btn btn-primary"
                             @onclick="NewTask">
                         Create Task
                     </button>
+            </WorkspaceAction>
 
                 </div>
             }

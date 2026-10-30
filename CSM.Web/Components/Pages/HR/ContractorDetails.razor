@@ -28,11 +28,13 @@
 
             @if (_contractor is not null)
             {
-                <button class="btn btn-primary"
+                <WorkspaceAction Route="/hr/contractors/edit/{contractorId}">
+                    <button class="btn btn-primary"
                         @onclick="EditContractor">
                     <i class="bi bi-pencil"></i>
                     Edit Contractor
                 </button>
+            </WorkspaceAction>
             }
         </div>
     </div>

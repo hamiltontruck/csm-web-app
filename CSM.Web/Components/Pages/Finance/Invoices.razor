@@ -28,10 +28,12 @@
             </div>
         </div>
 
-        <button class="btn btn-primary"
+        <WorkspaceAction Route="/finance/sites/{SiteId}/invoices/create">
+            <button class="btn btn-primary"
                 @onclick="CreateInvoice">
             + New Invoice
         </button>
+            </WorkspaceAction>
 
     </div>
 
@@ -139,10 +141,12 @@
                                 </td>
 
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary"
+                                    <WorkspaceAction Route="/finance/sites/{SiteId}/invoices/{id}">
+                                        <button class="btn btn-sm btn-outline-primary"
                                             @onclick="() => OpenInvoice(item.Id)">
                                         Open
                                     </button>
+            </WorkspaceAction>
                                 </td>
                             </tr>
                         }

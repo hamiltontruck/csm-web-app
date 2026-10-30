@@ -23,7 +23,9 @@
 
         @if (canCreate)
         {
-            <button class="btn btn-primary" @onclick="CreateEquipment">+ New Equipment</button>
+            <WorkspaceAction Route="/equipment/create">
+                <button class="btn btn-primary" @onclick="CreateEquipment">+ New Equipment</button>
+            </WorkspaceAction>
         }
     </div>
 
@@ -84,11 +86,13 @@
                             @item.CurrentMeterReading @item.MeterUnit
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary"
+                            <WorkspaceAction Route="/equipment/{id}">
+                                <button class="btn btn-sm btn-outline-primary"
                                     @onclick:stopPropagation
                                     @onclick="() => Open(item.Id)">
                                 View
                             </button>
+            </WorkspaceAction>
                         </td>
                     </tr>
                 }

@@ -1,0 +1,27 @@
+@using CSM.Web.Services.Access
+<section class="container-fluid py-4">
+    <h1>Workspace overview</h1>
+    <p class="text-muted">Open the modules available to your account.</p>
+    <div class="row g-3">
+        @foreach (var module in Modules.Where(m => Access.CanVisit(m.Path)))
+        {
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <h2 class="h5">@module.Title</h2>
+                        <a class="btn btn-outline-primary mt-2" href="@module.Path">Open @module.Title</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+@code {
+    [Parameter, EditorRequired] public WorkspaceAccess Access { get; set; } = WorkspaceAccess.None;
+    private static readonly (string Path, string Title)[] Modules = [
+        ("/project-tracking", "Project Tracking"), ("/procurement", "Procurement"),
+        ("/inventory", "Inventory"), ("/equipment", "Equipment"), ("/hr", "HR Management"),
+        ("/finance/sites", "Finance"), ("/compliance", "Compliance"), ("/reports", "Reports"),
+        ("/notifications", "Notifications"), ("/settings", "Settings & Privacy")
+    ];
+}

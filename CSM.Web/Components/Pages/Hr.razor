@@ -1,3 +1,4 @@
+@inherits WorkspacePageBase
 @page "/hr"
 @rendermode InteractiveServer
 
@@ -8,6 +9,7 @@
 @inject IContractorService ContractorService
 
 <PageTitle>HR Management</PageTitle>
+<WorkspaceAccessFeedback Loaded="AccessLoaded" Error="@AccessError" />
 
 <div class="container-fluid py-3">
 
@@ -15,7 +17,9 @@
 
     <div class="row g-3 mt-3">
 
-        <div class="col-lg-3">
+        @if (Access.CanVisit("/hr/employees"))
+        {
+<div class="col-lg-3">
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Employees</h6>
@@ -35,8 +39,11 @@
                 </div>
             </div>
         </div>
+        }
 
-         <div class="col-lg-3">
+         @if (Access.CanVisit("/hr/contractors"))
+        {
+<div class="col-lg-3">
              <div class="card text-center shadow-sm">
                  <div class="card-body">
                      <h6>Contractors</h6>
@@ -68,8 +75,11 @@
                  </div>
              </div>
          </div>
+        }
 
-        <div class="col-lg-3">
+        @if (Access.CanVisit("/hr/attendance"))
+        {
+<div class="col-lg-3">
             <div class="card text-center shadow-sm"
                  role="button"
                  @onclick='() => Navigation.NavigateTo("/hr/attendance")'>
@@ -85,8 +95,11 @@
 
             </div>
         </div>
+        }
 
-        <div class="col-lg-3">
+        @if (Access.CanVisit("/hr/site-assignments"))
+        {
+<div class="col-lg-3">
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Site Assignments</h6>
@@ -99,8 +112,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-lg-3">
+        @if (Access.CanVisit("/hr/shifts"))
+        {
+<div class="col-lg-3">
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Shifts</h6>
@@ -113,8 +129,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-lg-3">
+        @if (Access.CanVisit("/hr/leave"))
+        {
+<div class="col-lg-3">
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Leave</h6>
@@ -127,8 +146,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-lg-3">
+        @if (Access.CanVisit("/hr/timesheets"))
+        {
+<div class="col-lg-3">
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Timesheets</h6>
@@ -140,8 +162,11 @@
                 </div>
             </div>
         </div>
+        }
 
-        <div class="col-lg-3">
+        @if (Access.CanVisit("/hr/payroll"))
+        {
+<div class="col-lg-3">
             <div class="card text-center shadow-sm">
                 <div class="card-body">
                     <h6>Payroll</h6>
@@ -154,6 +179,7 @@
                 </div>
             </div>
         </div>
+        }
 
     </div>
 
@@ -165,13 +191,14 @@
     private string? _summaryError;
     private System.Net.HttpStatusCode? _accessStatus;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAccessLoadedAsync()
     {
-        if (firstRender) await LoadSummaryAsync();
+        if (Access.CanVisit("/hr/contractors")) await LoadSummaryAsync();
     }
 
     private async Task LoadSummaryAsync()
     {
+        if (!Access.CanVisit("/hr/contractors")) return;
         _loading = true;
         _contractorCount = null;
         _summaryError = null;

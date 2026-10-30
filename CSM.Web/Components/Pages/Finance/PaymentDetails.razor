@@ -84,17 +84,23 @@ else
                 </button>
             }
 
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/finance/sites/{SiteId.Value}/payments/{Id}/edit">
+                <button class="btn btn-primary"
                     @onclick="EditPayment">
                 Edit Payment
             </button>
+            </WorkspaceAction>
 
             @if (_payment.Status == "Pending")
             {
-                <button class="btn btn-outline-danger"
+                <WorkspaceAction Route="/finance/sites/{SiteId.Value}/payments">
+                    <WorkspaceAction Route="/finance/company/payments" Permission="Finance_Payment_Manage" Roles="SuperAdmin,CompanyAdmin,Accountant">
+<button class="btn btn-outline-danger"
                         @onclick="DeletePayment">
                     Delete Payment
                 </button>
+</WorkspaceAction>
+            </WorkspaceAction>
             }
 
             <button class="btn btn-outline-dark"

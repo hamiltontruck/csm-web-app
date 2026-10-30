@@ -33,11 +33,13 @@
                 Refresh
             </button>
 
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/hr/contractors/create">
+                <button class="btn btn-primary"
                     @onclick="CreateContractor">
                 <i class="bi bi-plus-lg"></i>
                 Add Contractor
             </button>
+            </WorkspaceAction>
         </div>
     </div>
 
@@ -148,15 +150,19 @@
                                     <td class="text-end">
                                         <div class="d-flex justify-content-end gap-2">
 
-                                            <button class="btn btn-sm btn-primary"
+                                            <WorkspaceAction Route="/hr/contractors/details/{contractorId}">
+                                                <button class="btn btn-sm btn-primary"
                                                     @onclick="() => ViewContractor(contractor.Id)">
                                                 View
                                             </button>
+            </WorkspaceAction>
 
-                                            <button class="btn btn-sm btn-outline-secondary"
+                                            <WorkspaceAction Route="/hr/contractors/edit/{contractorId}">
+                                                <button class="btn btn-sm btn-outline-secondary"
                                                     @onclick="() => EditContractor(contractor.Id)">
                                                 Edit
                                             </button>
+            </WorkspaceAction>
 
                                         </div>
                                     </td>

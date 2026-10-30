@@ -34,11 +34,13 @@ else
 
             @if (canCreate)
             {
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/stock-transfers/create/{SiteId}">
+                <button class="btn btn-primary"
                     @onclick="NewTransfer">
                 <i class="bi bi-plus-lg"></i>
                 New Transfer
             </button>
+            </WorkspaceAction>
             }
         </div>
 

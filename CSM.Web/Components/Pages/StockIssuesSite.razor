@@ -45,11 +45,13 @@ else
                 <div class="text-muted">Stock Issues</div>
             </div>
 
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/stock-issues/create/{SiteId}">
+                <button class="btn btn-primary"
                     @onclick="NewIssue">
                 <i class="bi bi-plus-lg"></i>
                 New Issue
             </button>
+            </WorkspaceAction>
 
         </div>
 

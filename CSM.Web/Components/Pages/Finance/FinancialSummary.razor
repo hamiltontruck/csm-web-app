@@ -198,10 +198,12 @@
                                 {
                                     <tr>
                                         <td>
-                                            <button class="btn btn-link p-0 text-start"
+                                            <WorkspaceAction Route="/finance/summary/site/{siteId}">
+                                                <button class="btn btn-link p-0 text-start"
                                                     @onclick="() => OpenSite(site.ConstructionSiteId)">
                                                 @site.ConstructionSiteName
                                             </button>
+            </WorkspaceAction>
                                         </td>
 
                                         <td class="text-end">

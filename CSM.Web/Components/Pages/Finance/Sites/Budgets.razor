@@ -18,11 +18,13 @@
         Back
     </button>
 
-    <button class="btn btn-primary"
+    <WorkspaceAction Route="/finance/sites/{SiteId}/budgets/create">
+        <button class="btn btn-primary"
             @onclick="Create">
         <i class="bi bi-plus-lg"></i>
         New Budget
     </button>
+            </WorkspaceAction>
 </div>
 
 @if (_loading)
@@ -58,10 +60,12 @@ else
                 <td>@($"{item.CurrencyCode} {item.TotalAmount:N2}")</td>
                 <td>@item.Status</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary"
+                    <WorkspaceAction Route="/finance/sites/{SiteId}/budgets/{id}">
+                        <button class="btn btn-sm btn-outline-primary"
                             @onclick="() => Open(item.Id)">
                         Open
                     </button>
+            </WorkspaceAction>
                 </td>
             </tr>
         }

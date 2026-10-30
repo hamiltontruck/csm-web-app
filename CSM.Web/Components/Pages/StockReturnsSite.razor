@@ -45,11 +45,13 @@ else
                 <div class="text-muted">Stock Returns</div>
             </div>
 
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/stock-returns/create/{SiteId}">
+                <button class="btn btn-primary"
                     @onclick="NewReturn">
                 <i class="bi bi-plus-lg"></i>
                 New Return
             </button>
+            </WorkspaceAction>
         </div>
 
         @if (returns.Count == 0)

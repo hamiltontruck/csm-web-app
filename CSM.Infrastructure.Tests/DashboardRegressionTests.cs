@@ -5,6 +5,7 @@ using CSM.Api.Controllers;
 using CSM.Application.Dashboard.Dtos;
 using CSM.Web.Components.Pages;
 using CSM.Web.Models.Dashboard;
+using CSM.Web.Services;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -46,6 +47,10 @@ public sealed class DashboardRegressionTests
     public async Task FailedApiRequestShowsErrorAndStopsLoading(HttpStatusCode status, string message)
     {
         using var context = new TestContext();
+        var auth = System.Reflection.DispatchProxy.Create<IAuthService, WorkspaceVisibilityTests.Auth>();
+        ((WorkspaceVisibilityTests.Auth)(object)auth).Role = "CompanyAdmin";
+        ((WorkspaceVisibilityTests.Auth)(object)auth).Permissions = ["Reports_View", "Reports_FinancialSummary_View"];
+        context.Services.AddSingleton(auth);
         context.Services.AddLogging();
         context.Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
         context.Services.AddScoped<ProtectedSessionStorage>();

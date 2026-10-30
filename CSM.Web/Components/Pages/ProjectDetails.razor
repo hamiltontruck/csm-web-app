@@ -48,10 +48,12 @@ else
                 </div>
             </div>
 
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/projects/{Id}/edit">
+                <button class="btn btn-primary"
                     @onclick="EditProject">
                 Edit Project
             </button>
+            </WorkspaceAction>
 
         </div>
 
@@ -180,31 +182,39 @@ else
                         <div class="row g-3">
 
                             <div class="col-md-3">
-                                <button class="btn btn-outline-primary w-100 action-btn"
+                                <WorkspaceAction Route="/projects/{Id}/gantt">
+                                    <button class="btn btn-outline-primary w-100 action-btn"
                                         @onclick="OpenGantt">
                                     Gantt
                                 </button>
+            </WorkspaceAction>
                             </div>
 
                             <div class="col-md-3">
-                                <button class="btn btn-outline-success w-100 action-btn"
+                                <WorkspaceAction Route="/projects/{Id}/phases">
+                                    <button class="btn btn-outline-success w-100 action-btn"
                                         @onclick="OpenPhases">
                                     Phases
                                 </button>
+            </WorkspaceAction>
                             </div>
 
                             <div class="col-md-3">
-                                <button class="btn btn-outline-warning w-100 action-btn"
+                                <WorkspaceAction Route="/projects/{Id}/milestones">
+                                    <button class="btn btn-outline-warning w-100 action-btn"
                                         @onclick="OpenMilestones">
                                     Milestones
                                 </button>
+            </WorkspaceAction>
                             </div>
 
                             <div class="col-md-3">
-                                <button class="btn btn-primary w-100 action-btn"
+                                <WorkspaceAction Route="/projects/{Id}/gantt">
+                                    <button class="btn btn-primary w-100 action-btn"
                                         @onclick="NewTask">
                                     New Task
                                 </button>
+            </WorkspaceAction>
                             </div>
 
                         </div>
@@ -218,7 +228,8 @@ else
             <!-- Right -->
             <div class="col-lg-4">
 
-                <div class="card shadow-sm border-0 mb-4">
+                <WorkspaceAction Route="/projects/edit">
+                    <div class="card shadow-sm border-0 mb-4">
 
                     <div class="card-header bg-white">
                         <strong>Project Status</strong>
@@ -247,14 +258,17 @@ else
                                          @bind-Value="Progress"/>
                         </div>
 
-                        <button class="btn btn-primary w-100"
+                        <WorkspaceAction Route="/projects/edit">
+                            <button class="btn btn-primary w-100"
                                 @onclick="UpdateStatus">
                             Update Status
                         </button>
+            </WorkspaceAction>
 
                     </div>
 
                 </div>
+            </WorkspaceAction>
 
                 <div class="card shadow-sm border-0">
 
@@ -268,10 +282,12 @@ else
                             Milestone module coming next
                         </h6>
 
-                        <button class="btn btn-outline-primary mt-2"
+                        <WorkspaceAction Route="/projects/{Id}/milestones">
+                            <button class="btn btn-outline-primary mt-2"
                                 @onclick="OpenMilestones">
                             Open Milestones
                         </button>
+            </WorkspaceAction>
 
                     </div>
 

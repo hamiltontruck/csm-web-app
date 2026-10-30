@@ -182,7 +182,8 @@
 
                     <div class="mt-4 d-flex gap-2">
 
-                        <button class="btn btn-warning"
+                        <WorkspaceAction Route="/hr/attendance">
+                            <button class="btn btn-warning"
                                 disabled="@_saving"
                                 @onclick="OverrideAttendance">
 
@@ -197,6 +198,7 @@
                             }
 
                         </button>
+            </WorkspaceAction>
 
                         <button class="btn btn-outline-secondary"
                                 disabled="@_saving"

@@ -17,6 +17,10 @@ public sealed class ReportsCompanySelectionUiTests
     {
         using var context = new TestContext();
         context.Services.AddLogging();
+        var auth = DispatchProxy.Create<IAuthService, WorkspaceVisibilityTests.Auth>();
+        ((WorkspaceVisibilityTests.Auth)(object)auth).Role = "SuperAdmin";
+        ((WorkspaceVisibilityTests.Auth)(object)auth).Permissions = ["Reports_View", "Reports_FinancialSummary_View", "Sites_View"];
+        context.Services.AddSingleton(auth);
         context.Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
         context.Services.AddScoped<ProtectedSessionStorage>();
         var companies = new CompanyService();

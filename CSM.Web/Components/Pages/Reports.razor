@@ -1,3 +1,4 @@
+@inherits WorkspacePageBase
 @page "/reports"
 
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
@@ -937,7 +938,7 @@
                 ?.Name
               ?? "Select a construction site";
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAccessLoadedAsync()
     {
         try
         {
@@ -949,7 +950,7 @@
                 return;
             }
 
-            await LoadSitesAsync();
+            if (Access.Has("Sites_View")) await LoadSitesAsync();
             await LoadReportsAsync();
         }
         catch (Exception ex)
@@ -973,7 +974,7 @@
         _error = null;
         if (!_selectedCompanyId.HasValue)
             return;
-        await LoadSitesAsync();
+        if (Access.Has("Sites_View")) await LoadSitesAsync();
         await LoadReportsAsync();
     }
 
@@ -1033,17 +1034,14 @@
 
         try
         {
-            _executive =
-                await ReportingService
-                    .GetExecutiveDashboardAsync(_selectedCompanyId);
+            _executive = Access.Has("Reports_View")
+                ? await ReportingService.GetExecutiveDashboardAsync(_selectedCompanyId) : null;
 
-            _financial =
-                await ReportingService
-                    .GetFinancialSummaryAsync(_selectedCompanyId);
+            _financial = Access.Has("Reports_FinancialSummary_View")
+                ? await ReportingService.GetFinancialSummaryAsync(_selectedCompanyId) : null;
 
-            _allFinancialSummary =
-                await ReportingService
-                    .GetAllFinancialSummariesAsync(_selectedCompanyId);
+            _allFinancialSummary = Access.Has("Reports_FinancialSummary_View")
+                ? await ReportingService.GetAllFinancialSummariesAsync(_selectedCompanyId) : null;
         }
         catch (Exception ex)
         {
@@ -1066,13 +1064,11 @@
 
         try
         {
-            _executive =
-                await ReportingService
-                    .GetSiteExecutiveDashboardAsync(siteId, _selectedCompanyId);
+            _executive = Access.Has("Reports_View")
+                ? await ReportingService.GetSiteExecutiveDashboardAsync(siteId, _selectedCompanyId) : null;
 
-            _financial =
-                await ReportingService
-                    .GetSiteFinancialSummaryAsync(siteId, _selectedCompanyId);
+            _financial = Access.Has("Reports_FinancialSummary_View")
+                ? await ReportingService.GetSiteFinancialSummaryAsync(siteId, _selectedCompanyId) : null;
         }
         catch (Exception ex)
         {

@@ -18,10 +18,12 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3>Petty Cash Accounts</h3>
 
-    <button class="btn btn-primary"
+    <WorkspaceAction Route="/finance/petty-cash/create">
+        <button class="btn btn-primary"
             @onclick="Create">
         <i class="bi bi-plus-lg"></i> New Account
     </button>
+            </WorkspaceAction>
 </div>
 
 @if (_loading)
@@ -73,15 +75,19 @@ else
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary"
+                        <WorkspaceAction Route="/finance/petty-cash/account/{account.Id}/transactions">
+                            <button class="btn btn-outline-primary"
                                 @onclick="() => ViewTransactions(item)">
                             Transactions
                         </button>
+            </WorkspaceAction>
 
-                        <button class="btn btn-outline-secondary"
+                        <WorkspaceAction Route="/finance/petty-cash/edit/{account.Id}">
+                            <button class="btn btn-outline-secondary"
                                 @onclick="() => Edit(item)">
                             Edit
                         </button>
+            </WorkspaceAction>
                     </div>
                 </td>
             </tr>
