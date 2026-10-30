@@ -184,12 +184,10 @@
                     Cancel
                 </button>
 
-                <WorkspaceAction Route="/project-tracking">
-
+                
                     <button class="btn btn-primary" @onclick="Save" disabled="@(_saving || _initializing)">
                     @(_saving ? "Saving..." : "Save Site")
                 </button>
-            </WorkspaceAction>
 
             </div>
 

@@ -98,51 +98,67 @@ else
             <div class="d-flex gap-2 flex-wrap mb-3">
                 @if (_budget.Status == "Draft")
                 {
-                    <button class="btn btn-primary"
+                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+<button class="btn btn-primary"
                             @onclick="() => ChangeStatus(2)">
                         Submit for Approval
                     </button>
+</WorkspaceAction>
 
-                    <button class="btn btn-outline-danger"
+                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+<button class="btn btn-outline-danger"
                             @onclick="() => ChangeStatus(6)">
                         Cancel
                     </button>
+</WorkspaceAction>
                 }
                 else if (_budget.Status == "PendingApproval")
                 {
-                    <button class="btn btn-success"
+                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+<button class="btn btn-success"
                             @onclick="() => ChangeStatus(3)">
                         Approve
                     </button>
+</WorkspaceAction>
 
-                    <button class="btn btn-warning"
+                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+<button class="btn btn-warning"
                             @onclick="() => ChangeStatus(1)">
                         Return to Draft
                     </button>
+</WorkspaceAction>
 
-                    <button class="btn btn-outline-danger"
+                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+<button class="btn btn-outline-danger"
                             @onclick="() => ChangeStatus(6)">
                         Cancel
                     </button>
+</WorkspaceAction>
                 }
                 else if (_budget.Status == "Approved")
                 {
-                    <button class="btn btn-primary"
+                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+<button class="btn btn-primary"
                             @onclick="() => ChangeStatus(4)">
                         Activate
                     </button>
+</WorkspaceAction>
 
-                    <button class="btn btn-outline-danger"
+                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+<button class="btn btn-outline-danger"
                             @onclick="() => ChangeStatus(6)">
                         Cancel
                     </button>
+</WorkspaceAction>
                 }
                 else if (_budget.Status == "Active")
                 {
-                    <button class="btn btn-secondary"
+                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+<button class="btn btn-secondary"
                             @onclick="() => ChangeStatus(5)">
                         Close
                     </button>
+</WorkspaceAction>
                 }
             </div>
         }
@@ -271,10 +287,12 @@ else
                                                     </button>
             </WorkspaceAction>
 
-                                                    <button class="btn btn-sm btn-outline-danger"
+                                                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+<button class="btn btn-sm btn-outline-danger"
                                                             @onclick="() => DeleteBudgetLine(line.Id)">
                                                         Delete
                                                     </button>
+</WorkspaceAction>
                                                 }
                                             </td>
                                         </tr>

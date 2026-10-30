@@ -118,14 +118,12 @@
                     Cancel
                 </button>
 
-                <WorkspaceAction Route="/vendors">
-
+                
                     <button class="btn btn-primary"
                         @onclick="Save"
                         disabled="@(saving || _initializing)">
                     @(saving ? "Saving..." : "Save Vendor")
                 </button>
-            </WorkspaceAction>
             </div>
 
         </div>

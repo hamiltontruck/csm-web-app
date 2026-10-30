@@ -76,18 +76,22 @@ else
 
                 @if (_invoice.Status == "Draft")
                 {
-                    <button class="btn btn-warning"
+                    <WorkspaceAction Route="/finance/company/invoices" Permission="Finance_Invoice_View" Roles="SuperAdmin,CompanyAdmin,Accountant">
+<button class="btn btn-warning"
                             @onclick="IssueInvoice">
                         Issue Invoice
                     </button>
+</WorkspaceAction>
                 }
 
                 @if (_invoice.Status == "Draft" || _invoice.Status == "Issued")
                 {
-                    <button class="btn btn-danger"
+                    <WorkspaceAction Route="/finance/company/invoices" Permission="Finance_Invoice_View" Roles="SuperAdmin,CompanyAdmin,Accountant">
+<button class="btn btn-danger"
                             @onclick="CancelInvoice">
                         Cancel Invoice
                     </button>
+</WorkspaceAction>
                 }
             </div>
 
@@ -233,10 +237,12 @@ else
                                                  <i class="bi bi-printer"></i> Print
                                              </button>
 
-                                            <button class="btn btn-outline-danger"
+                                            <WorkspaceAction Route="/finance/company/invoices" Permission="Finance_Invoice_View" Roles="Administrator,FinanceOfficer">
+<button class="btn btn-outline-danger"
                                                     @onclick="() => DeleteLine(line.Id)">
                                                 Delete
                                             </button>
+</WorkspaceAction>
                                         </div>
                                     </td>
                                 </tr>

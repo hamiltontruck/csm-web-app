@@ -54,6 +54,8 @@ public sealed class StockTransferPermissionUiTests
     private static TestContext Context(bool canAdjust, out Sites sites, out Inventory inventory)
     {
         var context = new TestContext();
+        WorkspaceTestAccess.Add(context, ["Storekeeper"], canAdjust
+            ? ["Procurement_Inventory_View", "Procurement_Inventory_Adjust"] : ["Procurement_Inventory_View"]);
         var auth = DispatchProxy.Create<IAuthService, Auth>();
         ((Auth)(object)auth).CanAdjust = canAdjust;
         var projects = DispatchProxy.Create<IProjectService, Sites>();

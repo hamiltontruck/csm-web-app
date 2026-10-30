@@ -65,7 +65,7 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
             var area = parts[1];
             if (area == "employees") return IsIn(HrManagers) && Has(write ? "HRM_Employee_Manage" : "HRM_Employee_View");
             // The contractors controller still uses the legacy HRManagement policy.
-            if (area == "contractors") return IsIn("Administrator", "HrOfficer", "HROfficer") &&
+            if (area == "contractors") return (!write || IsIn("SuperAdmin", "CompanyAdmin")) && IsIn("Administrator", "HrOfficer", "HROfficer") &&
                 IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor") &&
                 Has(write ? "HRM_Contractor_Manage" : "HRM_Contractor_View");
             if (area == "shifts") return IsIn(HrReaders) && Has("HRM_Shift_View") && (!write || CanManageShifts);
@@ -81,8 +81,9 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
             if (area == "leave") return IsIn(HrReaders) && Has("HRM_Leave_View") && (!write || Has("HRM_Leave_Submit"));
             if (area == "timesheets") return IsIn(HrReaders) && (!parts.Contains("create") || CanManageTimesheets);
             // /edit is the existing read/details route, including the paid payslip.
-            if (area == "payroll") return IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor", "Accountant", "HROfficer") &&
-                Has("HRM_Payroll_View") && (!parts.Contains("create") || CanManagePayroll);
+            if (area == "payroll") return Has("HRM_Payroll_View") &&
+                (parts.Contains("create") ? CanManagePayroll && CanVisit("/hr/employees") :
+                    IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor", "Accountant", "HROfficer"));
             return false;
         }
         if (root == "equipment")
@@ -100,8 +101,8 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
         if (root is "materials" or "vendors") return IsIn(Managers) && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View");
         if (root == "material-requests") return IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant") &&
             Has(write ? "Procurement_MaterialRequest_Submit" : "Procurement_MaterialRequest_View") && (!write || IsIn(Managers));
-        if (root == "purchase-orders") return Has(write ? "Procurement_PurchaseOrder_Manage" : "Procurement_PurchaseOrder_View");
-        if (root == "goods-receipts") return Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") && (!write || IsIn(Managers));
+        if (root == "purchase-orders") return IsIn(Managers) && Has(write ? "Procurement_PurchaseOrder_Manage" : "Procurement_PurchaseOrder_View");
+        if (root == "goods-receipts") return IsIn(Managers) && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") && (!write || IsIn(Managers));
         if (root is "inventory" or "stock-items") return InventoryLinks.Any(CanVisit);
         if (root == "stock-balance") return Has("Procurement_Inventory_View") && IsIn("SuperAdmin", "Administrator", "Supervisor", "Storekeeper", "ProcurementOfficer");
         if (root == "stock-transfers") return Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") &&
@@ -115,9 +116,9 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
             if (parts.Contains("summary")) return Has("Reports_FinancialSummary_View");
             if (parts.Contains("cost-codes")) return IsIn(FinanceManagers) && Has(write ? "Finance_CostCode_Manage" : "Finance_CostCode_View");
             if (parts.Contains("budgets")) return Has(write ? "Finance_Budget_Manage" : "Finance_Budget_View");
+            if (parts.Contains("payments")) return IsIn(write ? FinanceManagers : FinanceReaders) && Has(write ? "Finance_Payment_Manage" : "Finance_Payment_View");
             if (parts.Contains("invoices")) return IsIn(FinanceManagers) && Has("Finance_Invoice_View") &&
                 (!parts.Contains("lines") || IsIn("Administrator", "FinanceOfficer"));
-            if (parts.Contains("payments")) return IsIn(write ? FinanceManagers : FinanceReaders) && Has(write ? "Finance_Payment_Manage" : "Finance_Payment_View");
             if (parts.Contains("expenses")) return IsIn(write ? FinanceManagers : FinanceReaders) && Has(write ? "Finance_Expense_Submit" : "Finance_Expense_View");
             if (parts.Contains("petty-cash")) return Has(write ? "Finance_PettyCash_Manage" : "Finance_PettyCash_View");
             if (parts.Contains("vendors")) return CanVisit("/vendors");

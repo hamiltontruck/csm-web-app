@@ -79,10 +79,12 @@ else
                             @(item.IsActive ? "Deactivate" : "Activate")
                         </button>
 
-                        <button class="btn btn-sm btn-outline-danger"
+                        <WorkspaceAction Route="/finance/company/cost-codes" Permission="Finance_CostCode_Manage" Roles="SuperAdmin,CompanyAdmin,Accountant">
+<button class="btn btn-sm btn-outline-danger"
                                 @onclick="() => Delete(item.Id)">
                             Delete
                         </button>
+</WorkspaceAction>
                     </td>
                 </tr>
             }

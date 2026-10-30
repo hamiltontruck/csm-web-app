@@ -1,12 +1,15 @@
 @using CSM.Web.Services
 @using CSM.Web.Services.Access
 @inject IServiceProvider Services
-@if (_access.CanVisit(Route))
+@if (_access.CanVisit(Route) && (Permission is null || _access.Has(Permission)) &&
+    (Roles is null || _access.IsIn(Roles.Split(','))))
 {
     @ChildContent
 }
 @code {
     [Parameter, EditorRequired] public string Route { get; set; } = "";
+    [Parameter] public string? Permission { get; set; }
+    [Parameter] public string? Roles { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [CascadingParameter] public WorkspaceAccess? Workspace { get; set; }
     private WorkspaceAccess _access = WorkspaceAccess.None;

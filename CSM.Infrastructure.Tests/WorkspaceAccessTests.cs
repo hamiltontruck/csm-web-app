@@ -37,6 +37,9 @@ public sealed class WorkspaceAccessTests
     [InlineData("/compliance", "Compliance_View", false)]
     [InlineData("/compliance/documents", "Compliance_View,Compliance_Manage", false)]
     [InlineData("/materials", "Procurement_Inventory_View", false)]
+    [InlineData("/purchase-orders", "Procurement_PurchaseOrder_View,Procurement_PurchaseOrder_Manage", false)]
+    [InlineData("/goods-receipts", "Procurement_Inventory_View", false)]
+    [InlineData("/procurement", "Procurement_Inventory_View,Procurement_MaterialRequest_View,Procurement_PurchaseOrder_View", false)]
     [InlineData("/material-requests", "Procurement_MaterialRequest_View", false)]
     [InlineData("/stock-balance", "Procurement_Inventory_View", true)]
     [InlineData("/stock-transfers", "Procurement_Inventory_View", true)]
@@ -62,11 +65,11 @@ public sealed class WorkspaceAccessTests
     }
 
     [Theory]
-    [InlineData("CompanyAdmin", "HRM_Payroll_View", "/hr/payroll/create", true)]
+    [InlineData("CompanyAdmin", "HRM_Payroll_View,HRM_Employee_View", "/hr/payroll/create", true)]
     [InlineData("CompanyAdmin", "HRM_Employee_View,HRM_Employee_Manage", "/hr/employees/create", true)]
     [InlineData("CompanyAdmin", "HRM_SiteAssignment_View", "/hr/site-assignments/create", false)]
     [InlineData("CompanyAdmin", "HRM_SiteAssignment_View,HRM_SiteAssignment_Manage", "/hr/site-assignments/create", true)]
-    [InlineData("Supervisor,CompanyAdmin", "HRM_Payroll_View", "/hr/payroll/create", true)]
+    [InlineData("Supervisor,CompanyAdmin", "HRM_Payroll_View,HRM_Employee_View", "/hr/payroll/create", true)]
     [InlineData("Storekeeper", "Procurement_Inventory_View", "/stock-movements", true)]
     [InlineData("Supervisor", "HRM_Payroll_View", "/HR/PAYROLL/?id=x", true)]
     public void Other_roles_and_multi_role_accounts_keep_their_existing_capabilities(string roles, string permissions, string route, bool expected)

@@ -53,6 +53,7 @@ public sealed class UserListFeedbackTests
     private static TestContext Context(Api handler)
     {
         var context = new TestContext();
+        WorkspaceTestAccess.Add(context);
         var auth = DispatchProxy.Create<IAuthService, Auth>();
         context.Services.AddSingleton(new UserWebService(
             new HttpClient(handler, false) { BaseAddress = new Uri("https://api.test/api/") }, auth));

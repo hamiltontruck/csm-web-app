@@ -71,6 +71,7 @@ public sealed class MaterialRequestNavigationTests
     private static TestContext Context()
     {
         var context = new TestContext();
+        WorkspaceTestAccess.Add(context);
         context.Services.AddSingleton(DispatchProxy.Create<IProjectService, ProjectProxy>());
         context.Services.AddSingleton(DispatchProxy.Create<IProcurementService, ProcurementProxy>());
         context.JSInterop.Mode = JSRuntimeMode.Loose;

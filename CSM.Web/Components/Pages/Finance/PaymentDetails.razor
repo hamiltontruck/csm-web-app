@@ -95,10 +95,12 @@ else
             @if (_payment.Status == "Pending")
             {
                 <WorkspaceAction Route="/finance/sites/{SiteId.Value}/payments">
-                    <button class="btn btn-outline-danger"
+                    <WorkspaceAction Route="/finance/company/payments" Permission="Finance_Payment_Manage" Roles="SuperAdmin,CompanyAdmin,Accountant">
+<button class="btn btn-outline-danger"
                         @onclick="DeletePayment">
                     Delete Payment
                 </button>
+</WorkspaceAction>
             </WorkspaceAction>
             }
 

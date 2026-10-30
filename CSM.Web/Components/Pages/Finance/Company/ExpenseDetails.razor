@@ -266,7 +266,8 @@ else
                     <div class="col-md-12 mt-3">
                         @if (_expense.Status == "Draft")
                         {
-                            <button class="btn btn-primary"
+                            <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Submit">
+<button class="btn btn-primary"
                                     @onclick="SubmitExpense"
                                     disabled="@_saving">
                                 @if (_saving)
@@ -275,17 +276,21 @@ else
                                 }
                                 Submit Expense
                             </button>
+</WorkspaceAction>
 
-                            <button class="btn btn-outline-danger ms-2"
+                            <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Submit">
+<button class="btn btn-outline-danger ms-2"
                                     @onclick="CancelExpense"
                                     disabled="@_saving">
                                 Cancel Expense
                             </button>
+</WorkspaceAction>
                         }
 
                         @if (_expense.Status == "Submitted")
                         {
-                            <button class="btn btn-success"
+                            <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Approve">
+<button class="btn btn-success"
                                     @onclick="ApproveExpense"
                                     disabled="@_saving">
                                 @if (_saving)
@@ -294,6 +299,7 @@ else
                                 }
                                 Approve Expense
                             </button>
+</WorkspaceAction>
 
                             <button class="btn btn-outline-danger ms-2"
                                     @onclick="RejectExpense"
@@ -301,11 +307,13 @@ else
                                 Reject Expense
                             </button>
 
-                            <button class="btn btn-outline-secondary ms-2"
+                            <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Submit">
+<button class="btn btn-outline-secondary ms-2"
                                     @onclick="CancelExpense"
                                     disabled="@_saving">
                                 Cancel Expense
                             </button>
+</WorkspaceAction>
                         }
 
                         @if (_expense.Status == "Approved")
@@ -323,17 +331,21 @@ else
 
                         @if (_expense.Status == "Rejected")
                         {
-                            <button class="btn btn-primary"
+                            <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Submit">
+<button class="btn btn-primary"
                                     @onclick="SubmitExpense"
                                     disabled="@_saving">
                                 Resubmit Expense
                             </button>
+</WorkspaceAction>
 
-                            <button class="btn btn-outline-danger ms-2"
+                            <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Submit">
+<button class="btn btn-outline-danger ms-2"
                                     @onclick="CancelExpense"
                                     disabled="@_saving">
                                 Cancel Expense
                             </button>
+</WorkspaceAction>
                         }
                     </div>
 

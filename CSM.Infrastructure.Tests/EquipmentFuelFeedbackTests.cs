@@ -139,6 +139,7 @@ public sealed class EquipmentFuelFeedbackTests
     private static TestContext Context(out Api api)
     {
         var context = new TestContext();
+        WorkspaceTestAccess.Add(context, ["CompanyAdmin", "ProcurementOfficer"]);
         var service = DispatchProxy.Create<IEquipmentService, Api>();
         api = (Api)(object)service;
         context.Services.AddSingleton(service);
