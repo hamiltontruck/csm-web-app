@@ -1,0 +1,57 @@
+name: Verify deployed workspace services
+on:
+  push:
+    branches: [qa/workspace-access-live-check-20261030]
+permissions:
+  contents: read
+jobs:
+  live-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public web assets and protected API boundaries
+        run: |
+          python3 - <<'PY'
+          import time
+          from html.parser import HTMLParser
+          from urllib.request import urlopen
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import urljoin
+          def get(url, expected=200):
+              for attempt in range(6):
+                  try:
+                      with urlopen(url, timeout=25) as response:
+                          assert response.status == expected, (url, response.status)
+                          data = response.read()
+                          print(expected, url)
+                          return data, response.headers
+                  except HTTPError as error:
+                      if error.code == expected:
+                          print(expected, url)
+                          return b"", error.headers
+                      if attempt == 5:
+                          raise AssertionError((url, error.code)) from None
+                  except (URLError, TimeoutError):
+                      if attempt == 5:
+                          raise
+                  time.sleep(5)
+          base = "https://csm-web-app.onrender.com/"
+          html, _ = get(urljoin(base, "login"))
+          class Scripts(HTMLParser):
+              boot = None
+              def handle_starttag(self, tag, attrs):
+                  if tag == "script":
+                      for name, value in attrs:
+                          if name == "src" and "blazor.web" in value:
+                              self.boot = value
+          parser = Scripts()
+          parser.feed(html.decode())
+          assert parser.boot, "Blazor boot script must be present"
+          script, headers = get(urljoin(base, parser.boot))
+          assert len(script) > 1000
+          assert "javascript" in headers["Content-Type"]
+          api = "https://csm-apicsm-api-dockerfile.onrender.com/api/"
+          for route in ("auth/me", "dashboard/executive", "Payroll"):
+              get(urljoin(api, route), 401)
+          print("Read-only live HTTP checks passed; no credentials or business writes used.")
+          PY
