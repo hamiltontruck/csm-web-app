@@ -77,6 +77,18 @@ public sealed class WorkspaceAccessTests
         Assert.Equal(expected, new WorkspaceAccess(roles.Split(','), permissions.Split(',')).CanVisit(route));
     }
 
+    [Theory]
+    [InlineData("/stock-balance")]
+    [InlineData("/stock-balance/site/record")]
+    [InlineData("/stock-transfers")]
+    [InlineData("/stock-transfers/site/record")]
+    [InlineData("/daily-material-usage")]
+    public void Site_selectors_are_hidden_when_the_required_site_lookup_is_forbidden(string route)
+    {
+        Assert.False(new WorkspaceAccess(["Supervisor"], ["Procurement_Inventory_View"]).CanVisit(route));
+        Assert.True(new WorkspaceAccess(["Supervisor"], ["Procurement_Inventory_View", "Sites_View"]).CanVisit(route));
+    }
+
     [Fact]
     public void View_only_supervisor_cannot_approve_even_with_approval_permissions()
     {
