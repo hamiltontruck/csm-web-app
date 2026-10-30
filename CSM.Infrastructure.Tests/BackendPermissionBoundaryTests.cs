@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using System.Reflection;
 using System.Security.Claims;
 using CSM.Api.Controllers;
@@ -70,6 +71,55 @@ public sealed class BackendPermissionBoundaryTests
         actor.UserRoles.Single().Role.Name = "SuperAdmin";
         db.SaveChanges(true);
         Assert.True(await Authorize(services, actor, nameof(RolesController.UpdatePermissions)));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task Previously_issued_token_is_rejected_for_disabled_or_deleted_user(bool active, bool deleted)
+    {
+        using var db = Database("CompanyAdmin", out var actor);
+        actor.IsActive = active; actor.IsDeleted = deleted; db.SaveChanges(true);
+        using var services = JwtServices(db);
+        var context = JwtContext(services, actor.Id);
+        var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>>().Get("Bearer");
+        await options.Events.TokenValidated(context);
+        Assert.NotNull(context.Result?.Failure);
+    }
+
+    [Fact]
+    public async Task Previously_issued_token_cannot_keep_old_roles_or_company_after_reassignment()
+    {
+        using var db = Database("Supervisor", out var actor);
+        actor.CompanyId = Guid.NewGuid(); db.SaveChanges(true);
+        using var services = JwtServices(db);
+        var context = JwtContext(services, actor.Id);
+        var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>>().Get("Bearer");
+        await options.Events.TokenValidated(context);
+        Assert.Null(context.Result?.Failure);
+        Assert.False(context.Principal!.IsInRole("SuperAdmin"));
+        Assert.True(context.Principal.IsInRole("Supervisor"));
+        Assert.Equal(actor.CompanyId.ToString(), context.Principal.FindFirst("company_id")?.Value);
+    }
+
+    private static ServiceProvider JwtServices(ApplicationDbContext db)
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
+            ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test;Username=test;Password=test",
+            ["Jwt:SecretKey"] = "test-secret-with-at-least-thirty-two-characters", ["Jwt:Issuer"] = "test", ["Jwt:Audience"] = "test"
+        }).Build();
+        var services = new ServiceCollection().AddLogging();
+        CSM.Infrastructure.DependencyInjection.AddInfrastructure(services, config);
+        services.AddSingleton(db);
+        return services.BuildServiceProvider();
+    }
+
+    private static Microsoft.AspNetCore.Authentication.JwtBearer.TokenValidatedContext JwtContext(IServiceProvider services, Guid actorId)
+    {
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext { RequestServices = services };
+        return new(http, new Microsoft.AspNetCore.Authentication.AuthenticationScheme("Bearer", null, typeof(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerHandler)), new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions()) {
+            Principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, actorId.ToString()), new Claim(ClaimTypes.Role, "SuperAdmin"), new Claim("company_id", Guid.NewGuid().ToString())], "Bearer"))
+        };
     }
 
     private static ServiceProvider Services(ApplicationDbContext db)
