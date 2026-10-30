@@ -104,12 +104,12 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
         if (root == "purchase-orders") return IsIn(Managers) && Has(write ? "Procurement_PurchaseOrder_Manage" : "Procurement_PurchaseOrder_View");
         if (root == "goods-receipts") return IsIn(Managers) && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") && (!write || IsIn(Managers));
         if (root is "inventory" or "stock-items") return InventoryLinks.Any(CanVisit);
-        if (root == "stock-balance") return Has("Procurement_Inventory_View") && IsIn("SuperAdmin", "Administrator", "Supervisor", "Storekeeper", "ProcurementOfficer");
-        if (root == "stock-transfers") return Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") &&
+        if (root == "stock-balance") return (parts.Length > 1 && !parts.Contains("site") || Has("Sites_View")) && Has("Procurement_Inventory_View") && IsIn("SuperAdmin", "Administrator", "Supervisor", "Storekeeper", "ProcurementOfficer");
+        if (root == "stock-transfers") return Has("Sites_View") && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") &&
             (!write || IsIn("Administrator", "Storekeeper", "ProcurementOfficer"));
         if (root is "stock-movements" or "stock-issues" or "stock-returns" or "stock-adjustments" or "material-return-audit")
             return IsIn(StockManagers) && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View");
-        if (root == "daily-material-usage") return IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor") &&
+        if (root == "daily-material-usage") return (parts.Length > 1 || Has("Sites_View")) && IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor") &&
             Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") && (!write || CanVisit("/materials"));
         if (root == "finance")
         {

@@ -51,7 +51,7 @@ else
 
 
             <div class="d-flex gap-2">
-                <WorkspaceAction Route="{InvoiceBase}/lines/create">
+                <WorkspaceAction Route="@($"{InvoiceBase}/lines/create")">
                     <button class="btn btn-success"
                         @onclick="AddLine">
                     + Add Line
@@ -65,7 +65,7 @@ else
                 </button>
             </WorkspaceAction>
 
-                <WorkspaceAction Route="{InvoiceBase}/edit">
+                <WorkspaceAction Route="@($"{InvoiceBase}/edit")">
                     <button class="btn btn-primary"
                         @onclick="EditInvoice">
                     Edit Invoice
