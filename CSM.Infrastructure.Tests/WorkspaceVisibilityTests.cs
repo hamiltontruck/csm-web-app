@@ -21,8 +21,8 @@ public sealed class WorkspaceVisibilityTests
         context.Services.AddSingleton(contractors);
         var page = context.RenderComponent<Hr>();
         page.WaitForAssertion(() => Assert.Contains("Manage Attendances", page.Markup));
-        Assert.DoesNotContain("<h6>Employees</h6>", page.Markup);
-        Assert.DoesNotContain("<h6>Contractors</h6>", page.Markup);
+        Assert.DoesNotContain(page.FindAll("h6"), h => h.TextContent == "Employees");
+        Assert.DoesNotContain(page.FindAll("h6"), h => h.TextContent == "Contractors");
         Assert.Contains("Manage Payroll", page.Markup);
         Assert.Contains("Manage Timesheets", page.Markup);
         Assert.Equal(0, calls.Reads);
@@ -33,11 +33,11 @@ public sealed class WorkspaceVisibilityTests
     {
         using var context = Context("Supervisor", "Procurement_Inventory_View");
         var page = context.RenderComponent<Equipment>();
-        page.WaitForAssertion(() => Assert.DoesNotContain("<h4>Assignments</h4>", page.Markup));
-        Assert.DoesNotContain("<h4>Maintenance</h4>", page.Markup);
-        Assert.DoesNotContain("<h4>Downtime</h4>", page.Markup);
-        Assert.DoesNotContain("<h4>Fuel Consumption</h4>", page.Markup);
-        Assert.DoesNotContain("<h4>Daily Timesheets</h4>", page.Markup);
+        page.WaitForAssertion(() => Assert.DoesNotContain(page.FindAll("h4"), h => h.TextContent == "Assignments"));
+        Assert.DoesNotContain(page.FindAll("h4"), h => h.TextContent == "Maintenance");
+        Assert.DoesNotContain(page.FindAll("h4"), h => h.TextContent == "Downtime");
+        Assert.DoesNotContain(page.FindAll("h4"), h => h.TextContent == "Fuel Consumption");
+        Assert.DoesNotContain(page.FindAll("h4"), h => h.TextContent == "Daily Timesheets");
     }
 
     [Fact]
