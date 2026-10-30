@@ -1,0 +1,101 @@
+using System.Reflection;
+using System.Security.Claims;
+using CSM.Api.Controllers;
+using CSM.Domain.Entities.Identity;
+using CSM.Domain.Enums;
+using CSM.Infrastructure.Persistence;
+using CSM.Infrastructure.Security;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+
+namespace CSM.Infrastructure.Tests;
+
+public sealed class BackendPermissionBoundaryTests
+{
+    [Theory]
+    [InlineData("inactive-user")]
+    [InlineData("deleted-user")]
+    [InlineData("deleted-membership")]
+    [InlineData("deleted-role")]
+    public async Task Revoked_identity_cannot_use_or_list_role_permissions(string revoked)
+    {
+        using var db = Database("CompanyAdmin", out var actor);
+        var role = actor.UserRoles.Single();
+        if (revoked == "inactive-user") actor.IsActive = false;
+        if (revoked == "deleted-user") actor.IsDeleted = true;
+        if (revoked == "deleted-membership") role.IsDeleted = true;
+        if (revoked == "deleted-role") role.Role.IsDeleted = true;
+        db.SaveChanges(true);
+        var evaluator = new PermissionEvaluator(db);
+        Assert.False(await evaluator.HasPermissionAsync(actor.Id, "Users_View"));
+        Assert.Empty(await evaluator.GetPermissionsAsync(actor.Id));
+    }
+
+    [Fact]
+    public async Task Active_actor_keeps_only_live_grants()
+    {
+        using var db = Database("CompanyAdmin", out var actor);
+        var evaluator = new PermissionEvaluator(db);
+        Assert.True(await evaluator.HasPermissionAsync(actor.Id, "Users_View"));
+        Assert.False(await evaluator.HasPermissionAsync(actor.Id, "Users_Delete"));
+        Assert.False(await evaluator.HasPermissionAsync(actor.Id, "not-a-permission"));
+        Assert.Contains("Users_View", await evaluator.GetPermissionsAsync(actor.Id));
+    }
+
+    [Theory]
+    [InlineData("CompanyAdmin", true)]
+    [InlineData("Supervisor", true)]
+    [InlineData("SuperAdmin", false)]
+    public async Task Global_role_updates_require_superadmin_and_write_permission(string role, bool edit)
+    {
+        using var db = Database(role, out var actor);
+        if (!edit)
+        {
+            db.RoleGranularPermissions.RemoveRange(db.RoleGranularPermissions.Where(x => x.Permission == GranularPermission.Users_Edit));
+            db.SaveChanges(true);
+        }
+        using var services = Services(db);
+        var allowed = await Authorize(services, actor, nameof(RolesController.UpdatePermissions));
+        Assert.False(allowed);
+    }
+
+    [Fact]
+    public async Task Company_admin_keeps_role_listing_and_superadmin_with_write_grant_can_update()
+    {
+        using var db = Database("CompanyAdmin", out var actor);
+        using var services = Services(db);
+        Assert.True(await Authorize(services, actor, nameof(RolesController.GetRoles)));
+        actor.UserRoles.Single().Role.Name = "SuperAdmin";
+        db.SaveChanges(true);
+        Assert.True(await Authorize(services, actor, nameof(RolesController.UpdatePermissions)));
+    }
+
+    private static ServiceProvider Services(ApplicationDbContext db)
+    {
+        var services = new ServiceCollection().AddLogging();
+        services.AddAuthorization(options => {
+            options.AddPolicy("Users.View", p => p.RequireAuthenticatedUser().AddRequirements(new PermissionRequirement("Users_View")));
+            options.AddPolicy("Users.Edit", p => p.RequireAuthenticatedUser().AddRequirements(new PermissionRequirement("Users_Edit")));
+        });
+        services.AddSingleton<IPermissionEvaluator>(new PermissionEvaluator(db));
+        services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+        return services.BuildServiceProvider();
+    }
+
+    private static async Task<bool> Authorize(IServiceProvider services, User actor, string action)
+    {
+        var data = typeof(RolesController).GetCustomAttributes<AuthorizeAttribute>().Concat(typeof(RolesController).GetMethod(action)!.GetCustomAttributes<AuthorizeAttribute>());
+        var policy = await AuthorizationPolicy.CombineAsync(services.GetRequiredService<IAuthorizationPolicyProvider>(), data);
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, actor.Id.ToString()), new Claim(ClaimTypes.Role, actor.UserRoles.Single().Role.Name)], "test"));
+        return (await services.GetRequiredService<IAuthorizationService>().AuthorizeAsync(principal, null, policy!)).Succeeded;
+    }
+
+    private static ApplicationDbContext Database(string role, out User actor)
+    {
+        var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        actor = new User { IsActive = true, UserRoles = [new() { Role = new Role { Name = role, GranularPermissions = [new() { Permission = GranularPermission.Users_View }, new() { Permission = GranularPermission.Users_Edit }] } }] };
+        db.Users.Add(actor); db.SaveChanges(true); return db;
+    }
+}
