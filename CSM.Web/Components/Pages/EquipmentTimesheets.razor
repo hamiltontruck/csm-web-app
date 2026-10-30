@@ -38,7 +38,6 @@
         <div class="d-flex gap-2">
 
             <WorkspaceAction Route="/equipment/timesheet/report/{SiteId}">
-
                 <button class="btn btn-outline-success"
                     @onclick="OpenReport">
                 <i class="bi bi-file-earmark-text"></i>
@@ -47,7 +46,6 @@
             </WorkspaceAction>
 
             <WorkspaceAction Route="/equipment/timesheet/create/{SiteId}">
-
                 <button class="btn btn-primary"
                     @onclick="NewTimesheet">
                 + New Timesheet
@@ -115,7 +113,6 @@
                             </small>
 
                             <WorkspaceAction Route="/equipment/timesheet/edit/{id}">
-
                                 <button class="btn btn-sm btn-outline-primary mt-2"
                                     @onclick="() => EditTimesheet(item.Id)">
                                 <i class="bi bi-pencil"></i> Update

@@ -107,7 +107,6 @@
                                         </div>
 
                                         <WorkspaceAction Route="/hr/employees/site/{siteId}">
-
                                             <button class="btn btn-primary w-100"
                                                 @onclick="() => OpenSiteEmployees(site.Id)">
                                             <i class="bi bi-people me-1"></i>
@@ -215,7 +214,6 @@
             </WorkspaceAction>
 
                                             <WorkspaceAction Route="/hr/employees/edit/{employeeId}?siteId={SiteId}">
-
                                                 <button class="btn btn-sm btn-outline-secondary"
                                                     @onclick="() => EditSiteEmployee(assignment.EmployeeId)">
                                                 Edit
@@ -339,7 +337,6 @@
             </WorkspaceAction>
 
                                             <WorkspaceAction Route="/hr/employees/edit/{employeeId}">
-
                                                 <button class="btn btn-sm btn-outline-secondary"
                                                     @onclick="() => EditEmployee(employee.Id)">
                                                 Edit

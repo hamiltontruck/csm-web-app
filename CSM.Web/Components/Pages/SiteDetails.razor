@@ -53,7 +53,6 @@ else
             </div>
 
             <WorkspaceAction Route="/sites/edit/{SiteId}">
-
                 <button class="btn btn-primary"
                     @onclick='() => Navigation.NavigateTo($"/sites/edit/{SiteId}")'>
                 Edit Site
@@ -310,7 +309,6 @@ else
                 <h5 class="mb-0">Site Projects</h5>
 
                 <WorkspaceAction Route="/sites/{SiteId}/projects">
-
                     <button class="btn btn-sm btn-primary"
                         @onclick='() => Navigation.NavigateTo($"/sites/{SiteId}/projects")'>
                     View All
@@ -379,7 +377,6 @@ else
                                         <td class="text-end">
 
                                             <WorkspaceAction Route="/projects/{id}">
-
                                                 <button class="btn btn-sm btn-outline-primary"
                                                     @onclick="() => ViewProject(project.Id)">
                                                 Open

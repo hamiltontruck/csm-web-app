@@ -36,7 +36,6 @@ else
                 </button>
 
                 <WorkspaceAction Route="/sites/create">
-
                     <button class="btn btn-primary"
                         @onclick="NewSite">
                     <span class="bi bi-plus-lg me-1"></span>
@@ -240,7 +239,6 @@ else
                             <div class="d-flex gap-2">
 
                                 <WorkspaceAction Route="/sites/{id}">
-
                                     <button class="btn btn-sm btn-primary flex-fill"
                                         @onclick="() => ViewSite(site.Id)">
                                     View
@@ -248,7 +246,6 @@ else
             </WorkspaceAction>
 
                                 <WorkspaceAction Route="/sites/edit/{site.Id}">
-
                                     <button class="btn btn-outline-secondary w-100"
                                         @onclick='() => Navigation.NavigateTo($"/sites/edit/{site.Id}")'>
                                     Edit
