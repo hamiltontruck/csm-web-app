@@ -32,10 +32,13 @@
                 <div class="text-muted">@equipment.EquipmentCode</div>
             </div>
 
-            <button class="btn btn-outline-primary"
+            <WorkspaceAction Route="/equipment/edit/{Id}">
+
+                <button class="btn btn-outline-primary"
                     @onclick="EditEquipment">
                 Edit
             </button>
+            </WorkspaceAction>
         </div>
 
         <div class="card shadow-sm mb-3">

@@ -126,7 +126,9 @@
 
                     <div class="mt-4 d-flex gap-2">
 
-                        <button class="btn btn-primary"
+                        <WorkspaceAction Route="/hr/attendance">
+
+                            <button class="btn btn-primary"
                                 disabled="@_saving"
                                 @onclick="CheckOut">
 
@@ -141,6 +143,7 @@
                             }
 
                         </button>
+            </WorkspaceAction>
 
                         <button class="btn btn-outline-secondary"
                                 disabled="@_saving"

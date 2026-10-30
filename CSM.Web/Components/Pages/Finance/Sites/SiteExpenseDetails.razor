@@ -53,10 +53,12 @@ else
             </div>
 
             <div class="d-flex gap-2">
-                <button class="btn btn-primary"
+                <WorkspaceAction Route="/finance/sites/{SiteId}/expenses/{ExpenseId}/edit">
+                    <button class="btn btn-primary"
                         @onclick="EditExpense">
                     Edit Expense
                 </button>
+            </WorkspaceAction>
             </div>
 
         </div>

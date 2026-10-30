@@ -51,20 +51,28 @@ else
 
 
             <div class="d-flex gap-2">
-                <button class="btn btn-success"
+                <WorkspaceAction Route="{InvoiceBase}/lines/create">
+                    <button class="btn btn-success"
                         @onclick="AddLine">
                     + Add Line
                 </button>
+            </WorkspaceAction>
 
-                <button class="btn btn-success"
+                <WorkspaceAction Route="/finance/sites/{SiteId.Value}/invoices/{_invoice.Id}/payments/create">
+
+                    <button class="btn btn-success"
                         @onclick="RecordPayment">
                     <i class="bi bi-wallet2"></i> Record Payment
                 </button>
+            </WorkspaceAction>
 
-                <button class="btn btn-primary"
+                <WorkspaceAction Route="{InvoiceBase}/edit">
+
+                    <button class="btn btn-primary"
                         @onclick="EditInvoice">
                     Edit Invoice
                 </button>
+            </WorkspaceAction>
 
                 @if (_invoice.Status == "Draft")
                 {
@@ -213,10 +221,12 @@ else
 
                                     <td class="text-center">
                                         <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-primary"
+                                            <WorkspaceAction Route="/finance/sites/{SiteId.Value}/invoices/{Id}/lines/{lineId}/edit">
+                                                <button class="btn btn-outline-primary"
                                                     @onclick="() => EditLine(line.Id)">
                                                 Edit
                                             </button>
+            </WorkspaceAction>
 
                                              <button class="btn btn-outline-dark"
                                                      @onclick="PrintInvoice">

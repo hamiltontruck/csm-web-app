@@ -169,7 +169,7 @@ public sealed class HrSiteAssignmentFeedbackTests
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            Task.FromResult<IReadOnlyCollection<string>>(State.CanManage
+            Task.FromResult<IReadOnlyCollection<string>>(method!.Name == nameof(IAuthService.GetRolesAsync) ? new[] { "CompanyAdmin" } : State.CanManage
                 ? new[] { "HRM_SiteAssignment_View", "HRM_SiteAssignment_Manage" }
                 : new[] { "HRM_SiteAssignment_View" });
     }

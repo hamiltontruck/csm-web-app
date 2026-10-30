@@ -242,7 +242,7 @@ public sealed class LeaveFeedbackTests
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            Task.FromResult<IReadOnlyCollection<string>>(new[] {
+            Task.FromResult<IReadOnlyCollection<string>>(method!.Name == nameof(IAuthService.GetRolesAsync) ? new[] { "CompanyAdmin" } : new[] { "HRM_Leave_View",
                 State.CanSubmit ? "HRM_Leave_Submit" : "",
                 State.CanReview ? "HRM_Leave_Approve" : "" });
     }

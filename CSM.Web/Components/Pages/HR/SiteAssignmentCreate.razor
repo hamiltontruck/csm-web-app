@@ -147,7 +147,9 @@
 
                 <div class="d-flex gap-2 mt-4">
 
-                    <button class="btn btn-primary"
+                    <WorkspaceAction Route="/hr/site-assignments">
+
+                        <button class="btn btn-primary"
                             @onclick="Save"
                             disabled="@_saving">
                         @if (_saving)
@@ -159,6 +161,7 @@
                             <span>Save Assignment</span>
                         }
                     </button>
+            </WorkspaceAction>
 
                     <button class="btn btn-outline-secondary"
                             @onclick="Back"

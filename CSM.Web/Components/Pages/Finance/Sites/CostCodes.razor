@@ -15,11 +15,14 @@
 <div class="d-flex justify-content-between mb-3">
     <div></div>
 
-    <button class="btn btn-primary"
+    <WorkspaceAction Route="/finance/sites/{SiteId}/cost-codes/create">
+
+        <button class="btn btn-primary"
             @onclick="Create">
         <i class="bi bi-plus-lg"></i>
         New Cost Code
     </button>
+            </WorkspaceAction>
 </div>
 
 @if (_loading)
@@ -64,10 +67,12 @@ else
                     </td>
 
                     <td>
-                        <button class="btn btn-sm btn-outline-primary me-1"
+                        <WorkspaceAction Route="/finance/sites/{SiteId}/cost-codes/{id}/edit">
+                            <button class="btn btn-sm btn-outline-primary me-1"
                                 @onclick="() => Edit(item.Id)">
                             Edit
                         </button>
+            </WorkspaceAction>
 
                         <button class="btn btn-sm btn-outline-warning me-1"
                                 @onclick="() => Toggle(item)">

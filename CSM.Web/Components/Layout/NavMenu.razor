@@ -1,7 +1,6 @@
 @inject CSM.Web.Services.INotificationApiService NotificationService
 @inject CSM.Web.Services.IAuthService AuthService
 @inject NavigationManager Navigation
-@inject CSM.Web.Services.CompanyWebService CompanyService
 
 <div class="sidebar">
 
@@ -39,7 +38,7 @@
 
 
             <!-- Project Tracking -->
-            @if (HasPermission("Projects_View"))
+            @if (_access.CanVisit("/project-tracking"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu"
@@ -52,8 +51,7 @@
             }
 
             <!-- Procurement -->
-            @if (HasPermission("Procurement_MaterialRequest_View") ||
-                 HasPermission("Procurement_PurchaseOrder_View"))
+            @if (_access.CanVisit("/procurement"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/procurement">
@@ -64,7 +62,7 @@
             }
 
             <!-- Inventory -->
-            @if (HasPermission("Procurement_Inventory_View"))
+            @if (_access.CanVisit("/inventory"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/inventory">
@@ -75,7 +73,7 @@
             }
 
             <!-- Equipment -->
-            @if (HasPermission("Procurement_Inventory_View"))
+            @if (_access.CanVisit("/equipment"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/equipment">
@@ -92,7 +90,7 @@
                 Administration
             </div>
 
-            @if (_isSuperAdmin)
+            @if (_access.CanVisit("/companies"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/companies">
@@ -102,7 +100,7 @@
                 </div>
             }
 
-            @if (HasPermission("Users_View"))
+            @if (_access.CanVisit("/users"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/users">
@@ -112,7 +110,7 @@
                 </div>
             }
 
-            @if (HasPermission("Users_View"))
+            @if (_access.CanVisit("/roles"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/roles">
@@ -122,7 +120,7 @@
                 </div>
             }
 
-            @if (HasPermission("Users_View"))
+            @if (_access.CanVisit("/users/audit"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/users/audit">
@@ -132,10 +130,7 @@
                 </div>
             }
 
-            @if (HasPermission("HRM_Employee_View") ||
-                 HasPermission("HRM_Payroll_View") ||
-                 HasPermission("HRM_Attendance_View") ||
-                 HasPermission("HRM_Leave_View"))
+            @if (_access.CanVisit("/hr"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/hr">
@@ -145,11 +140,7 @@
                 </div>
             }
 
-            @if (HasPermission("Finance_Budget_View") ||
-                 HasPermission("Finance_Expense_View") ||
-                 HasPermission("Finance_Invoice_View") ||
-                 HasPermission("Finance_Payment_View") ||
-                 HasPermission("Finance_PettyCash_View"))
+            @if (_access.CanVisit("/finance/sites"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu"
@@ -161,7 +152,7 @@
                 </div>
             }
 
-            @if (HasPermission("Compliance_View"))
+            @if (_access.CanVisit("/compliance"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/compliance">
@@ -171,8 +162,7 @@
                 </div>
             }
 
-            @if (HasPermission("Reports_View") ||
-                 HasPermission("Reports_FinancialSummary_View"))
+            @if (_access.CanVisit("/reports"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/reports">
@@ -182,7 +172,7 @@
                 </div>
             }
 
-            @if (HasPermission("Notifications_View"))
+            @if (_access.CanVisit("/notifications"))
             {
                 <div class="nav-item">
                     <NavLink class="nav-link" @onclick="CloseMenu" href="/notifications">
@@ -235,36 +225,22 @@
     }
 
     private int _unreadNotificationCount;
-    private bool _isSuperAdmin;
+    private WorkspaceAccess _access = WorkspaceAccess.None;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        try { _isSuperAdmin = await CompanyService.IsSuperAdminAsync(); }
-        catch { _isSuperAdmin = false; }
-        StateHasChanged();
-    }
-
-    private IReadOnlyCollection<string> _permissions = [];
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _unreadNotificationCount =
-                await NotificationService.GetUnreadCountAsync();
+            _access = new(await AuthService.GetRolesAsync(), await AuthService.GetPermissionsAsync());
+
         }
-        catch
+        catch { _access = WorkspaceAccess.None; }
+        if (_access.CanVisit("/notifications"))
         {
-            _unreadNotificationCount = 0;
+            try { _unreadNotificationCount = await NotificationService.GetUnreadCountAsync(); }
+            catch { _unreadNotificationCount = 0; }
         }
-
-        _permissions = await AuthService.GetPermissionsAsync();
-    }
-
-    private bool HasPermission(string permission)
-    {
-        return _permissions.Contains(permission);
     }
 
     private async Task SignOutAsync()

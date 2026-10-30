@@ -29,7 +29,9 @@
 
             @if (_canSubmit)
             {
-                <button class="btn btn-primary" @onclick="CreateLeave">Add Leave</button>
+                <WorkspaceAction Route="/hr/leave/create">
+                    <button class="btn btn-primary" @onclick="CreateLeave">Add Leave</button>
+            </WorkspaceAction>
             }
         </div>
     </div>
@@ -179,8 +181,9 @@
             var result = await LeaveService.GetAllAsync();
             var permissions = await AuthService.GetPermissionsAsync();
             _leaves = result.ToList();
-            _canSubmit = permissions.Contains("HRM_Leave_Submit");
-            _canReview = permissions.Contains("HRM_Leave_Approve");
+            var access = new WorkspaceAccess(await AuthService.GetRolesAsync(), permissions);
+            _canSubmit = access.CanVisit("/hr/leave/create");
+            _canReview = access.CanReviewLeave;
         }
         catch (Exception ex)
         {

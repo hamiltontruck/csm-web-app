@@ -44,10 +44,13 @@ else
                 </div>
             </div>
 
-            <button class="btn btn-success"
+            <WorkspaceAction Route="/projects/{ProjectId}/daily-progress/create?taskId={TaskId}">
+
+                <button class="btn btn-success"
                     @onclick="AddEntry">
                 + Daily Progress
             </button>
+            </WorkspaceAction>
 
         </div>
 
@@ -195,10 +198,13 @@ else
 
                 <strong>Daily Progress Log</strong>
 
-                <button class="btn btn-sm btn-primary"
+                <WorkspaceAction Route="/projects/{ProjectId}/daily-progress/create?taskId={TaskId}">
+
+                    <button class="btn btn-sm btn-primary"
                         @onclick="OpenDailyProgress">
                     Add Entry
                 </button>
+            </WorkspaceAction>
 
             </div>
 

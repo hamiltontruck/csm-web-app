@@ -23,6 +23,8 @@ public sealed class DashboardController : ControllerBase
     }
 
     [HttpGet("executive")]
+    [Authorize(Policy = "Reports.View")]
+    [Authorize(Policy = "Reports.FinancialSummary.View")]
     public async Task<IActionResult> GetExecutiveDashboard(
         CancellationToken cancellationToken,
         [FromQuery] Guid? selectedCompanyId = null)
@@ -66,3 +68,4 @@ public sealed class DashboardController : ControllerBase
             : null;
     }
 }
+

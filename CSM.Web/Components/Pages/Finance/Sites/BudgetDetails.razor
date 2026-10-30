@@ -212,10 +212,12 @@ else
                     @if (_budget.Status != "Closed" &&
                          _budget.Status != "Cancelled")
                     {
-                        <button class="btn btn-primary btn-sm"
+                        <WorkspaceAction Route="/finance/sites/{_budget!.ConstructionSiteId}/budgets/{Id}/lines/create">
+                            <button class="btn btn-primary btn-sm"
                                 @onclick="AddBudgetLine">
                             Add Budget Line
                         </button>
+            </WorkspaceAction>
                     }
                 </div>
 
@@ -262,10 +264,12 @@ else
                                                 @if (_budget.Status != "Closed" &&
                                                      _budget.Status != "Cancelled")
                                                 {
-                                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                                    <WorkspaceAction Route="/finance/sites/{_budget!.ConstructionSiteId}/budgets/{Id}/lines/{budgetLineId}/edit">
+                                                        <button class="btn btn-sm btn-outline-primary me-1"
                                                             @onclick="() => EditBudgetLine(line.Id)">
                                                         Edit
                                                     </button>
+            </WorkspaceAction>
 
                                                     <button class="btn btn-sm btn-outline-danger"
                                                             @onclick="() => DeleteBudgetLine(line.Id)">
@@ -286,10 +290,12 @@ else
         }
 
         <div class="mt-4 d-flex gap-2">
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/finance/sites/{SiteId}/budgets/{Id}/edit">
+                <button class="btn btn-primary"
                     @onclick="Edit">
                 Edit Budget
             </button>
+            </WorkspaceAction>
 
             <button class="btn btn-outline-secondary"
                     @onclick="Back">

@@ -50,10 +50,13 @@ else
                 </p>
             </div>
 
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/projects/{ProjectId}/phases/create">
+
+                <button class="btn btn-primary"
                     @onclick="OpenCreate">
                 + New Phase
             </button>
+            </WorkspaceAction>
 
         </div>
 
@@ -117,10 +120,13 @@ else
                         Begin planning this project by creating Phase 1.
                     </p>
 
-                    <button class="btn btn-primary"
+                    <WorkspaceAction Route="/projects/{ProjectId}/phases/create">
+
+                        <button class="btn btn-primary"
                             @onclick="OpenCreate">
                         Create First Phase
                     </button>
+            </WorkspaceAction>
 
                 </div>
             </div>
@@ -225,10 +231,13 @@ else
 
                         <div class="d-flex justify-content-end gap-2">
 
-                            <button class="btn btn-sm btn-outline-primary"
+                            <WorkspaceAction Route="/projects/{ProjectId}/phases/{phaseId}">
+
+                                <button class="btn btn-sm btn-outline-primary"
                                     @onclick='() => OpenPhase(phase.Id)'>
                                 Open
                             </button>
+            </WorkspaceAction>
 
                             <button class="btn btn-sm btn-outline-secondary">
                                 Edit

@@ -27,7 +27,9 @@
 
         @if (!loading && string.IsNullOrWhiteSpace(errorMessage) && canCreate)
         {
-            <button class="btn btn-primary" @onclick="NewAdjustment">New Adjustment</button>
+            <WorkspaceAction Route="/stock-adjustments/create/{SiteId}">
+                <button class="btn btn-primary" @onclick="NewAdjustment">New Adjustment</button>
+            </WorkspaceAction>
         }
     </div>
 

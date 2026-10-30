@@ -26,7 +26,9 @@
 
         @if (canManage)
         {
-            <button class="btn btn-primary" @onclick="NewAssignment">+ New Assignment</button>
+            <WorkspaceAction Route="/equipment/assignments/create/{SiteId}">
+                <button class="btn btn-primary" @onclick="NewAssignment">+ New Assignment</button>
+            </WorkspaceAction>
         }
 
     </div>

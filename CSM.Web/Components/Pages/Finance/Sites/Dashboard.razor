@@ -1,3 +1,4 @@
+@inherits WorkspacePageBase
 @page "/finance/sites"
 @rendermode InteractiveServer
 
@@ -52,67 +53,83 @@ else
                     <div class="row g-3">
 
                         <div class="col-md-3">
-                            <button class="btn btn-outline-primary w-100 py-3"
+                            <WorkspaceAction Route="/finance/company/cost-codes">
+                                <button class="btn btn-outline-primary w-100 py-3"
                                     @onclick="OpenCompanyCostCodes">
                                 <i class="bi bi-diagram-3 d-block fs-3 mb-2"></i>
                                 Cost Codes
                             </button>
+            </WorkspaceAction>
                         </div>
 
                         <div class="col-md-3">
-                            <button class="btn btn-outline-primary w-100 py-3"
+                            <WorkspaceAction Route="/finance/company/vendors">
+                                <button class="btn btn-outline-primary w-100 py-3"
                                     @onclick="OpenCompanyVendors">
                                 <i class="bi bi-people d-block fs-3 mb-2"></i>
                                 Vendors
                             </button>
+            </WorkspaceAction>
                         </div>
 
                         <div class="col-md-3">
-                            <button class="btn btn-outline-primary w-100 py-3"
+                            <WorkspaceAction Route="/finance/company/budgets">
+                                <button class="btn btn-outline-primary w-100 py-3"
                                     @onclick="OpenCompanyBudgets">
                                 <i class="bi bi-cash-stack d-block fs-3 mb-2"></i>
                                 Budgets
                             </button>
+            </WorkspaceAction>
                         </div>
 
                         <div class="col-md-3">
-                            <button class="btn btn-outline-primary w-100 py-3"
+                            <WorkspaceAction Route="/finance/company/invoices">
+                                <button class="btn btn-outline-primary w-100 py-3"
                                     @onclick="OpenCompanyInvoices">
                                 <i class="bi bi-receipt d-block fs-3 mb-2"></i>
                                 Invoices
                             </button>
+            </WorkspaceAction>
                         </div>
 
                         <div class="col-md-3">
-                            <button class="btn btn-outline-primary w-100 py-3"
+                            <WorkspaceAction Route="/finance/company/payments">
+                                <button class="btn btn-outline-primary w-100 py-3"
                                     @onclick="OpenCompanyPayments">
                                 <i class="bi bi-wallet2 d-block fs-3 mb-2"></i>
                                 Payments
                             </button>
+            </WorkspaceAction>
                         </div>
 
                         <div class="col-md-3">
-                            <button class="btn btn-outline-primary w-100 py-3"
+                            <WorkspaceAction Route="/finance/company/expenses">
+                                <button class="btn btn-outline-primary w-100 py-3"
                                     @onclick="OpenCompanyExpenses">
                                 <i class="bi bi-currency-dollar d-block fs-3 mb-2"></i>
                                 Expenses
                             </button>
+            </WorkspaceAction>
                         </div>
 
                         <div class="col-md-3">
-                            <button class="btn btn-outline-primary w-100 py-3"
+                            <WorkspaceAction Route="/finance/petty-cash">
+                                <button class="btn btn-outline-primary w-100 py-3"
                                     @onclick="OpenCompanyPettyCash">
                                 <i class="bi bi-cash-coin d-block fs-3 mb-2"></i>
                                 Petty Cash
                             </button>
+            </WorkspaceAction>
                         </div>
 
                         <div class="col-md-3">
-                            <button class="btn btn-outline-success w-100 py-3"
+                            <WorkspaceAction Route="/finance/summary">
+                                <button class="btn btn-outline-success w-100 py-3"
                                     @onclick="OpenCompanyFinancialSummary">
                                 <i class="bi bi-bar-chart-line d-block fs-3 mb-2"></i>
                                 Financial Summary
                             </button>
+            </WorkspaceAction>
                         </div>
 
                     </div>
@@ -159,41 +176,59 @@ else
 
                                 <div class="mt-auto d-grid gap-2">
 
-                                    <button class="btn btn-outline-primary"
+                                    <WorkspaceAction Route="/finance/sites/{siteId}/cost-codes">
+
+                                        <button class="btn btn-outline-primary"
                                             @onclick:stopPropagation
                                             @onclick="() => OpenCostCodes(site.Id)">
                                         <i class="bi bi-diagram-3"></i> Cost Codes
                                     </button>
+            </WorkspaceAction>
 
-                                    <button class="btn btn-outline-secondary"
+                                    <WorkspaceAction Route="/finance/sites/{siteId}/budgets">
+
+                                        <button class="btn btn-outline-secondary"
                                             @onclick:stopPropagation
                                             @onclick="() => OpenBudgets(site.Id)">
                                         <i class="bi bi-cash-stack"></i> Budgets
                                     </button>
+            </WorkspaceAction>
 
-                                    <button class="btn btn-primary"
+                                    <WorkspaceAction Route="/finance/sites/{siteId}/invoices">
+
+                                        <button class="btn btn-primary"
                                             @onclick:stopPropagation
                                             @onclick="() => OpenInvoices(site.Id)">
                                         <i class="bi bi-receipt"></i> Invoices
                                     </button>
+            </WorkspaceAction>
 
-                                    <button class="btn btn-success"
+                                    <WorkspaceAction Route="/finance/sites/{siteId}/payments">
+
+                                        <button class="btn btn-success"
                                             @onclick:stopPropagation
                                             @onclick="() => OpenPayments(site.Id)">
                                         <i class="bi bi-wallet2"></i> Payments
                                     </button>
+            </WorkspaceAction>
 
-                                    <button class="btn btn-warning"
+                                    <WorkspaceAction Route="/finance/sites/{siteId}/expenses">
+
+                                        <button class="btn btn-warning"
                                             @onclick:stopPropagation
                                             @onclick="() => OpenExpenses(site.Id)">
                                         <i class="bi bi-currency-dollar"></i> Expenses
                                     </button>
+            </WorkspaceAction>
 
-                                    <button class="btn btn-outline-dark"
+                                    <WorkspaceAction Route="/finance/petty-cash/site/{siteId}">
+
+                                        <button class="btn btn-outline-dark"
                                             @onclick:stopPropagation
                                             @onclick="() => OpenPettyCash(site.Id)">
                                         <i class="bi bi-cash-coin"></i> Petty Cash
                                     </button>
+            </WorkspaceAction>
 
                                 </div>
 
@@ -228,14 +263,14 @@ else
     private bool _loading = true;
     private bool _loaded;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAccessLoadedAsync()
     {
-        if (!firstRender || _loaded)
+        if (_loaded)
             return;
 
         _loaded = true;
 
-        _sites = await ProjectService.GetSitesAsync();
+        _sites = Access.Has("Sites_View") ? await ProjectService.GetSitesAsync() : [];
 
         _loading = false;
 

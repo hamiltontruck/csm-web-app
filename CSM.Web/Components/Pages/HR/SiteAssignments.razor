@@ -27,10 +27,12 @@
 
             @if (canManage)
             {
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/hr/site-assignments/create">
+                <button class="btn btn-primary"
                     @onclick="CreateAssignment">
                 Add Assignment
             </button>
+            </WorkspaceAction>
             }
         </div>
     </div>
@@ -115,10 +117,12 @@
                                     <td>
                                         @if (canManage)
                                         {
-                                        <button class="btn btn-sm btn-outline-primary"
+                                        <WorkspaceAction Route="/hr/site-assignments/edit/{assignmentId}">
+                                            <button class="btn btn-sm btn-outline-primary"
                                                 @onclick="() => EditAssignment(assignment.Id)">
                                             Edit
                                         </button>
+            </WorkspaceAction>
                                         }
                                     </td>
                                 </tr>
@@ -155,7 +159,8 @@
         {
             var result = await SiteAssignmentService.GetAllAsync();
             assignments = result.ToList();
-            canManage = (await AuthService.GetPermissionsAsync()).Contains("HRM_SiteAssignment_Manage");
+            var access = new WorkspaceAccess(await AuthService.GetRolesAsync(), await AuthService.GetPermissionsAsync());
+            canManage = access.CanManageSiteAssignments;
         }
         catch (Exception ex)
         {

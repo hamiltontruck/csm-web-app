@@ -22,18 +22,22 @@
         </div>
 
         <div>
-            <button class="btn btn-outline-secondary me-2"
+            <WorkspaceAction Route="/hr">
+                <button class="btn btn-outline-secondary me-2"
                     @onclick='() => Navigation.NavigateTo("/hr")'>
                 Back
             </button>
+            </WorkspaceAction>
 
-            @if (_canManage)
+            @if (_canCheckIn)
             {
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/hr/attendance/check-in">
+                <button class="btn btn-primary"
                     @onclick="OpenCheckIn">
                 <span class="me-1">+</span>
                 Check In
             </button>
+            </WorkspaceAction>
             }
         </div>
     </div>
@@ -172,21 +176,25 @@
                                         </td>
 
                                         <td>
-                                            @if (item.CheckInAtUtc.HasValue &&
+                                            @if (_canCheckOut && item.CheckInAtUtc.HasValue &&
                                                  !item.CheckOutAtUtc.HasValue)
                                             {
-                                                <button class="btn btn-sm btn-outline-primary me-1"
+                                                <WorkspaceAction Route="/hr/attendance/check-out/{item.Id}">
+                                                    <button class="btn btn-sm btn-outline-primary me-1"
                                                         @onclick='() => Navigation.NavigateTo($"/hr/attendance/check-out/{item.Id}")'>
                                                     Check Out
                                                 </button>
+            </WorkspaceAction>
                                             }
 
                                             @if (_canReview && !item.IsApproved)
                                             {
-                                                <button class="btn btn-sm btn-outline-warning me-1"
+                                                <WorkspaceAction Route="/hr/attendance/override/{item.Id}">
+                                                    <button class="btn btn-sm btn-outline-warning me-1"
                                                         @onclick='() => Navigation.NavigateTo($"/hr/attendance/override/{item.Id}")'>
                                                     Override
                                                 </button>
+            </WorkspaceAction>
                                             }
 
                                             @if (_canReview && item.RequiresApproval && !item.IsApproved &&
@@ -228,6 +236,8 @@
     private bool _loading = true;
     private bool _canManage;
     private bool _canReview;
+    private bool _canCheckIn;
+    private bool _canCheckOut;
     private bool _approving;
     private string? _error;
     private System.Net.HttpStatusCode? _accessStatus;
@@ -241,14 +251,17 @@
     {
         _loading = true;
         _canManage = false;
-        _canReview = false;
+        _canReview = _canCheckIn = _canCheckOut = false;
         _error = null;
         _accessStatus = null;
         _attendance = [];
         try
         {
             _attendance = (await AttendanceService.GetAttendancesAsync()).ToList();
-            _canReview = AttendanceAccess.CanReview(await AuthService.GetRolesAsync());
+            var access = new WorkspaceAccess(await AuthService.GetRolesAsync(), await AuthService.GetPermissionsAsync());
+            _canReview = access.CanApproveAttendance;
+            _canCheckIn = access.CanVisit("/hr/attendance/check-in");
+            _canCheckOut = access.CanVisit("/hr/attendance/check-out/record");
             _canManage = true;
         }
         catch (Exception ex)
@@ -266,7 +279,7 @@
     private void SetFailure(Exception ex, string forbidden, string fallback)
     {
         _canManage = false;
-        _canReview = false;
+        _canReview = _canCheckIn = _canCheckOut = false;
         _attendance = [];
         _accessStatus = (ex as HttpRequestException)?.StatusCode;
         _error = _accessStatus switch
@@ -301,6 +314,6 @@
 
     private void OpenCheckIn()
     {
-        if (_canManage) Navigation.NavigateTo("/hr/attendance/check-in");
+        if (_canManage && _canCheckIn) Navigation.NavigateTo("/hr/attendance/check-in");
     }
 }

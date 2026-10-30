@@ -202,7 +202,9 @@
                         Cancel
                     </button>
 
-                    <button class="btn btn-primary"
+                    <WorkspaceAction Route="/finance/company/expenses/{id}">
+
+                        <button class="btn btn-primary"
                             @onclick="Save"
                             disabled="@_saving">
                         @if (_saving)
@@ -215,6 +217,7 @@
                             <span>Save Expense</span>
                         }
                     </button>
+            </WorkspaceAction>
                 </div>
 
             </div>

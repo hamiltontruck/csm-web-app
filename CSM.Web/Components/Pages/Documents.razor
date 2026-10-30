@@ -23,7 +23,9 @@
         <div class="d-flex gap-2">
             @if (_ready)
             {
-                <button class="btn btn-primary" @onclick="CreateDocument">Add Document</button>
+                <WorkspaceAction Route="/compliance/documents/create">
+                    <button class="btn btn-primary" @onclick="CreateDocument">Add Document</button>
+            </WorkspaceAction>
             }
 
             <button class="btn btn-secondary"
@@ -134,10 +136,12 @@
                                     </td>
 
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary"
+                                        <WorkspaceAction Route="/compliance/documents/{id}/edit">
+                                            <button class="btn btn-sm btn-outline-primary"
                                                 @onclick="() => EditDocument(document.Id)">
                                             Edit
                                         </button>
+            </WorkspaceAction>
                                     </td>
                                 </tr>
                             }

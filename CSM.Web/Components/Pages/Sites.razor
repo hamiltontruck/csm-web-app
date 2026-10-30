@@ -35,11 +35,14 @@ else
                     Back
                 </button>
 
-                <button class="btn btn-primary"
+                <WorkspaceAction Route="/sites/create">
+
+                    <button class="btn btn-primary"
                         @onclick="NewSite">
                     <span class="bi bi-plus-lg me-1"></span>
                     New Site
                 </button>
+            </WorkspaceAction>
             </div>
         </div>
 
@@ -127,35 +130,43 @@ else
                <div class="row g-3">
 
                    <div class="col-md-3">
-                       <button class="btn btn-outline-primary w-100 py-3"
+                       <WorkspaceAction Route="/finance/company/cost-codes">
+                           <button class="btn btn-outline-primary w-100 py-3"
                                @onclick="OpenCompanyCostCodes">
                            <i class="bi bi-diagram-3 d-block fs-3 mb-2"></i>
                            Cost Codes
                        </button>
+            </WorkspaceAction>
                    </div>
 
                    <div class="col-md-3">
-                       <button class="btn btn-outline-primary w-100 py-3"
+                       <WorkspaceAction Route="/finance/company/vendors">
+                           <button class="btn btn-outline-primary w-100 py-3"
                                @onclick="OpenCompanyVendors">
                            <i class="bi bi-people d-block fs-3 mb-2"></i>
                            Vendors
                        </button>
+            </WorkspaceAction>
                    </div>
 
                    <div class="col-md-3">
-                       <button class="btn btn-outline-primary w-100 py-3"
+                       <WorkspaceAction Route="/finance/company/invoices">
+                           <button class="btn btn-outline-primary w-100 py-3"
                                @onclick="OpenCompanyInvoices">
                            <i class="bi bi-receipt d-block fs-3 mb-2"></i>
                            Invoices
                        </button>
+            </WorkspaceAction>
                    </div>
 
                    <div class="col-md-3">
-                       <button class="btn btn-outline-primary w-100 py-3"
+                       <WorkspaceAction Route="/finance/company/payments">
+                           <button class="btn btn-outline-primary w-100 py-3"
                                @onclick="OpenCompanyPayments">
                            <i class="bi bi-wallet2 d-block fs-3 mb-2"></i>
                            Payments
                        </button>
+            </WorkspaceAction>
                    </div>
 
                </div>
@@ -228,15 +239,21 @@ else
 
                             <div class="d-flex gap-2">
 
-                                <button class="btn btn-sm btn-primary flex-fill"
+                                <WorkspaceAction Route="/sites/{id}">
+
+                                    <button class="btn btn-sm btn-primary flex-fill"
                                         @onclick="() => ViewSite(site.Id)">
                                     View
                                 </button>
+            </WorkspaceAction>
 
-                                <button class="btn btn-outline-secondary w-100"
+                                <WorkspaceAction Route="/sites/edit/{site.Id}">
+
+                                    <button class="btn btn-outline-secondary w-100"
                                         @onclick='() => Navigation.NavigateTo($"/sites/edit/{site.Id}")'>
                                     Edit
                                 </button>
+            </WorkspaceAction>
 
                             </div>
 

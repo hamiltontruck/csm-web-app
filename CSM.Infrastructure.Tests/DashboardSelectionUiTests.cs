@@ -51,10 +51,30 @@ public sealed class DashboardSelectionUiTests
         Assert.Null(service.Requests.Single());
     }
 
+    [Fact]
+    public async Task Supervisor_sees_available_modules_without_requesting_executive_totals()
+    {
+        var service = new DashboardStub();
+        using var context = await CreateContext(service, "Supervisor");
+        var page = context.RenderComponent<Dashboard>();
+        page.WaitForAssertion(() => Assert.Contains("Workspace overview", page.Markup));
+        Assert.Contains("HR Management", page.Markup);
+        Assert.DoesNotContain("Budget overview", page.Markup);
+        Assert.DoesNotContain("Open Equipment", page.Markup);
+        Assert.DoesNotContain("Open Compliance", page.Markup);
+        Assert.Empty(service.Requests);
+    }
+
     private static async Task<TestContext> CreateContext(DashboardStub service, string role)
     {
         var context = new TestContext();
         context.Services.AddLogging();
+        var auth = System.Reflection.DispatchProxy.Create<IAuthService, WorkspaceVisibilityTests.Auth>();
+        ((WorkspaceVisibilityTests.Auth)(object)auth).Role = role;
+        ((WorkspaceVisibilityTests.Auth)(object)auth).Permissions = role == "Supervisor"
+            ? new[] { "Projects_View", "HRM_Payroll_View", "HRM_Attendance_View" }
+            : new[] { "Reports_View", "Reports_FinancialSummary_View" };
+        context.Services.AddSingleton(auth);
         context.Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
         context.Services.AddScoped<ProtectedSessionStorage>();
         context.Services.AddSingleton<IExecutiveDashboardService>(service);

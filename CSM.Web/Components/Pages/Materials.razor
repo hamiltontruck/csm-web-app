@@ -38,9 +38,12 @@ else
                 <div class="text-muted">Material Master Catalogue</div>
             </div>
 
-            <button class="btn btn-primary" @onclick="NewMaterial">
+            <WorkspaceAction Route="/materials/create">
+
+                <button class="btn btn-primary" @onclick="NewMaterial">
                 + New Material
             </button>
+            </WorkspaceAction>
         </div>
 
         <div class="card shadow-sm">

@@ -28,11 +28,13 @@
 
             @if (_canSubmit)
             {
-            <button class="btn btn-primary"
+            <WorkspaceAction Route="/hr/shifts/create">
+                <button class="btn btn-primary"
                     @onclick="CreateShift">
                 <i class="bi bi-plus-lg me-1"></i>
                 Add Shift
             </button>
+            </WorkspaceAction>
             }
         </div>
     </div>
@@ -147,11 +149,13 @@
                                     <td class="text-end">
                                         @if (_canSubmit)
                                         {
-                                        <button class="btn btn-sm btn-outline-primary me-1"
+                                        <WorkspaceAction Route="/hr/shifts/edit/{shiftId}">
+                                            <button class="btn btn-sm btn-outline-primary me-1"
                                                 @onclick="() => EditShift(shift.Id)">
                                             <i class="bi bi-pencil me-1"></i>
                                             Edit
                                         </button>
+            </WorkspaceAction>
 
                                         <button class="btn btn-sm @(shift.IsActive ? "btn-outline-danger" : "btn-outline-success")"
                                                 @onclick="() => ChangeActiveStatus(shift)">
@@ -204,7 +208,8 @@
             var shifts = await ShiftService.GetAllAsync();
 
             _shifts = shifts.ToList();
-            _canSubmit = (await AuthService.GetPermissionsAsync()).Contains("HRM_Shift_Submit");
+            var access = new WorkspaceAccess(await AuthService.GetRolesAsync(), await AuthService.GetPermissionsAsync());
+            _canSubmit = access.CanManageShifts;
         }
         catch (Exception ex)
         {

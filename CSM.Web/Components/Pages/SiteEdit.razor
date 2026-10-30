@@ -16,11 +16,14 @@
 
     <div class="d-flex justify-content-between align-items-center mb-4">
 
-        <button class="btn btn-outline-secondary"
+        <WorkspaceAction Route="/sites/{SiteId}">
+
+            <button class="btn btn-outline-secondary"
                 @onclick='() => Navigation.NavigateTo($"/sites/{SiteId}")'>
             <span class="bi bi-arrow-left me-1"></span>
             Back
         </button>
+            </WorkspaceAction>
 
         <h3 class="mb-0">Edit Construction Site</h3>
 
@@ -132,11 +135,14 @@
 
             <div class="mt-4 d-flex justify-content-end gap-2">
 
-                <button type="button"
+                <WorkspaceAction Route="/sites/{SiteId}">
+
+                    <button type="button"
                         class="btn btn-outline-secondary"
                         @onclick='() => Navigation.NavigateTo($"/sites/{SiteId}")'>
                     Cancel
                 </button>
+            </WorkspaceAction>
 
                 <button type="submit"
                         class="btn btn-primary">

@@ -1,7 +1,9 @@
+@inherits WorkspacePageBase
 @page "/equipment"
 @inject NavigationManager Navigation
 
 <PageTitle>Equipment</PageTitle>
+<WorkspaceAccessFeedback Loaded="AccessLoaded" Error="AccessError" />
 
 <div class="container py-4">
 
@@ -20,7 +22,9 @@
 
     <div class="row g-4">
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/equipment/list"))
+        {
+<div class="col-md-6">
             <div class="card shadow-sm h-100"
                  style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo("/equipment/list")'>
@@ -34,8 +38,11 @@
 
             </div>
         </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/equipment/sites"))
+        {
+<div class="col-md-6">
             <div class="card shadow-sm h-100"
                  style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo("/equipment/sites")'>
@@ -49,8 +56,11 @@
 
             </div>
         </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/equipment/downtime-sites"))
+        {
+<div class="col-md-6">
             <div class="card shadow-sm h-100"
                  style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo("/equipment/downtime-sites")'>
@@ -64,8 +74,11 @@
 
             </div>
         </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/equipment/maintenance-sites"))
+        {
+<div class="col-md-6">
             <div class="card shadow-sm h-100"
                  style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo("/equipment/maintenance-sites")'>
@@ -82,8 +95,11 @@
 
             </div>
         </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/equipment/fuel-sites"))
+        {
+<div class="col-md-6">
             <div class="card shadow-sm h-100"
                  style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo("/equipment/fuel-sites")'>
@@ -100,8 +116,11 @@
 
             </div>
         </div>
+        }
 
-       <div class="col-md-6">
+       @if (Access.CanVisit("/equipment/hourmeter-sites"))
+        {
+<div class="col-md-6">
            <div class="card shadow-sm h-100"
                 style="cursor:pointer"
                 @onclick='() => Navigation.NavigateTo("/equipment/hourmeter-sites")'>
@@ -118,8 +137,11 @@
 
            </div>
        </div>
+        }
 
-        <div class="col-md-6">
+        @if (Access.CanVisit("/equipment/utilization-sites"))
+        {
+<div class="col-md-6">
             <div class="card shadow-sm h-100"
                  style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo("/equipment/utilization-sites")'>
@@ -133,7 +155,10 @@
 
             </div>
         </div>
-    <div class="col-md-6">
+        }
+    @if (Access.CanVisit("/equipment/timesheet-sites"))
+        {
+<div class="col-md-6">
         <div class="card shadow-sm h-100"
              style="cursor:pointer"
              @onclick='() => Navigation.NavigateTo("/equipment/timesheet-sites")'>
@@ -150,6 +175,7 @@
 
         </div>
     </div>
+        }
 
     </div>
 

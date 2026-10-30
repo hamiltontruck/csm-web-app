@@ -232,7 +232,7 @@ public sealed class ShiftFeedbackTests
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            Task.FromResult<IReadOnlyCollection<string>>(State.CanSubmit ? new[] { "HRM_Shift_Submit" } : Array.Empty<string>());
+            Task.FromResult<IReadOnlyCollection<string>>(method!.Name == nameof(IAuthService.GetRolesAsync) ? new[] { "CompanyAdmin" } : State.CanSubmit ? new[] { "HRM_Shift_View", "HRM_Shift_Submit" } : new[] { "HRM_Shift_View" });
     }
     private sealed class Factory(HttpClient http) : IHttpClientFactory { public HttpClient CreateClient(string name) => http; }
     private sealed class Response(HttpStatusCode status) : HttpMessageHandler

@@ -150,7 +150,9 @@
                         Cancel
                     </button>
 
-                    <button class="btn btn-primary"
+                    <WorkspaceAction Route="/hr/contractors/details/{contractorId}">
+
+                        <button class="btn btn-primary"
                             @onclick="SaveAsync"
                             disabled="@(_saving || _loading)">
                         @if (_saving)
@@ -164,6 +166,7 @@
                             <span>Save Changes</span>
                         }
                     </button>
+            </WorkspaceAction>
 
                 </div>
 

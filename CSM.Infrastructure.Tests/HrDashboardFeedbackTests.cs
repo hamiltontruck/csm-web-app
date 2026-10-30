@@ -110,7 +110,10 @@ public sealed class HrDashboardFeedbackTests
     }
     public class Auth : DispatchProxy
     {
-        protected override object? Invoke(MethodInfo? method, object?[]? args) => Task.CompletedTask;
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            Task.FromResult<IReadOnlyCollection<string>>(method!.Name == nameof(IAuthService.GetRolesAsync)
+                ? new[] { "SuperAdmin", "HrOfficer" }
+                : new[] { "HRM_Contractor_View", "HRM_Attendance_View" });
     }
     private sealed class Factory(HttpClient http) : IHttpClientFactory { public HttpClient CreateClient(string name) => http; }
     private sealed class Response(HttpStatusCode status) : HttpMessageHandler

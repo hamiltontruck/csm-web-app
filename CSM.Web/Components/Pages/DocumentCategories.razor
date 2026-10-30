@@ -29,7 +29,9 @@
 
             @if (_canManage)
             {
-                <button class="btn btn-primary" @onclick="CreateCategory">Add Category</button>
+                <WorkspaceAction Route="/compliance/document-categories/create">
+                    <button class="btn btn-primary" @onclick="CreateCategory">Add Category</button>
+            </WorkspaceAction>
             }
         </div>
     </div>
@@ -67,7 +69,9 @@
 
                 @if (_canManage)
                 {
-                    <button class="btn btn-primary" @onclick="CreateCategory">Add Category</button>
+                    <WorkspaceAction Route="/compliance/document-categories/create">
+                        <button class="btn btn-primary" @onclick="CreateCategory">Add Category</button>
+            </WorkspaceAction>
                 }
             </div>
         </div>
@@ -129,11 +133,13 @@
                                     </td>
 
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-outline-primary"
+                                        <WorkspaceAction Route="/compliance/document-categories/{id}/edit">
+                                            <button class="btn btn-sm btn-outline-primary"
                                                 @onclick="() => EditCategory(category.Id)">
                                             <i class="bi bi-pencil me-1"></i>
                                             Edit
                                         </button>
+            </WorkspaceAction>
                                     </td>
                                 </tr>
                             }

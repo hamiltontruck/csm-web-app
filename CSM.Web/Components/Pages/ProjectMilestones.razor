@@ -31,9 +31,12 @@ else
                     ← Project
                 </button>
 
-                <button class="btn btn-primary" @onclick="NewMilestone">
+                <WorkspaceAction Route="/projects/edit">
+
+                    <button class="btn btn-primary" @onclick="NewMilestone">
                     + Milestone
                 </button>
+            </WorkspaceAction>
             </div>
 
         </div>
@@ -83,6 +86,7 @@ else
     </div>
 }
 
+<WorkspaceAction Route="/projects/edit">
 @if (_showModal)
 {
     <div class="modal fade show d-block"
@@ -158,10 +162,13 @@ else
                         Cancel
                     </button>
 
-                    <button class="btn btn-primary"
+                    <WorkspaceAction Route="/projects/edit">
+
+                        <button class="btn btn-primary"
                             @onclick="SaveMilestone">
                         Save Milestone
                     </button>
+            </WorkspaceAction>
 
                 </div>
 
@@ -169,6 +176,8 @@ else
         </div>
     </div>
 }
+
+            </WorkspaceAction>
 
 @code {
 

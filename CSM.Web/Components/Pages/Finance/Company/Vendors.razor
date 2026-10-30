@@ -25,11 +25,14 @@
             </div>
         </div>
 
-        <button class="btn btn-primary"
+        <WorkspaceAction Route="/vendors/create">
+
+            <button class="btn btn-primary"
                 @onclick="CreateVendor">
             <i class="bi bi-plus-lg"></i>
             New Vendor
         </button>
+            </WorkspaceAction>
     </div>
 
     @if (_loading)
@@ -88,10 +91,12 @@
                                 </td>
 
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary"
+                                    <WorkspaceAction Route="/vendors/{id}">
+                                        <button class="btn btn-sm btn-outline-primary"
                                             @onclick="() => EditVendor(vendor.Id)">
                                         Edit
                                     </button>
+            </WorkspaceAction>
                                 </td>
 
                             </tr>

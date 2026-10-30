@@ -171,7 +171,7 @@ public sealed class PayrollFeedbackTests
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
             Task.FromResult<IReadOnlyCollection<string>>(method!.Name == nameof(IAuthService.GetRolesAsync)
-                ? new[] { State.Role } : State.ApprovePermission ? new[] { "HRM_Payroll_Approve" } : Array.Empty<string>());
+                ? new[] { State.Role } : State.ApprovePermission ? new[] { "HRM_Payroll_View", "HRM_Payroll_Approve", "HRM_Employee_View" } : new[] { "HRM_Payroll_View", "HRM_Employee_View" });
     }
     private static HttpRequestException Error(HttpStatusCode status) => new("private diagnostic", null, status);
     private sealed class Factory(HttpClient http) : IHttpClientFactory { public HttpClient CreateClient(string name) => http; }

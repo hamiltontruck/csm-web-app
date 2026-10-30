@@ -40,10 +40,13 @@ else
                 <small class="text-muted">@_project.Code</small>
             </div>
 
-            <button class="btn btn-success"
+            <WorkspaceAction Route="/projects/{Id}">
+
+                <button class="btn btn-success"
                     @onclick="Save">
                 Save Changes
             </button>
+            </WorkspaceAction>
 
         </div>
 
@@ -115,10 +118,13 @@ else
                     Cancel
                 </button>
 
-                <button class="btn btn-primary"
+                <WorkspaceAction Route="/projects/{Id}">
+
+                    <button class="btn btn-primary"
                         @onclick="Save">
                     Save
                 </button>
+            </WorkspaceAction>
 
             </div>
 

@@ -181,7 +181,8 @@ public sealed class AttendanceFeedbackTests
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            Task.FromResult<IReadOnlyCollection<string>>(new[] { State.Role });
+            Task.FromResult<IReadOnlyCollection<string>>(method!.Name == nameof(IAuthService.GetRolesAsync)
+                ? new[] { State.Role } : new[] { "HRM_Attendance_View", "HRM_Attendance_Submit", "HRM_Attendance_Approve", "HRM_Employee_View" });
     }
     public class AttendanceApi : DispatchProxy
     {

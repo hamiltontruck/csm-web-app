@@ -8,6 +8,7 @@
 @inject ProtectedSessionStorage SessionStorage
 @inject NavigationManager Navigation
 @inject ILogger<Dashboard> Logger
+@inject IAuthService AuthService
 
 <PageTitle>Executive Dashboard | HBG CSM</PageTitle>
 
@@ -36,6 +37,10 @@
         </div>
         <p>Preparing your project overview…</p>
     </section>
+}
+else if (_accessLoaded && !_access.CanViewExecutive)
+{
+    <WorkspaceOverview Access="_access" />
 }
 else if (_dashboard is null)
 {
@@ -136,6 +141,8 @@ else
 </div>
 
 @code {
+    private WorkspaceAccess _access = WorkspaceAccess.None;
+    private bool _accessLoaded;
     private ExecutiveDashboard? _dashboard;
     private bool _loading = true;
     private bool _initialized;
@@ -163,6 +170,10 @@ else
                 Navigation.NavigateTo("/login", true);
                 return;
             }
+
+            _access = new(await AuthService.GetRolesAsync(), await AuthService.GetPermissionsAsync());
+            _accessLoaded = true;
+            if (!_access.CanViewExecutive) return;
 
             var name = await SessionStorage.GetAsync<string>("userName");
             _userName = name.Success ? name.Value ?? "" : "";
