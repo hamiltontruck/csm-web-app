@@ -50,6 +50,19 @@ public sealed class WorkspaceVisibilityTests
         page.WaitForAssertion(() => Assert.DoesNotContain("Manage Documents", page.Markup));
         Assert.DoesNotContain("Manage Categories", page.Markup);
         Assert.DoesNotContain("View Safety Incidents", page.Markup);
+        Assert.Equal(0, ((Unexpected)(object)api).Reads);
+    }
+
+    [Fact]
+    public void Supervisor_menu_hides_forbidden_modules_even_if_their_view_permission_is_assigned()
+    {
+        using var context = Context("Supervisor", Enum.GetNames<CSM.Domain.Enums.GranularPermission>());
+        context.Services.AddSingleton(DispatchProxy.Create<INotificationApiService, WorkspaceAccessTests.NoNotifications>());
+        var menu = context.RenderComponent<CSM.Web.Components.Layout.NavMenu>();
+        menu.WaitForAssertion(() => Assert.Single(menu.FindAll("a[href='/hr']")));
+        foreach (var route in new[] { "/equipment", "/compliance", "/procurement", "/users", "/roles", "/companies" })
+            Assert.Empty(menu.FindAll("a[href='" + route + "']"));
+        Assert.Single(menu.FindAll("a[href='/inventory']"));
     }
 
     private static TestContext Context(string role, params string[] permissions)
@@ -86,7 +99,11 @@ public sealed class WorkspaceVisibilityTests
     }
     public class Unexpected : DispatchProxy
     {
-        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+        public int Reads;
+        protected override object? Invoke(MethodInfo? method, object?[]? args)
+        {
+            Reads++;
             throw new InvalidOperationException("A hidden module must not load data.");
+        }
     }
 }
