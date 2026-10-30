@@ -222,6 +222,7 @@ services.AddScoped<IWbsTaskService, WbsTaskService>();
 services.AddScoped<IProjectProgressService, ProjectProgressService>();
 services.AddScoped<ITaskResourceAssignmentService, TaskResourceAssignmentService>();
 services.AddScoped<IExecutiveDashboardService, ExecutiveDashboardService>();
+        services.AddScoped<IWorkspaceDashboardService, WorkspaceDashboardService>();
 services.AddScoped<IRolePermissionService, RolePermissionService>();
 services.AddScoped<
     IAuthorizationHandler,

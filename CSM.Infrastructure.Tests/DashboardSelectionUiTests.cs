@@ -52,17 +52,64 @@ public sealed class DashboardSelectionUiTests
     }
 
     [Fact]
-    public async Task Supervisor_sees_available_modules_without_requesting_executive_totals()
+    public async Task Supervisor_sees_project_dashboard_without_financial_cards()
     {
         var service = new DashboardStub();
         using var context = await CreateContext(service, "Supervisor");
         var page = context.RenderComponent<Dashboard>();
-        page.WaitForAssertion(() => Assert.Contains("Workspace overview", page.Markup));
-        Assert.Contains("HR Management", page.Markup);
+        page.WaitForAssertion(() => Assert.Contains("Active projects", page.Markup));
+        Assert.Contains("Project progress", page.Markup);
         Assert.DoesNotContain("Budget overview", page.Markup);
         Assert.DoesNotContain("Open Equipment", page.Markup);
         Assert.DoesNotContain("Open Compliance", page.Markup);
-        Assert.Empty(service.Requests);
+        Assert.Single(service.Requests);
+    }
+
+    [Fact]
+    public async Task HR_cards_render_without_financial_values()
+    {
+        var service = new DashboardStub { Response = new() { AttendanceToday = 3, PendingLeave = 2, SubmittedTimesheets = 1 } };
+        using var context = await CreateContext(service, "HrOfficer");
+        var page = context.RenderComponent<Dashboard>();
+        page.WaitForAssertion(() => Assert.Contains("Submitted timesheets", page.Markup));
+        Assert.Contains("Pending leave requests", page.Markup);
+        Assert.DoesNotContain("Budget overview", page.Markup);
+        Assert.DoesNotContain("Remaining budget", page.Markup);
+    }
+
+    [Fact]
+    public async Task Expense_only_response_does_not_render_budget_or_utilization()
+    {
+        var service = new DashboardStub { Response = new() { TotalExpenses = 12.50m } };
+        using var context = await CreateContext(service, "Accountant");
+        var page = context.RenderComponent<Dashboard>();
+        page.WaitForAssertion(() => Assert.Contains("ETB 12.50", page.Markup));
+        Assert.DoesNotContain("Total budget", page.Markup);
+        Assert.DoesNotContain("Budget utilization", page.Markup);
+        Assert.DoesNotContain("Remaining budget", page.Markup);
+    }
+
+    [Fact]
+    public async Task Authorized_zero_is_displayed_but_absent_sections_are_not()
+    {
+        var service = new DashboardStub { Response = new() { ActiveProjects = 0 } };
+        using var context = await CreateContext(service, "Supervisor");
+        var page = context.RenderComponent<Dashboard>();
+        page.WaitForAssertion(() => Assert.Contains("Active projects", page.Markup));
+        Assert.Equal("0", page.Find(".metric-value").TextContent);
+        Assert.DoesNotContain("Low stock items", page.Markup);
+        Assert.DoesNotContain("Budget overview", page.Markup);
+    }
+
+    [Fact]
+    public async Task Account_without_summary_access_sees_module_fallback()
+    {
+        var service = new DashboardStub { Response = new() };
+        using var context = await CreateContext(service, "Employee");
+        var page = context.RenderComponent<Dashboard>();
+        page.WaitForAssertion(() => Assert.Contains("No dashboard summaries", page.Markup));
+        Assert.Empty(page.FindAll(".metric-value"));
+        Assert.DoesNotContain("Budget overview", page.Markup);
     }
 
     private static async Task<TestContext> CreateContext(DashboardStub service, string role)
@@ -77,6 +124,7 @@ public sealed class DashboardSelectionUiTests
         context.Services.AddSingleton(auth);
         context.Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
         context.Services.AddScoped<ProtectedSessionStorage>();
+        service.Role = role;
         context.Services.AddSingleton<IExecutiveDashboardService>(service);
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         var storage = context.Services.GetRequiredService<ProtectedSessionStorage>();
@@ -94,6 +142,8 @@ public sealed class DashboardSelectionUiTests
 
     private sealed class DashboardStub : IExecutiveDashboardService
     {
+        public string Role = "CompanyAdmin";
+        public ExecutiveDashboard? Response;
         public List<Guid?> Requests { get; } = [];
         public List<DashboardCompany> Companies { get; init; } =
         [
@@ -105,9 +155,11 @@ public sealed class DashboardSelectionUiTests
         public Task<ExecutiveDashboard?> GetDashboardAsync(Guid? selectedCompanyId = null)
         {
             Requests.Add(selectedCompanyId);
-            return Task.FromResult<ExecutiveDashboard?>(new()
+            return Task.FromResult<ExecutiveDashboard?>(Response ?? new()
             {
-                TotalBudget = selectedCompanyId == Companies.LastOrDefault()?.Id ? 200 : 100,
+                ActiveProjects = Role == "Supervisor" ? 1 : null,
+                ProjectProgress = Role == "Supervisor" ? 25 : null,
+                TotalBudget = Role == "Supervisor" ? null : selectedCompanyId == Companies.LastOrDefault()?.Id ? 200 : 100,
                 GeneratedAtUtc = DateTime.UtcNow
             });
         }
