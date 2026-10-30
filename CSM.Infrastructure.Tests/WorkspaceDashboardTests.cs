@@ -148,6 +148,67 @@ public sealed class WorkspaceDashboardTests
         Assert.Equal(0, (await new WorkspaceDashboardService(f.Db).GetAsync(f.Actor.Id)).ActiveProjects);
     }
 
+    [Theory]
+    [InlineData("Storekeeper")]
+    [InlineData("ProcurementOfficer")]
+    [InlineData("Administrator")]
+    public async Task Company_stock_readers_do_not_require_project_site_assignments(string role)
+    {
+        using var f = new Fixture(role, GranularPermission.Procurement_Inventory_View);
+        f.Db.UserSiteAccesses.RemoveRange(f.Db.UserSiteAccesses);
+        f.Db.SaveChanges(true);
+        Assert.Equal(2, (await new WorkspaceDashboardService(f.Db).GetAsync(f.Actor.Id)).LowStockItems);
+    }
+
+    [Fact]
+    public async Task Supervisor_stock_excludes_inactive_sites()
+    {
+        using var f = new Fixture("Supervisor", GranularPermission.Procurement_Inventory_View);
+        f.Db.ConstructionSites.Single(x => x.Id == f.Site).IsActive = false;
+        f.Db.SaveChanges(true);
+        Assert.Equal(0, (await new WorkspaceDashboardService(f.Db).GetAsync(f.Actor.Id)).LowStockItems);
+    }
+
+    [Fact]
+    public async Task Shared_employee_period_is_not_attributed_to_one_site()
+    {
+        using var f = new Fixture("Supervisor", GranularPermission.HRM_Leave_View);
+        var employee = f.Db.SiteAssignments.Single(x => x.ConstructionSiteId == f.Site).EmployeeId;
+        f.Db.SiteAssignments.Add(new() { EmployeeId = employee, CompanyId = f.Company, ConstructionSiteId = f.OtherSite, StartDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1) });
+        f.Db.SaveChanges(true);
+        var result = await new WorkspaceDashboardService(f.Db).GetAsync(f.Actor.Id);
+        Assert.Equal(0, result.PendingLeave);
+        Assert.Equal(0, result.SubmittedTimesheets);
+    }
+
+    [Fact]
+    public async Task PostgreSQL_executes_scoped_and_financial_summary_queries()
+    {
+        var connection = new Npgsql.NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("CSM_TEST_POSTGRES") ?? "Host=localhost;Username=postgres;Password=postgres") { Database = "dashboard_" + Guid.NewGuid().ToString("N") };
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).Options);
+        try
+        {
+            await db.Database.EnsureCreatedAsync();
+            var company = new Company { Code = "DASH", Name = "Dashboard QA" };
+            var role = new Role { Name = "Supervisor", NormalizedName = "SUPERVISOR", GranularPermissions = Enum.GetValues<GranularPermission>().Select(p => new RoleGranularPermission { Permission = p }).ToList() };
+            var user = new User { Company = company, IsActive = true, Email = "qa@example.test", NormalizedEmail = "QA@EXAMPLE.TEST", UserRoles = [new() { Role = role }] };
+            db.Users.Add(user);
+            db.SaveChanges(true);
+            var service = new WorkspaceDashboardService(db);
+            var supervisor = await service.GetAsync(user.Id);
+            Assert.Equal(0, supervisor.LowStockItems);
+            Assert.Equal(0, supervisor.SubmittedTimesheets);
+            Assert.Null(supervisor.TotalExpenses);
+            role.Name = "SiteManager";
+            db.SaveChanges(true);
+            var manager = await service.GetAsync(user.Id);
+            Assert.Equal(0, manager.TotalExpenses);
+            Assert.Equal(0, manager.BudgetUtilization);
+            Assert.Equal(0, manager.OpenSafetyIncidents);
+        }
+        finally { await db.Database.EnsureDeletedAsync(); }
+    }
+
     private sealed class Fixture : IDisposable
     {
         public ApplicationDbContext Db { get; } = new(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
@@ -181,7 +242,7 @@ public sealed class WorkspaceDashboardTests
         }
         public void Grant(params GranularPermission[] permissions)
         {
-            foreach (var permission in permissions) Role.GranularPermissions.Add(new() { RoleId = Role.Id, Permission = permission });
+            foreach (var permission in permissions) Db.RoleGranularPermissions.Add(new() { RoleId = Role.Id, Role = Role, Permission = permission });
             Db.SaveChanges(true);
         }
         public void Dispose() => Db.Dispose();
