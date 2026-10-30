@@ -1,33 +1,25 @@
 @page "/dashboard"
 @rendermode InteractiveServer
-
 @using CSM.Web.Models.Dashboard
 @using CSM.Web.Services
-
 @inject IExecutiveDashboardService DashboardService
 @inject ProtectedSessionStorage SessionStorage
 @inject NavigationManager Navigation
 @inject ILogger<Dashboard> Logger
 @inject IAuthService AuthService
 
-<PageTitle>Executive Dashboard | HBG CSM</PageTitle>
-
+<PageTitle>Dashboard | HBG CSM</PageTitle>
 <div class="dashboard-shell">
 @if (_canSelectCompany)
 {
     <div class="dashboard-company">
         <label for="dashboard-company" class="dashboard-company-label">Workspace</label>
-        <select id="dashboard-company" class="form-select" value="@_selectedCompanyId"
-                @onchange="SelectCompanyAsync" disabled="@_loading">
+        <select id="dashboard-company" class="form-select" value="@_selectedCompanyId" @onchange="SelectCompanyAsync" disabled="@_loading">
             <option value="">Select a company</option>
-            @foreach (var company in _companies)
-            {
-                <option value="@company.Id">@company.Name</option>
-            }
+            @foreach (var company in _companies) { <option value="@company.Id">@company.Name</option> }
         </select>
     </div>
 }
-
 @if (_loading)
 {
     <section class="dashboard-loading" aria-live="polite">
@@ -35,12 +27,8 @@
         <div class="dashboard-skeleton-grid">
             @for (var i = 0; i < 4; i++) { <div class="dashboard-skeleton dashboard-skeleton-card"></div> }
         </div>
-        <p>Preparing your project overview…</p>
+        <p>Preparing your dashboard…</p>
     </section>
-}
-else if (_accessLoaded && !_access.CanViewExecutive)
-{
-    <WorkspaceOverview Access="_access" />
 }
 else if (_dashboard is null)
 {
@@ -59,90 +47,54 @@ else
 {
     <div class="executive-dashboard">
         <header class="dashboard-header">
-            <div>
-                <h1>Executive Overview</h1>
-                <p class="dashboard-subtitle">Business performance at a glance</p>
-            </div>
-            <div class="dashboard-header-meta">
-                <span class="dashboard-date">@DateTime.Now.ToString("dddd, dd MMMM yyyy")</span>
-                <span class="dashboard-live"><span class="status-dot"></span> Workspace ready</span>
-            </div>
+            <div><h1>Dashboard</h1><p class="dashboard-subtitle">Your permitted company and site activity</p></div>
+            <div class="dashboard-header-meta"><span class="dashboard-date">@_dashboard.Today.ToString("dddd, dd MMMM yyyy")</span></div>
         </header>
-
-        <section class="metric-grid" aria-label="Portfolio metrics">
-            <article class="metric-card metric-card-primary">
-                <div class="metric-label">Active projects</div>
-                <div class="metric-value">@_dashboard.ActiveProjects</div>
-                <div class="metric-foot"><span>Portfolio-wide</span></div>
-            </article>
-            <article class="metric-card">
-                <div class="metric-label">Completed projects</div>
-                <div class="metric-value">@_dashboard.CompletedProjects</div>
-                <div class="metric-foot"><span class="metric-positive">●</span><span>Successfully handed over</span></div>
-            </article>
-            <article class="metric-card">
-                <div class="metric-label">Team members</div>
-                <div class="metric-value">@_dashboard.TotalEmployees</div>
-                <div class="metric-foot"><span>Across your organization</span></div>
-            </article>
-            <article class="metric-card metric-card-alert">
-                <div class="metric-label">Open project delays</div>
-                <div class="metric-value">@_dashboard.OpenDelays</div>
-                <div class="metric-foot"><span class="metric-attention">@(_dashboard.OpenDelays > 0 ? "Review required" : "No open delays")</span></div>
-            </article>
-        </section>
-
-        <section class="dashboard-content-grid">
-            <article class="dashboard-panel budget-panel">
-                <div class="panel-heading">
-                    <div><p class="panel-overline">FINANCIAL HEALTH</p><h2>Budget overview</h2></div>
-                    <span class="panel-chip">Portfolio</span>
-                </div>
+        @if (Metrics().Any())
+        {
+            <section class="metric-grid" aria-label="Authorized activity">
+                @foreach (var metric in Metrics())
+                {
+                    <article class="metric-card">
+                        <div class="metric-label">@metric.Label</div><div class="metric-value">@metric.Value</div>
+                        @if (_access.CanVisit(metric.Route))
+                        { <div class="metric-foot"><a href="@metric.Route">View details →</a></div> }
+                    </article>
+                }
+            </section>
+        }
+        @if (_dashboard.TotalBudget.HasValue || _dashboard.TotalExpenses.HasValue)
+        {
+            <section class="dashboard-panel budget-panel" aria-label="Authorized financial activity">
+                <div class="panel-heading"><div><p class="panel-overline">FINANCE</p><h2>Budget overview</h2></div><span class="panel-chip">@_dashboard.CurrencyCode</span></div>
                 <div class="budget-total">
-                    <div><span class="budget-caption">Total approved budget</span><strong>@Money(_dashboard.TotalBudget)</strong></div>
-                    <div class="budget-spend"><span class="budget-caption">Expenses to date</span><strong>@Money(_dashboard.TotalExpenses)</strong></div>
+                    @if (_dashboard.TotalBudget is decimal budget)
+                    { <div><span class="budget-caption">Total budget</span><strong>@Money(budget)</strong></div> }
+                    @if (_dashboard.TotalExpenses is decimal expenses)
+                    { <div class="budget-spend"><span class="budget-caption">Expenses to date</span><strong>@Money(expenses)</strong></div> }
                 </div>
-                <div class="budget-progress-label"><span>Budget utilization</span><strong>@_dashboard.BudgetUtilization.ToString("0.0")%</strong></div>
-                <div class="budget-progress" role="progressbar" aria-label="Budget utilization" aria-valuenow="@Math.Clamp(_dashboard.BudgetUtilization, 0, 100)" aria-valuemin="0" aria-valuemax="100">
-                    <span style="width:@($"{Math.Clamp(_dashboard.BudgetUtilization, 0, 100)}%")"></span>
-                </div>
-                <div class="budget-foot"><span>Remaining budget</span><strong>@Money(_dashboard.TotalBudget - _dashboard.TotalExpenses)</strong></div>
-                <div class="budget-note">
-                    <span class="budget-note-mark">↗</span>
-                    <span>Actual spend is <strong>@Money(_dashboard.TotalExpenses)</strong> of <strong>@Money(_dashboard.TotalBudget)</strong> approved.</span>
-                </div>
-            </article>
-
-            <article class="dashboard-panel operations-panel">
-                <div class="panel-heading">
-                    <div><p class="panel-overline">SITE OPERATIONS</p><h2>Daily pulse</h2></div>
-                    <span class="pulse-indicator"><i></i> @(_dashboard.OpenSafetyIncidents > 0 || _dashboard.LowStockItems > 0 ? "Action needed" : "Up to date")</span>
-                </div>
-                <div class="operation-row">
-                    <span class="operation-symbol operation-symbol-red">!</span>
-                    <div class="operation-copy"><strong>Safety incidents</strong><span>Open items requiring follow-up</span></div>
-                    <span class="operation-count operation-count-red">@_dashboard.OpenSafetyIncidents</span>
-                </div>
-                <div class="operation-row">
-                    <span class="operation-symbol operation-symbol-amber">⌁</span>
-                    <div class="operation-copy"><strong>Low stock items</strong><span>Materials below reorder level</span></div>
-                    <span class="operation-count operation-count-amber">@_dashboard.LowStockItems</span>
-                </div>
-                <div class="operations-note">
-                    <span class="operations-note-icon">✦</span>
-                    <div><strong>Keep your sites moving</strong><p>Review open items with your site leads to keep work on schedule.</p></div>
-                </div>
-                <div class="data-updated"><span class="status-dot"></span> Updated @_dashboard.GeneratedAtUtc.ToLocalTime().ToString("dd MMM, HH:mm")</div>
-            </article>
-        </section>
-        <footer class="dashboard-footer"><span>Hamilton Business Group <span class="footer-separator">/</span> Construction Site Management</span><span>CSM • Executive view</span></footer>
+                @if (_dashboard.BudgetUtilization is decimal utilization)
+                {
+                    <div class="budget-progress-label"><span>Budget utilization</span><strong>@utilization.ToString("0.0")%</strong></div>
+                    <div class="budget-progress" role="progressbar" aria-label="Budget utilization" aria-valuenow="@Math.Clamp(utilization, 0, 100)" aria-valuemin="0" aria-valuemax="100">
+                        <span style="width:@($"{Math.Clamp(utilization, 0, 100)}%")"></span>
+                    </div>
+                    <div class="budget-foot"><span>Remaining budget</span><strong>@Money(_dashboard.TotalBudget!.Value - _dashboard.TotalExpenses!.Value)</strong></div>
+                }
+            </section>
+        }
+        @if (!Metrics().Any() && !_dashboard.TotalBudget.HasValue && !_dashboard.TotalExpenses.HasValue)
+        {
+            <p>No dashboard summaries are available with your current access.</p>
+            <WorkspaceOverview Access="_access" />
+        }
+        <footer class="dashboard-footer"><span>CSM Workspace</span><span>Updated @_dashboard.GeneratedAtUtc.ToLocalTime().ToString("dd MMM, HH:mm")</span></footer>
     </div>
 }
 </div>
 
 @code {
     private WorkspaceAccess _access = WorkspaceAccess.None;
-    private bool _accessLoaded;
     private ExecutiveDashboard? _dashboard;
     private bool _loading = true;
     private bool _initialized;
@@ -172,8 +124,7 @@ else
             }
 
             _access = new(await AuthService.GetRolesAsync(), await AuthService.GetPermissionsAsync());
-            _accessLoaded = true;
-            if (!_access.CanViewExecutive) return;
+
 
             var name = await SessionStorage.GetAsync<string>("userName");
             _userName = name.Success ? name.Value ?? "" : "";
@@ -215,7 +166,7 @@ else
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to load the executive dashboard");
+            Logger.LogError(ex, "Failed to load the dashboard");
             _errorMessage = "Unable to load the dashboard. Please try again.";
         }
         finally
@@ -237,5 +188,20 @@ else
         await LoadDashboardAsync();
     }
 
-    private static string Money(decimal value) => $"ETB {value:N0}";
+    private string Money(decimal value) => $"{_dashboard?.CurrencyCode ?? "ETB"} {value:N2}";
+    private IEnumerable<(string Label, string Value, string Route)> Metrics()
+    {
+        if (_dashboard is null) yield break;
+        if (_dashboard.ActiveProjects is int active) yield return ("Active projects", active.ToString(), "/projects");
+        if (_dashboard.CompletedProjects is int completed) yield return ("Completed projects", completed.ToString(), "/projects");
+        if (_dashboard.ProjectProgress is decimal progress) yield return ("Project progress", $"{progress:0.##}%", "/projects");
+        if (_dashboard.OpenDelays is int delays) yield return ("Open project delays", delays.ToString(), "/projects");
+        if (_dashboard.TotalEmployees is int employees) yield return ("Team members", employees.ToString(), "/hr/employees");
+        if (_dashboard.LowStockItems is int stock) yield return ("Low stock items", stock.ToString(), "/stock-balance");
+        if (_dashboard.OpenSafetyIncidents is int safety) yield return ("Open safety incidents", safety.ToString(), "/compliance");
+        if (_dashboard.AttendanceToday is int attendance) yield return ($"Attendance · {_dashboard.Today:dd MMM}", attendance.ToString(), "/hr/attendance");
+        if (_dashboard.PendingAttendance is int pending) yield return ("Attendance awaiting approval", pending.ToString(), "/hr/attendance");
+        if (_dashboard.PendingLeave is int leave) yield return ("Pending leave requests", leave.ToString(), "/hr/leave");
+        if (_dashboard.SubmittedTimesheets is int sheets) yield return ("Submitted timesheets", sheets.ToString(), "/hr/timesheets");
+    }
 }

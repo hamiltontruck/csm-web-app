@@ -31,8 +31,8 @@ public class ExecutiveDashboardService : IExecutiveDashboardService
             new AuthenticationHeaderValue("Bearer", token.Value);
 
         var path = selectedCompanyId.HasValue
-            ? $"dashboard/executive?selectedCompanyId={selectedCompanyId.Value:D}"
-            : "dashboard/executive";
+            ? $"dashboard/workspace?selectedCompanyId={selectedCompanyId.Value:D}"
+            : "dashboard/workspace";
         return await client.GetFromJsonAsync<ExecutiveDashboard>(path);
     }
     public async Task<IReadOnlyList<DashboardCompany>> GetCompaniesAsync()
