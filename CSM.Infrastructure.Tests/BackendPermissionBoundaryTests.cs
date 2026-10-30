@@ -106,7 +106,7 @@ public sealed class BackendPermissionBoundaryTests
     {
         var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
             ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test;Username=test;Password=test",
-            ["Jwt:SecretKey"] = "test-secret-with-at-least-thirty-two-characters", ["Jwt:Issuer"] = "test", ["Jwt:Audience"] = "test"
+            ["Jwt:SecretKey"] = "test-secret-with-at-least-thirty-two-characters", ["Jwt:Issuer"] = "test", ["Jwt:Audience"] = "test", ["Jwt:AccessTokenMinutes"] = "15"
         }).Build();
         var services = new ServiceCollection().AddLogging();
         CSM.Infrastructure.DependencyInjection.AddInfrastructure(services, config);
@@ -147,6 +147,53 @@ public sealed class BackendPermissionBoundaryTests
         await service.UpdatePermissionsAsync(actor.Id, target.Id, new([GranularPermission.Procurement_Inventory_View, GranularPermission.Procurement_Inventory_View]));
         Assert.Equal(GranularPermission.Procurement_Inventory_View, db.RoleGranularPermissions.Single(x => x.RoleId == target.Id).Permission);
         Assert.True(await new PermissionEvaluator(db).HasPermissionAsync(actor.Id, "Users_Edit"));
+    }
+
+    [Fact]
+    public async Task Signed_bearer_token_enforces_signature_lifetime_and_current_database_authority()
+    {
+        using var db = Database("Supervisor", out var actor);
+        using var services = JwtServices(db);
+        var settings = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtSettings>>().Value;
+        var tokenService = new TokenService(Microsoft.Extensions.Options.Options.Create(settings));
+        var token = tokenService.GenerateAccessToken(actor, ["SuperAdmin"]);
+        var valid = await Authenticate(token);
+        Assert.True(valid.Succeeded);
+        Assert.True(valid.Principal!.IsInRole("Supervisor"));
+        Assert.False(valid.Principal.IsInRole("SuperAdmin"));
+
+        var signature = token.LastIndexOf('.') + 1;
+        var tampered = token[..signature] + (token[signature] == 'A' ? "B" : "A") + token[(signature + 1)..];
+        Assert.False((await Authenticate(tampered)).Succeeded);
+        var expiredSettings = new JwtSettings { SecretKey = settings.SecretKey, Issuer = settings.Issuer, Audience = settings.Audience, AccessTokenMinutes = -5 };
+        var expired = new TokenService(Microsoft.Extensions.Options.Options.Create(expiredSettings)).GenerateAccessToken(actor, ["Supervisor"]);
+        Assert.False((await Authenticate(expired)).Succeeded);
+        actor.IsActive = false; db.SaveChanges(true);
+        Assert.False((await Authenticate(token)).Succeeded);
+
+        async Task<Microsoft.AspNetCore.Authentication.AuthenticateResult> Authenticate(string bearer)
+        {
+            using var scope = services.CreateScope();
+            var http = new Microsoft.AspNetCore.Http.DefaultHttpContext { RequestServices = scope.ServiceProvider };
+            http.Request.Headers.Authorization = "Bearer " + bearer;
+            return await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.AuthenticateAsync(http, "Bearer");
+        }
+    }
+
+    [Fact]
+    public async Task Current_token_drops_deleted_roles_and_removed_tenant_employee_claims()
+    {
+        using var db = Database("CompanyAdmin", out var actor);
+        actor.UserRoles.Single().IsDeleted = true;
+        actor.CompanyId = null; actor.EmployeeId = null; db.SaveChanges(true);
+        using var services = JwtServices(db);
+        var context = JwtContext(services, actor.Id);
+        ((ClaimsIdentity)context.Principal!.Identity!).AddClaim(new Claim("employee_id", Guid.NewGuid().ToString()));
+        var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>>().Get("Bearer");
+        await options.Events.TokenValidated(context);
+        Assert.Empty(context.Principal!.FindAll(ClaimTypes.Role));
+        Assert.Null(context.Principal.FindFirst("company_id"));
+        Assert.Null(context.Principal.FindFirst("employee_id"));
     }
 
     private static ServiceProvider Services(ApplicationDbContext db)
