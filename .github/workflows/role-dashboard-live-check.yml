@@ -35,3 +35,5 @@ jobs:
           for path in ["/api/auth/me", "/api/dashboard/workspace", "/api/dashboard/executive", "/api/Payroll"]:
               get(api + path, 401)
           PY
+
+# Verify live authorization release PR86, 2026-10-31.
