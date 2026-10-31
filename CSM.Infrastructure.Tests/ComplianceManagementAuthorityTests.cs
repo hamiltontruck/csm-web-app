@@ -90,6 +90,45 @@ public sealed class ComplianceManagementAuthorityTests
         Assert.Equal(count, (await Read(f, "permit")).Length);
         Assert.Equal(count, (await Read(f, "inspection")).Length);
     }
+    [Fact]
+    public async Task PostgreSQL_enforces_assigned_scope_and_retains_authorized_writes()
+    {
+        var connection = new Npgsql.NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("CSM_TEST_POSTGRES") ?? "Host=localhost;Username=postgres;Password=postgres") { Database = "compliance_authority_" + Guid.NewGuid().ToString("N") };
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).Options);
+        try
+        {
+            await db.Database.MigrateAsync();
+            var company = new Company { Code = "OWN", Name = "Own" }; var otherCompany = new Company { Code = "OTHER", Name = "Other" };
+            var site = new ConstructionSite { CompanyId = company.Id, SiteCode = "ONE", Name = "Assigned" }; var unassigned = new ConstructionSite { CompanyId = company.Id, SiteCode = "TWO", Name = "Unassigned" }; var foreign = new ConstructionSite { CompanyId = otherCompany.Id, SiteCode = "THREE", Name = "Foreign" };
+            User Actor(string role, Guid? companyId) => new() { CompanyId = companyId, Email = role + "@example.test", NormalizedEmail = role.ToUpperInvariant() + "@EXAMPLE.TEST", IsActive = true, UserRoles = [new() { Role = new Role { Name = role, NormalizedName = role.ToUpperInvariant(), GranularPermissions = [new() { Permission = GranularPermission.Compliance_View }, new() { Permission = GranularPermission.Compliance_Manage }] } }] };
+            var manager = Actor("SiteManager", company.Id); var admin = Actor("CompanyAdmin", company.Id); var global = Actor("SuperAdmin", null);
+            db.Companies.AddRange(company, otherCompany); db.ConstructionSites.AddRange(site, unassigned, foreign); db.Users.AddRange(manager, admin, global);
+            db.UserSiteAccesses.Add(new() { CompanyId = company.Id, UserId = manager.Id, SiteId = site.Id, IsActive = true });
+            Permit Permit(ConstructionSite at, string code) => new() { CompanyId = at.CompanyId, ConstructionSiteId = at.Id, PermitNumber = code, PermitType = "Test", Name = code };
+            Inspection Inspection(ConstructionSite at, string code) => new() { CompanyId = at.CompanyId, ConstructionSiteId = at.Id, InspectionNumber = code, InspectionType = "Test", Title = code, ScheduledAtUtc = DateTime.UtcNow };
+            var deniedPermit = Permit(unassigned, "TWO"); var deniedInspection = Inspection(unassigned, "TWO");
+            db.Permits.AddRange(Permit(site, "ONE"), deniedPermit, Permit(foreign, "THREE"));
+            db.Inspections.AddRange(Inspection(site, "ONE"), deniedInspection, Inspection(foreign, "THREE"));
+            await db.SaveChangesAsync();
+            var permits = new PermitService(db); var inspections = new InspectionService(db);
+            Assert.Single(await permits.GetAllAsync(manager.Id)); Assert.Single(await inspections.GetAllAsync(manager.Id));
+            Assert.Equal(2, (await permits.GetAllAsync(admin.Id)).Count); Assert.Equal(2, (await inspections.GetAllAsync(admin.Id)).Count);
+            Assert.Equal(3, (await permits.GetAllAsync(global.Id)).Count); Assert.Equal(3, (await inspections.GetAllAsync(global.Id)).Count);
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => permits.GetByIdAsync(manager.Id, deniedPermit.Id));
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => inspections.GetByIdAsync(manager.Id, deniedInspection.Id));
+            CreatePermitRequest NewPermit(ConstructionSite at, string code) => new() { ConstructionSiteId = at.Id, PermitNumber = code, PermitType = "Test", Name = code };
+            CreateInspectionRequest NewInspection(ConstructionSite at, string code) => new() { ConstructionSiteId = at.Id, InspectionNumber = code, InspectionType = "Test", Title = code, ScheduledAtUtc = DateTime.UtcNow };
+            Assert.Equal(company.Id, (await permits.CreateAsync(manager.Id, NewPermit(site, "NEW"))).CompanyId);
+            Assert.Equal(company.Id, (await inspections.CreateAsync(manager.Id, NewInspection(site, "NEW"))).CompanyId);
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => permits.CreateAsync(manager.Id, NewPermit(unassigned, "DENIED")));
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => inspections.CreateAsync(manager.Id, NewInspection(unassigned, "DENIED")));
+            Assert.Equal(otherCompany.Id, (await permits.CreateAsync(global.Id, NewPermit(foreign, "GLOBAL"))).CompanyId);
+            Assert.Equal(otherCompany.Id, (await inspections.CreateAsync(global.Id, NewInspection(foreign, "GLOBAL"))).CompanyId);
+            var grant = await db.UserSiteAccesses.SingleAsync(x => x.UserId == manager.Id); grant.IsActive = false; await db.SaveChangesAsync();
+            Assert.Empty(await permits.GetAllAsync(manager.Id)); Assert.Empty(await inspections.GetAllAsync(manager.Id));
+        }
+        finally { await db.Database.EnsureDeletedAsync(); }
+    }
     private static async Task<Guid[]> Read(Fixture f, string kind) => kind == "permit"
         ? (await new PermitService(f.Db).GetAllAsync(f.Actor.Id)).Select(x => x.Id).ToArray()
         : (await new InspectionService(f.Db).GetAllAsync(f.Actor.Id)).Select(x => x.Id).ToArray();
