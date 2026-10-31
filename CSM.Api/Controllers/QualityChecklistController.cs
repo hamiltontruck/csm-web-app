@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = "Compliance.View")]
 public class QualityChecklistController : ControllerBase
 {
     private readonly QualityChecklistService _service;
@@ -59,6 +60,7 @@ public class QualityChecklistController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<QualityChecklistResponse>> Create(
         CreateQualityChecklistRequest request,
         CancellationToken ct)
@@ -69,6 +71,7 @@ public class QualityChecklistController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<QualityChecklistResponse>> Update(
         Guid id,
         UpdateQualityChecklistRequest request,

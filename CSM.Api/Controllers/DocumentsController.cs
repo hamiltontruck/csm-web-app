@@ -14,6 +14,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
+[Authorize(Policy = "Compliance.View")]
 public sealed class DocumentsController : ControllerBase
 {
     private readonly IDocumentService _documentService;
@@ -66,6 +67,7 @@ public sealed class DocumentsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<DocumentResponse>> Create(
         [FromBody] CreateDocumentRequest request,
         CancellationToken cancellationToken)
@@ -90,6 +92,7 @@ public sealed class DocumentsController : ControllerBase
     }
 
     [HttpPut("{documentId:guid}")]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<DocumentResponse>> Update(
         Guid documentId,
         [FromBody] UpdateDocumentRequest request,
@@ -112,6 +115,7 @@ public sealed class DocumentsController : ControllerBase
         }
     }
     [HttpPost("{id:guid}/upload-version")]
+    [Authorize(Policy = "Compliance.Manage")]
     [RequestSizeLimit(100_000_000)]
     public async Task<ActionResult<DocumentVersionResponse>> UploadVersion(
         Guid id,

@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[Authorize(Policy = "HRM.Shift.View")]
 public sealed class ShiftsController : ControllerBase
 {
     private const string ReadRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
@@ -67,6 +68,7 @@ public sealed class ShiftsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "HRM.Shift.Submit")]
     [Authorize(Roles = WriteRoles)]
     public async Task<ActionResult<ShiftResponse>> Create(
         CreateShiftRequest request,
@@ -91,6 +93,7 @@ public sealed class ShiftsController : ControllerBase
     }
 
     [HttpPut("{shiftId:guid}")]
+    [Authorize(Policy = "HRM.Shift.Submit")]
     [Authorize(Roles = WriteRoles)]
     public async Task<ActionResult<ShiftResponse>> Update(
         Guid shiftId,
@@ -114,6 +117,7 @@ public sealed class ShiftsController : ControllerBase
     }
 
     [HttpPut("{shiftId:guid}/active-status")]
+    [Authorize(Policy = "HRM.Shift.Submit")]
     [Authorize(Roles = WriteRoles)]
     public async Task<ActionResult<ShiftResponse>> ChangeActiveStatus(
         Guid shiftId,

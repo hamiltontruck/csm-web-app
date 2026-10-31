@@ -9,6 +9,8 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[Authorize(Policy = "Projects.DailyProgress.View")]
+[Authorize(Policy = "Projects.View")]
 public class DailyProgressTaskEntriesController : ControllerBase
 {
     private readonly IDailyProgressTaskEntryService _service;
@@ -20,6 +22,7 @@ public class DailyProgressTaskEntriesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Projects.DailyProgress.Create")]
     public async Task<IActionResult> Create(
         CreateDailyProgressTaskEntryRequest request)
     {
@@ -43,6 +46,7 @@ public class DailyProgressTaskEntriesController : ControllerBase
     }
 
     [HttpPost("equipment")]
+    [Authorize(Policy = "Projects.DailyProgress.Create")]
     public async Task<IActionResult> AddEquipment(
         CreateEquipmentEntryRequest request)
     {

@@ -16,6 +16,7 @@ namespace CSM.Api.Controllers;
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
     AppRoles.HrOfficer + "," + AppRoles.HROfficer)]
+[Authorize(Policy = "HRM.Employee.View")]
 public sealed class EmployeesController : ControllerBase
 {
     private readonly IEmployeeService _employeeService;
@@ -77,6 +78,7 @@ public sealed class EmployeesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "HRM.Employee.Manage")]
     public async Task<ActionResult<EmployeeResponse>> Create(
         CreateEmployeeRequest request,
         CancellationToken cancellationToken)
@@ -113,6 +115,7 @@ public sealed class EmployeesController : ControllerBase
     }
 
     [HttpPut("{employeeId:guid}")]
+    [Authorize(Policy = "HRM.Employee.Manage")]
     public async Task<ActionResult<EmployeeResponse>> Update(
         Guid employeeId,
         UpdateEmployeeRequest request,
@@ -148,6 +151,7 @@ public sealed class EmployeesController : ControllerBase
     }
 
     [HttpPut("{employeeId:guid}/status")]
+    [Authorize(Policy = "HRM.Employee.Manage")]
     public async Task<ActionResult<EmployeeResponse>> ChangeStatus(
         Guid employeeId,
         ChangeEmployeeStatusRequest request,

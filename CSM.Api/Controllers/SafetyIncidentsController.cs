@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
+[Authorize(Policy = "Compliance.View")]
 public sealed class SafetyIncidentsController : ControllerBase
 {
     private readonly ISafetyIncidentService _safetyIncidentService;
@@ -63,6 +64,7 @@ public sealed class SafetyIncidentsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<SafetyIncidentResponse>> Create(
         [FromBody] CreateSafetyIncidentRequest request,
         CancellationToken cancellationToken)
@@ -87,6 +89,7 @@ public sealed class SafetyIncidentsController : ControllerBase
     }
 
     [HttpPut("{safetyIncidentId:guid}")]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<SafetyIncidentResponse>> Update(
         Guid safetyIncidentId,
         [FromBody] UpdateSafetyIncidentRequest request,

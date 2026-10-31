@@ -9,6 +9,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
+[Authorize(Policy = "Compliance.View")]
 public class SafetyObservationController : ControllerBase
 {
     private readonly ISafetyObservationService _service;
@@ -46,6 +47,7 @@ public class SafetyObservationController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<SafetyObservationResponse>> Create(
         CreateSafetyObservationRequest request,
         CancellationToken cancellationToken)
@@ -62,6 +64,7 @@ public class SafetyObservationController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<SafetyObservationResponse>> Update(
         Guid id,
         UpdateSafetyObservationRequest request,

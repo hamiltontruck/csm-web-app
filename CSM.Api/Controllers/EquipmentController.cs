@@ -13,6 +13,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
+[Authorize(Policy = "Procurement.Inventory.View")]
 public sealed class EquipmentController : ControllerBase
 {
     private readonly IEquipmentService _equipmentService;
@@ -74,6 +75,7 @@ public sealed class EquipmentController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentResponse>> Create(
         [FromBody] CreateEquipmentRequest request,
         CancellationToken cancellationToken)
@@ -103,6 +105,7 @@ public sealed class EquipmentController : ControllerBase
     }
 
     [HttpPut("{equipmentId:guid}")]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentResponse>> Update(
         Guid equipmentId,
         [FromBody] UpdateEquipmentRequest request,

@@ -13,6 +13,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Policy = "Procurement.Inventory.View")]
 public sealed class EquipmentUtilizationController : ControllerBase
 {
     private readonly EquipmentUtilizationService _service;

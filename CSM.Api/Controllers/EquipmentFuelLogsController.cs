@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Policy = "Procurement.Inventory.View")]
 public sealed class EquipmentFuelLogsController : ControllerBase
 {
     private readonly EquipmentFuelLogService _service;
@@ -62,6 +63,7 @@ public sealed class EquipmentFuelLogsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentFuelLogResponse>> Create(
         [FromBody] CreateEquipmentFuelLogRequest request,
         CancellationToken cancellationToken)
@@ -85,6 +87,7 @@ public sealed class EquipmentFuelLogsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentFuelLogResponse>> Update(
         Guid id,
         [FromBody] UpdateEquipmentFuelLogRequest request,

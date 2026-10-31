@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = AppPolicies.HRManagement)]
+[Authorize(Policy = "HRM.Contractor.View")]
 public sealed class ContractorsController : ControllerBase
 {
     private readonly IContractorService _contractorService;
@@ -65,6 +66,7 @@ public sealed class ContractorsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "HRM.Contractor.Manage")]
     public async Task<ActionResult<ContractorResponse>> Create(
         CreateContractorRequest request,
         CancellationToken cancellationToken)
@@ -92,6 +94,7 @@ public sealed class ContractorsController : ControllerBase
     }
 
     [HttpPut("{contractorId:guid}")]
+    [Authorize(Policy = "HRM.Contractor.Manage")]
     public async Task<ActionResult<ContractorResponse>> Update(
         Guid contractorId,
         UpdateContractorRequest request,

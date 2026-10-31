@@ -9,6 +9,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
+[Authorize(Policy = "Compliance.View")]
 public class ComplianceViolationsController : ControllerBase
 {
     private readonly ComplianceViolationService _service;
