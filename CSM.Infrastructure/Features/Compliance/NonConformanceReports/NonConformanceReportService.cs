@@ -27,7 +27,7 @@ public class NonConformanceReportService
 
         return await _db.NonConformanceReports
             .AsNoTracking()
-            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted && (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId && !x.Project.IsDeleted)) && (x.AssignedToEmployeeId == null || (x.AssignedToEmployee!.CompanyId == companyId && !x.AssignedToEmployee.IsDeleted)) && x.RaisedBy.CompanyId == companyId)
+            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) && (x.AssignedToEmployeeId == null || (x.AssignedToEmployee!.CompanyId == companyId)))
             .OrderByDescending(x => x.ReportedDate)
             .Select(Map())
             .ToListAsync(ct);
@@ -42,7 +42,7 @@ public class NonConformanceReportService
 
         return await _db.NonConformanceReports
             .AsNoTracking()
-            .Where(x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted && (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId && !x.Project.IsDeleted)) && (x.AssignedToEmployeeId == null || (x.AssignedToEmployee!.CompanyId == companyId && !x.AssignedToEmployee.IsDeleted)) && x.RaisedBy.CompanyId == companyId)
+            .Where(x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) && (x.AssignedToEmployeeId == null || (x.AssignedToEmployee!.CompanyId == companyId)))
             .Select(Map())
             .FirstOrDefaultAsync(ct);
     }
@@ -136,7 +136,7 @@ public class NonConformanceReportService
             ProjectName = x.Project != null ? x.Project.Name : null,
 
             RaisedById = x.RaisedById,
-            RaisedByName = x.RaisedBy.FirstName + " " + x.RaisedBy.LastName,
+            RaisedByName = x.RaisedBy.CompanyId == x.CompanyId ? x.RaisedBy.FirstName + " " + x.RaisedBy.LastName : string.Empty,
 
             AssignedToEmployeeId = x.AssignedToEmployeeId,
             AssignedToEmployeeName = x.AssignedToEmployee != null

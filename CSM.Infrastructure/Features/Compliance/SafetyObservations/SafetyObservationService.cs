@@ -26,9 +26,9 @@ public sealed class SafetyObservationService : ISafetyObservationService
 
         return await _db.SafetyObservations
             .Where(x => x.CompanyId == companyId && !x.IsDeleted &&
-                x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted &&
-                (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId && !x.Project.IsDeleted)) &&
-                (x.EmployeeId == null || (x.Employee!.CompanyId == companyId && !x.Employee.IsDeleted)))
+                x.ConstructionSite.CompanyId == companyId &&
+                (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) &&
+                (x.EmployeeId == null || (x.Employee!.CompanyId == companyId)))
             .Include(x => x.ConstructionSite)
             .OrderByDescending(x => x.ObservationDate)
             .Select(x => new SafetyObservationListItem
@@ -59,10 +59,9 @@ public sealed class SafetyObservationService : ISafetyObservationService
             .SingleOrDefaultAsync(
                 x => x.Id == observationId &&
                      x.CompanyId == companyId &&
-                     !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted &&
-                     (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId && !x.Project.IsDeleted)) &&
-                     (x.EmployeeId == null || (x.Employee!.CompanyId == companyId && !x.Employee.IsDeleted)) &&
-                     x.Observer.CompanyId == companyId,
+                     !x.IsDeleted && x.ConstructionSite.CompanyId == companyId &&
+                     (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) &&
+                     (x.EmployeeId == null || (x.Employee!.CompanyId == companyId)),
                 cancellationToken)
             ?? throw new KeyNotFoundException("Safety observation not found.");
 
@@ -121,10 +120,9 @@ public sealed class SafetyObservationService : ISafetyObservationService
             .SingleOrDefaultAsync(
                 x => x.Id == observationId &&
                      x.CompanyId == companyId &&
-                     !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted &&
-                     (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId && !x.Project.IsDeleted)) &&
-                     (x.EmployeeId == null || (x.Employee!.CompanyId == companyId && !x.Employee.IsDeleted)) &&
-                     x.Observer.CompanyId == companyId,
+                     !x.IsDeleted && x.ConstructionSite.CompanyId == companyId &&
+                     (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) &&
+                     (x.EmployeeId == null || (x.Employee!.CompanyId == companyId)),
                 cancellationToken)
             ?? throw new KeyNotFoundException("Safety observation not found.");
 
@@ -168,7 +166,7 @@ public sealed class SafetyObservationService : ISafetyObservationService
             ProjectId = x.ProjectId,
             ProjectName = x.Project?.Name,
             ObserverId = x.ObserverId,
-            ObserverName = x.Observer.Email,
+            ObserverName = x.Observer.CompanyId == x.CompanyId ? x.Observer.Email : string.Empty,
             EmployeeId = x.EmployeeId,
             EmployeeName = x.Employee == null
                 ? null

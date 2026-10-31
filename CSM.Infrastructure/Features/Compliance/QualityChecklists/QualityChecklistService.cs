@@ -25,7 +25,7 @@ public class QualityChecklistService
 
         return await _db.QualityChecklists
             .AsNoTracking()
-            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted)
+            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId)
             .OrderBy(x => x.Name)
             .Select(Map())
             .ToListAsync(ct);
@@ -40,7 +40,7 @@ public class QualityChecklistService
 
         return await _db.QualityChecklists
             .AsNoTracking()
-            .Where(x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted)
+            .Where(x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId)
             .Select(Map())
             .FirstOrDefaultAsync(ct);
     }

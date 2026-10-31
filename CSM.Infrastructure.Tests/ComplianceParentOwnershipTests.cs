@@ -5,6 +5,7 @@ using CSM.Domain.Entities.Identity;
 using CSM.Domain.Entities.Organization;
 using CSM.Domain.Entities.Projects;
 using CSM.Domain.Entities.HRM;
+using CSM.Domain.Entities.Compliance;
 using CSM.Domain.Enums;
 using CSM.Infrastructure.Features.Compliance.NonConformanceReports;
 using CSM.Infrastructure.Features.Compliance.QualityChecklists;
@@ -115,6 +116,57 @@ public sealed class ComplianceParentOwnershipTests
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new SafetyObservationService(f.Db).CreateAsync(f.Actor.Id, new CreateSafetyObservationRequest { ConstructionSiteId = f.Site.Id }));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new NonConformanceReportService(f.Db).CreateAsync(f.Actor.Id, new CreateNonConformanceReportRequest { ConstructionSiteId = f.Site.Id }));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new QualityChecklistService(f.Db).CreateAsync(f.Actor.Id, new CreateQualityChecklistRequest { ConstructionSiteId = f.Site.Id }));
+    }
+    [Fact]
+    public async Task PostgreSQL_translates_parent_scopes_and_excludes_legacy_foreign_links()
+    {
+        var connection = new Npgsql.NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("CSM_TEST_POSTGRES") ?? "Host=localhost;Username=postgres;Password=postgres") { Database = "compliance_scope_" + Guid.NewGuid().ToString("N") };
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).Options);
+        try
+        {
+            await db.Database.MigrateAsync();
+            var company = new Company { Code = "COMP", Name = "Own" };
+            var foreignCompany = new Company { Code = "OTHER", Name = "Other" };
+            var site = new ConstructionSite { CompanyId = company.Id, SiteCode = "ONE", Name = "Own site" };
+            var foreign = new ConstructionSite { CompanyId = foreignCompany.Id, SiteCode = "OTHER", Name = "Foreign site" };
+            var actor = new User { CompanyId = company.Id, Email = "compliance@example.test", NormalizedEmail = "COMPLIANCE@EXAMPLE.TEST", IsActive = true, UserRoles = [new() { Role = new Role { Name = "CompanyAdmin", NormalizedName = "COMPANYADMIN", GranularPermissions = [new() { Permission = GranularPermission.Compliance_View }, new() { Permission = GranularPermission.Compliance_Manage }] } }] };
+            db.Companies.AddRange(company, foreignCompany); db.ConstructionSites.AddRange(site, foreign); db.Users.Add(actor); await db.SaveChangesAsync();
+            var observations = new SafetyObservationService(db); var ncrs = new NonConformanceReportService(db); var checklists = new QualityChecklistService(db);
+            await observations.CreateAsync(actor.Id, new CreateSafetyObservationRequest { ConstructionSiteId = site.Id, ObservationNumber = "ONE", ObservationDate = DateTime.UtcNow });
+            await ncrs.CreateAsync(actor.Id, new CreateNonConformanceReportRequest { ConstructionSiteId = site.Id, NcrNumber = "ONE", Title = "Own", ReportedDate = DateTime.UtcNow });
+            await checklists.CreateAsync(actor.Id, new CreateQualityChecklistRequest { ConstructionSiteId = site.Id, Name = "Own", Category = "Test" });
+            db.SafetyObservations.Add(new SafetyObservation { CompanyId = company.Id, ConstructionSiteId = foreign.Id, ObserverId = actor.Id, ObservationNumber = "LEGACY", ObservationDate = DateTime.UtcNow });
+            db.NonConformanceReports.Add(new NonConformanceReport { CompanyId = company.Id, ConstructionSiteId = foreign.Id, RaisedById = actor.Id, NcrNumber = "LEGACY", ReportedDate = DateTime.UtcNow });
+            db.QualityChecklists.Add(new QualityChecklist { CompanyId = company.Id, ConstructionSiteId = foreign.Id, Name = "Legacy" });
+            await db.SaveChangesAsync();
+            Assert.Single(await observations.GetAllAsync(actor.Id));
+            Assert.Single(await ncrs.GetAllAsync(actor.Id));
+            Assert.Single(await checklists.GetAllAsync(actor.Id));
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => observations.CreateAsync(actor.Id, new CreateSafetyObservationRequest { ConstructionSiteId = foreign.Id }));
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => ncrs.CreateAsync(actor.Id, new CreateNonConformanceReportRequest { ConstructionSiteId = foreign.Id }));
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => checklists.CreateAsync(actor.Id, new CreateQualityChecklistRequest { ConstructionSiteId = foreign.Id }));
+        }
+        finally { await db.Database.EnsureDeletedAsync(); }
+    }
+    [Fact]
+    public async Task Same_company_history_remains_readable_when_parents_are_soft_deleted()
+    {
+        using var f = new Fixture();
+        var project = new Project { CompanyId = f.Site.CompanyId, ConstructionSiteId = f.Site.Id };
+        var employee = new Employee { CompanyId = f.Site.CompanyId };
+        f.Db.Projects.Add(project); f.Db.Employees.Add(employee); f.Db.SaveChanges(true);
+        var observations = new SafetyObservationService(f.Db); var ncrs = new NonConformanceReportService(f.Db); var checklists = new QualityChecklistService(f.Db);
+        var observation = await observations.CreateAsync(f.Actor.Id, new CreateSafetyObservationRequest { ConstructionSiteId = f.Site.Id, ProjectId = project.Id, EmployeeId = employee.Id });
+        var ncr = await ncrs.CreateAsync(f.Actor.Id, new CreateNonConformanceReportRequest { ConstructionSiteId = f.Site.Id, ProjectId = project.Id, AssignedToEmployeeId = employee.Id });
+        var checklist = await checklists.CreateAsync(f.Actor.Id, new CreateQualityChecklistRequest { ConstructionSiteId = f.Site.Id });
+        project.IsDeleted = true; employee.IsDeleted = true; f.Site.IsDeleted = true; f.Db.SaveChanges(true);
+        Assert.Single(await observations.GetAllAsync(f.Actor.Id));
+        Assert.Single(await ncrs.GetAllAsync(f.Actor.Id));
+        Assert.Single(await checklists.GetAllAsync(f.Actor.Id));
+        Assert.Equal(observation.Id, (await observations.GetByIdAsync(f.Actor.Id, observation.Id)).Id);
+        Assert.Equal(ncr.Id, (await ncrs.GetByIdAsync(f.Actor.Id, ncr.Id))!.Id);
+        Assert.Equal(checklist.Id, (await checklists.GetByIdAsync(f.Actor.Id, checklist.Id))!.Id);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => checklists.CreateAsync(f.Actor.Id, new CreateQualityChecklistRequest { ConstructionSiteId = f.Site.Id }));
     }
     private sealed class Fixture : IDisposable
     {
