@@ -1,4 +1,7 @@
 using CSM.Application.Common.Backup;
+using CSM.Domain.Constants;
+using CSM.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using System.Diagnostics;
@@ -8,18 +11,35 @@ namespace CSM.Infrastructure.Services;
 public sealed class BackupService : IBackupService
 {
     private readonly IConfiguration _configuration;
+    private readonly ApplicationDbContext _context;
 
-    public BackupService(IConfiguration configuration)
+    public BackupService(IConfiguration configuration, ApplicationDbContext context)
     {
         _configuration = configuration;
+        _context = context;
+    }
+
+    public async Task EnsureAuthorizedAsync(Guid actorId, CancellationToken cancellationToken)
+    {
+        // These operations affect the entire database. Check live authority before
+        // touching configuration, the filesystem, or PostgreSQL client processes.
+        if (!await _context.UserRoles.AsNoTracking().AnyAsync(x =>
+                x.UserId == actorId && !x.IsDeleted &&
+                x.User.IsActive && !x.User.IsDeleted && !x.Role.IsDeleted &&
+                x.Role.Name == AppRoles.SuperAdmin, cancellationToken))
+        {
+            throw new UnauthorizedAccessException("You are not authorized to manage database backups.");
+        }
     }
 
     private string BackupFolder =>
         Path.Combine(AppContext.BaseDirectory, "Backups");
 
     public async Task<IReadOnlyCollection<BackupInfoDto>> GetBackupsAsync(
+        Guid actorId,
         CancellationToken cancellationToken)
     {
+        await EnsureAuthorizedAsync(actorId, cancellationToken);
         Directory.CreateDirectory(BackupFolder);
 
         var files = Directory.GetFiles(BackupFolder, "*.dump")
@@ -37,8 +57,10 @@ public sealed class BackupService : IBackupService
     }
 
     public async Task<string> CreateBackupAsync(
+        Guid actorId,
         CancellationToken cancellationToken)
     {
+        await EnsureAuthorizedAsync(actorId, cancellationToken);
         Directory.CreateDirectory(BackupFolder);
 
         var fileName =
@@ -51,9 +73,11 @@ public sealed class BackupService : IBackupService
     }
 
     public async Task RestoreBackupAsync(
+        Guid actorId,
         string backupFilePath,
         CancellationToken cancellationToken)
     {
+        await EnsureAuthorizedAsync(actorId, cancellationToken);
         var safePath = Path.GetFullPath(backupFilePath);
         var safeFolder = Path.GetFullPath(BackupFolder) + Path.DirectorySeparatorChar;
         if (!safePath.StartsWith(safeFolder, StringComparison.Ordinal))
