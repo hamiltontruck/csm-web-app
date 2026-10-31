@@ -94,25 +94,21 @@
                         <div class="col-md-6">
                             <label class="form-label">File Name *</label>
                             <InputText class="form-control"
-                                       @bind-Value="_request.FileName" />
+                                       @bind-Value="_request.FileName" disabled />
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Storage Path *</label>
-                            <InputText class="form-control"
-                                       @bind-Value="_request.StoragePath" />
-                        </div>
+
 
                         <div class="col-md-6">
                             <label class="form-label">Content Type</label>
                             <InputText class="form-control"
-                                       @bind-Value="_request.ContentType" />
+                                       @bind-Value="_request.ContentType" disabled />
                         </div>
 
                         <div class="col-md-6">
                             <label class="form-label">File Size (Bytes)</label>
                             <InputNumber class="form-control"
-                                         @bind-Value="_request.FileSizeBytes" />
+                                         @bind-Value="_request.FileSizeBytes" disabled />
                         </div>
 
                         <div class="col-md-6">
@@ -759,12 +755,6 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_request.StoragePath))
-        {
-            _errorMessage = "Storage Path is required.";
-            return;
-        }
-
         if (_request.FileSizeBytes < 0)
         {
             _errorMessage = "File Size cannot be negative.";
@@ -791,9 +781,9 @@
             Navigation.NavigateTo(
                 "/compliance/documents");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _errorMessage = ex.Message;
+            _errorMessage = "Unable to save the document. Check your access and try again.";
         }
         finally
         {

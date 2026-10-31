@@ -27,3 +27,8 @@ coverage/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Uploaded business files: storage is runtime data, never source control.
+# Existing tracked legacy files are intentionally unaffected.
+CSM.Api/wwwroot/uploads/
+**/App_Data/documents/

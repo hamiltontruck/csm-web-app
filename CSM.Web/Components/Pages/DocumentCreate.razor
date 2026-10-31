@@ -16,7 +16,7 @@
         <div>
             <h2>Create Document</h2>
             <p class="text-muted mb-0">
-                Create the document metadata record.
+                Create the document record, then upload its file on the next screen.
             </p>
         </div>
 
@@ -104,13 +104,7 @@
                            placeholder="e.g. safety-plan.pdf" />
                 </div>
 
-                <div class="col-md-6">
-                    <label class="form-label">Storage Path</label>
-                    <input class="form-control"
-                           maxlength="1000"
-                           @bind="_request.StoragePath"
-                           placeholder="/uploads/documents/file.pdf" />
-                </div>
+
 
                 <div class="col-md-6">
                     <label class="form-label">Content Type</label>
@@ -311,12 +305,6 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_request.StoragePath))
-        {
-            _errorMessage = "Storage Path is required.";
-            return;
-        }
-
         if (_request.FileSizeBytes < 0)
         {
             _errorMessage = "File Size cannot be negative.";
@@ -336,15 +324,15 @@
         {
             _saving = true;
 
-            await ComplianceService.CreateDocumentAsync(
+            var created = await ComplianceService.CreateDocumentAsync(
                 _request);
 
             Navigation.NavigateTo(
-                "/compliance/documents");
+                $"/compliance/documents/{created.Id:D}/edit");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _errorMessage = ex.Message;
+            _errorMessage = "Unable to save the document. Check your access and try again.";
         }
         finally
         {

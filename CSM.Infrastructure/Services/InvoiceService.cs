@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.Invoices;
 using CSM.Application.Finance.Invoices.Dtos;
@@ -59,6 +60,7 @@ public sealed class InvoiceService : IInvoiceService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanRead(actor);
         var companyId = GetActorCompanyId(actor);
 
         var invoices = await _dbContext.Invoices
@@ -97,7 +99,7 @@ public sealed class InvoiceService : IInvoiceService
             invoice.CompanyId);
 
         var paidAmount = invoice.Payments
-            .Where(p => p.Status == PaymentStatus.Completed)
+            .Where(p => p.CompanyId == invoice.CompanyId && !p.IsDeleted && p.Status == PaymentStatus.Completed)
             .Sum(p => p.Amount);
 
         return Map(invoice, paidAmount);
@@ -291,14 +293,21 @@ public sealed class InvoiceService : IInvoiceService
         Guid currentUserId,
         CancellationToken cancellationToken)
     {
-        return await _dbContext.Users
+        var actor = await _dbContext.Users
+            .AsNoTracking()
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)
             .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
+                x => x.Id == currentUserId && x.IsActive && !x.IsDeleted,
                 cancellationToken)
             ?? throw new InvoiceManagementException(
                 "Authenticated user was not found.");
+
+        if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(
+                currentUserId, "Finance_Invoice_View", cancellationToken))
+            throw new InvoiceManagementException("Invoice access is not permitted.");
+
+        return actor;
     }
 
     private static void EnsureCanRead(
@@ -349,7 +358,7 @@ public sealed class InvoiceService : IInvoiceService
     private static Guid GetActorCompanyId(
         User actor)
     {
-        if (!actor.CompanyId.HasValue)
+        if (!actor.CompanyId.HasValue || actor.CompanyId.Value == Guid.Empty)
         {
             throw new InvoiceManagementException(
                 "Current user is not assigned to a company.");
@@ -374,11 +383,13 @@ public sealed class InvoiceService : IInvoiceService
 
     private async Task<decimal> GetPaidAmountAsync(
         Guid invoiceId,
+        Guid companyId,
         CancellationToken cancellationToken)
     {
         return await _dbContext.Payments
             .Where(x =>
                 x.InvoiceId == invoiceId &&
+                x.CompanyId == companyId &&
                 x.Status == PaymentStatus.Completed &&
                 !x.IsDeleted)
             .SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m;
@@ -484,6 +495,7 @@ public sealed class InvoiceService : IInvoiceService
 
         var paid = await GetPaidAmountAsync(
             invoice.Id,
+            invoice.CompanyId,
             cancellationToken);
 
         return Map(invoice, paid);
@@ -502,7 +514,7 @@ public sealed class InvoiceService : IInvoiceService
 
         EnsureCompanyAccess(actor, invoice.CompanyId);
 
-        var paid = await GetPaidAmountAsync(invoice.Id, cancellationToken);
+        var paid = await GetPaidAmountAsync(invoice.Id, invoice.CompanyId, cancellationToken);
 
         if (paid > 0)
             throw new InvoiceManagementException(
@@ -709,7 +721,7 @@ public sealed class InvoiceService : IInvoiceService
     private static InvoiceResponse Map(Invoice invoice)
     {
         var paidAmount = invoice.Payments?
-            .Where(p => p.Status == PaymentStatus.Completed)
+            .Where(p => p.CompanyId == invoice.CompanyId && !p.IsDeleted && p.Status == PaymentStatus.Completed)
             .Sum(p => p.Amount) ?? 0m;
 
         return Map(invoice, paidAmount);
@@ -768,6 +780,7 @@ public sealed class InvoiceService : IInvoiceService
             invoice.UpdatedAtUtc,   // ← comma required
 
             invoice.Payments
+                .Where(p => p.CompanyId == invoice.CompanyId && !p.IsDeleted)
                 .OrderByDescending(p => p.PaymentDate)
                 .Select(MapPayment)
                 .ToList()

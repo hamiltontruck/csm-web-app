@@ -136,7 +136,9 @@ public sealed class DocumentFeedbackTests
         var company = Guid.NewGuid(); var actorId = Guid.NewGuid(); var docId = Guid.NewGuid();
         db.Users.Add(new CSM.Domain.Entities.Identity.User { Id = actorId, IsActive = true, CompanyId = companyAssigned ? company : null,
             UserRoles = [new CSM.Domain.Entities.Identity.UserRole { Id = Guid.NewGuid(),
-                Role = new CSM.Domain.Entities.Identity.Role { Id = Guid.NewGuid(), Name = role } }] });
+                Role = new CSM.Domain.Entities.Identity.Role { Id = Guid.NewGuid(), Name = role, GranularPermissions = [
+                    new() { Permission = CSM.Domain.Enums.GranularPermission.Compliance_View },
+                    new() { Permission = CSM.Domain.Enums.GranularPermission.Compliance_Manage }] } }] });
         db.Documents.Add(new CSM.Domain.Entities.Compliance.Document { Id = docId, CompanyId = foreign ? Guid.NewGuid() : company,
             IsDeleted = deleted, DocumentNumber = "DOC-TEST-1", Name = "Test Document", FileName = "test.pdf", StoragePath = "/uploads/documents/test.pdf" });
         db.DocumentVersions.Add(new CSM.Domain.Entities.Compliance.DocumentVersion {
