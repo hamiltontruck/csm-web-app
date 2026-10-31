@@ -25,7 +25,7 @@ public sealed class ReportsCompanyScopeTests
         Assert.Single(summary.Sites);
         Assert.Equal(1, (await service.GetSiteExecutiveDashboardAsync(ActorId, SecondSite, default, SecondCompany)).TotalSites);
         await service.GetSiteFinancialSummaryAsync(ActorId, SecondSite, default, SecondCompany);
-        await Assert.ThrowsAsync<ReportingManagementException>(() =>
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             service.GetSiteExecutiveDashboardAsync(ActorId, FirstSite, default, SecondCompany));
     }
 
@@ -107,9 +107,9 @@ public sealed class ReportsCompanyScopeTests
             new ConstructionSite { Id = FirstSite, CompanyId = FirstCompany, SiteCode = "FIRST", Name = "First Site" },
             new ConstructionSite { Id = SecondSite, CompanyId = SecondCompany, SiteCode = "SECOND", Name = "Second Site" });
         db.Projects.AddRange(
-            new Project { Id = Guid.NewGuid(), CompanyId = FirstCompany, Name = "First" },
-            new Project { Id = Guid.NewGuid(), CompanyId = SecondCompany, Name = "Second" },
-            new Project { Id = Guid.NewGuid(), CompanyId = SecondCompany, Name = "Third" });
+            new Project { Id = Guid.NewGuid(), CompanyId = FirstCompany, ConstructionSiteId = FirstSite, Name = "First" },
+            new Project { Id = Guid.NewGuid(), CompanyId = SecondCompany, ConstructionSiteId = SecondSite, Name = "Second" },
+            new Project { Id = Guid.NewGuid(), CompanyId = SecondCompany, ConstructionSiteId = SecondSite, Name = "Third" });
         // This fixture uses InMemory, so bypass the context's PostgreSQL-only timestamp normalizer.
         db.SaveChanges(acceptAllChangesOnSuccess: true);
         return db;

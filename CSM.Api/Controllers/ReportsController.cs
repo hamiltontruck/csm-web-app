@@ -37,6 +37,8 @@ public sealed class ReportsController : ControllerBase
 
             return Ok(result);
         }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new { message = "Report scope was not found." }); }
         catch (ReportingManagementException ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -59,6 +61,8 @@ public sealed class ReportsController : ControllerBase
 
             return Ok(result);
         }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new { message = "Report scope was not found." }); }
         catch (ReportingManagementException ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -84,6 +88,8 @@ public sealed class ReportsController : ControllerBase
 
             return Ok(result);
         }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new { message = "Report scope was not found." }); }
         catch (ReportingManagementException ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -109,6 +115,8 @@ public sealed class ReportsController : ControllerBase
 
             return Ok(result);
         }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new { message = "Report scope was not found." }); }
         catch (ReportingManagementException ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -133,6 +141,8 @@ public sealed class ReportsController : ControllerBase
 
             return Ok(result);
         }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new { message = "Report scope was not found." }); }
         catch (ReportingManagementException ex)
         {
             return BadRequest(new

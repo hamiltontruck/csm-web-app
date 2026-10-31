@@ -33,28 +33,30 @@ public sealed class ReportingService : IReportingService
             GranularPermission.Reports_View);
 
         var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
+        var scope = new FinancialReadScope(_dbContext, actor, companyId);
+        var canFinance = HasPermission(actor, GranularPermission.Reports_FinancialSummary_View);
 
-        var sites = _dbContext.ConstructionSites
+        var sites = scope.Sites
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId);
 
-        var projects = _dbContext.Projects
+        var projects = scope.Projects
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId);
 
-        var budgets = _dbContext.Budgets
+        var budgets = scope.Finance(_dbContext.Budgets)
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId);
 
-        var expenses = _dbContext.Expenses
+        var expenses = scope.Finance(_dbContext.Expenses)
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId);
 
-        var invoices = _dbContext.Invoices
+        var invoices = scope.Finance(_dbContext.Invoices)
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId);
 
-        var payments = _dbContext.Payments
+        var payments = scope.Finance(_dbContext.Payments)
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId);
 
@@ -68,38 +70,36 @@ public sealed class ReportingService : IReportingService
         var totalProjects = await projects.CountAsync(
             cancellationToken);
 
-        var totalContractValue = await projects
+        decimal? totalContractValue = canFinance ? (await projects
             .SumAsync(
                 x => (decimal?)x.ContractValue,
-                cancellationToken) ?? 0m;
+                cancellationToken) ?? 0m) : null;
 
-        var totalBudget = await budgets
+        decimal? totalBudget = canFinance ? (await budgets
             .SumAsync(
                 x => (decimal?)x.TotalAmount,
-                cancellationToken) ?? 0m;
+                cancellationToken) ?? 0m) : null;
 
-        var totalExpenses = await expenses
+        decimal? totalExpenses = canFinance ? (await expenses
             .Where(x => x.Status != Domain.Enums.ExpenseStatus.Cancelled)
             .SumAsync(
                 x => (decimal?)x.Amount + x.TaxAmount,
-                cancellationToken) ?? 0m;
+                cancellationToken) ?? 0m) : null;
 
-        var totalInvoices = await invoices
+        decimal? totalInvoices = canFinance ? (await invoices
             .Where(x => x.Status != Domain.Enums.InvoiceStatus.Cancelled)
             .SumAsync(
                 x => (decimal?)x.TotalAmount,
-                cancellationToken) ?? 0m;
+                cancellationToken) ?? 0m) : null;
 
-        var totalCompletedPayments = await payments
+        decimal? totalCompletedPayments = canFinance ? (await payments
             .Where(x => x.Status == Domain.Enums.PaymentStatus.Completed)
             .SumAsync(
                 x => (decimal?)x.Amount,
-                cancellationToken) ?? 0m;
+                cancellationToken) ?? 0m) : null;
 
-        var outstandingInvoices =
-            Math.Max(
-                0m,
-                totalInvoices - totalCompletedPayments);
+        decimal? outstandingInvoices = canFinance
+            ? Math.Max(0m, totalInvoices!.Value - totalCompletedPayments!.Value) : null;
 
         var sitesByStatus = await sites
             .GroupBy(x => x.Status)
@@ -155,8 +155,10 @@ public sealed class ReportingService : IReportingService
             GranularPermission.Reports_FinancialSummary_View);
 
         var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
+        var scope = new FinancialReadScope(_dbContext, actor, companyId);
+        if (!scope.IncludesCompany) throw new UnauthorizedAccessException("Company-level financial reports are not available in your scope.");
 
-        var totalBudget = await _dbContext.Budgets
+        var totalBudget = await scope.Finance(_dbContext.Budgets)
             .AsNoTracking()
             .Where(
                 x =>
@@ -167,7 +169,7 @@ public sealed class ReportingService : IReportingService
                 x => (decimal?)x.TotalAmount,
                 cancellationToken) ?? 0m;
 
-        var totalExpenses = await _dbContext.Expenses
+        var totalExpenses = await scope.Finance(_dbContext.Expenses)
             .AsNoTracking()
             .Where(
                 x =>
@@ -178,7 +180,7 @@ public sealed class ReportingService : IReportingService
                 x => (decimal?)x.Amount + x.TaxAmount,
                 cancellationToken) ?? 0m;
 
-        var invoiceData = await _dbContext.Invoices
+        var invoiceData = await scope.Finance(_dbContext.Invoices)
             .AsNoTracking()
             .Where(
                 x =>
@@ -218,7 +220,7 @@ public sealed class ReportingService : IReportingService
             invoiceData?.VendorBills ?? 0m;
 
         var completedIncomingPayments =
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -233,7 +235,7 @@ public sealed class ReportingService : IReportingService
                     cancellationToken) ?? 0m;
 
         var completedOutgoingPayments =
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -249,7 +251,7 @@ public sealed class ReportingService : IReportingService
 
 
         var pettyCashCashIn =
-            await _dbContext.PettyCashTransactions
+            await scope.Transactions
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -261,7 +263,7 @@ public sealed class ReportingService : IReportingService
                     cancellationToken) ?? 0m;
 
         var pettyCashCashOut =
-            await _dbContext.PettyCashTransactions
+            await scope.Transactions
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -292,7 +294,7 @@ public sealed class ReportingService : IReportingService
             pettyCashNetMovement;
 
         var pettyCashBalance =
-            await _dbContext.PettyCashAccounts
+            await scope.Finance(_dbContext.PettyCashAccounts)
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -304,7 +306,7 @@ public sealed class ReportingService : IReportingService
                     cancellationToken) ?? 0m;
 
         var activePettyCashAccounts =
-            await _dbContext.PettyCashAccounts
+            await scope.Finance(_dbContext.PettyCashAccounts)
                 .AsNoTracking()
                 .CountAsync(
                     x =>
@@ -314,7 +316,7 @@ public sealed class ReportingService : IReportingService
                     cancellationToken);
 
         var companyPettyCashBalance =
-            await _dbContext.PettyCashAccounts
+            await scope.Finance(_dbContext.PettyCashAccounts)
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -326,7 +328,7 @@ public sealed class ReportingService : IReportingService
                     cancellationToken) ?? 0m;
 
         var companyPettyCashAccounts =
-            await _dbContext.PettyCashAccounts
+            await scope.Finance(_dbContext.PettyCashAccounts)
                 .AsNoTracking()
                 .CountAsync(
                     x =>
@@ -389,8 +391,9 @@ public sealed class ReportingService : IReportingService
             GranularPermission.Reports_FinancialSummary_View);
 
         var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
+        var scope = new FinancialReadScope(_dbContext, actor, companyId);
 
-        var site = await _dbContext.ConstructionSites
+        var site = await scope.Sites
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 x =>
@@ -398,10 +401,9 @@ public sealed class ReportingService : IReportingService
                     x.CompanyId == companyId &&
                     !x.IsDeleted,
                 cancellationToken)
-            ?? throw new ReportingManagementException(
-                "Construction site was not found or does not belong to the current company.");
+            ?? throw new KeyNotFoundException("Construction site was not found.");
 
-        var totalBudget = await _dbContext.Budgets
+        var totalBudget = await scope.Finance(_dbContext.Budgets)
             .AsNoTracking()
             .Where(
                 x =>
@@ -412,7 +414,7 @@ public sealed class ReportingService : IReportingService
                 x => (decimal?)x.TotalAmount,
                 cancellationToken) ?? 0m;
 
-        var totalExpenses = await _dbContext.Expenses
+        var totalExpenses = await scope.Finance(_dbContext.Expenses)
             .AsNoTracking()
             .Where(
                 x =>
@@ -424,7 +426,7 @@ public sealed class ReportingService : IReportingService
                 x => (decimal?)x.Amount + x.TaxAmount,
                 cancellationToken) ?? 0m;
 
-        var invoiceData = await _dbContext.Invoices
+        var invoiceData = await scope.Finance(_dbContext.Invoices)
             .AsNoTracking()
             .Where(
                 x =>
@@ -465,7 +467,7 @@ public sealed class ReportingService : IReportingService
             invoiceData?.VendorBills ?? 0m;
 
         var completedIncomingPayments =
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -480,7 +482,7 @@ public sealed class ReportingService : IReportingService
                     cancellationToken) ?? 0m;
 
         var completedOutgoingPayments =
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -512,7 +514,7 @@ public sealed class ReportingService : IReportingService
                 totalBudget - totalExpenses);
 
         var pettyCashCashIn =
-            await _dbContext.PettyCashTransactions
+            await scope.Transactions
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -524,7 +526,7 @@ public sealed class ReportingService : IReportingService
                     cancellationToken) ?? 0m;
 
         var pettyCashCashOut =
-            await _dbContext.PettyCashTransactions
+            await scope.Transactions
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -559,7 +561,7 @@ public sealed class ReportingService : IReportingService
                 ? (totalExpenses / totalBudget) * 100m
                 : 0m;
 
-        var pettyCashData = await _dbContext.PettyCashAccounts
+        var pettyCashData = await scope.Finance(_dbContext.PettyCashAccounts)
             .AsNoTracking()
             .Where(
                 x =>
@@ -618,16 +620,15 @@ public sealed class ReportingService : IReportingService
             GranularPermission.Reports_FinancialSummary_View);
 
         var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
+        var scope = new FinancialReadScope(_dbContext, actor, companyId);
 
         // Preserve the existing Company Financial Report.
-        var companySummary =
-            await GetFinancialSummaryAsync(
-                currentUserId,
-                cancellationToken,
-                selectedCompanyId);
+        FinancialSummaryResponse? companySummary = scope.IncludesCompany
+            ? await GetFinancialSummaryAsync(currentUserId, cancellationToken, selectedCompanyId)
+            : null;
 
         // Get all active/non-deleted sites belonging to the company.
-        var sites = await _dbContext.ConstructionSites
+        var sites = await scope.Sites
             .AsNoTracking()
             .Where(
                 x =>
@@ -678,7 +679,7 @@ public sealed class ReportingService : IReportingService
         // ------------------------------------------------------------
         // Budget
         // ------------------------------------------------------------
-        var totalBudget = await _dbContext.Budgets
+        var totalBudget = await scope.Finance(_dbContext.Budgets)
             .AsNoTracking()
             .Where(
                 x =>
@@ -695,7 +696,7 @@ public sealed class ReportingService : IReportingService
         // ------------------------------------------------------------
         // Expenses
         // ------------------------------------------------------------
-        var totalExpenses = await _dbContext.Expenses
+        var totalExpenses = await scope.Finance(_dbContext.Expenses)
             .AsNoTracking()
             .Where(
                 x =>
@@ -713,7 +714,7 @@ public sealed class ReportingService : IReportingService
         // ------------------------------------------------------------
         // Invoices
         // ------------------------------------------------------------
-        var invoiceData = await _dbContext.Invoices
+        var invoiceData = await scope.Finance(_dbContext.Invoices)
             .AsNoTracking()
             .Where(
                 x =>
@@ -760,7 +761,7 @@ public sealed class ReportingService : IReportingService
         // Incoming payments
         // ------------------------------------------------------------
         var completedIncomingPayments =
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -781,7 +782,7 @@ public sealed class ReportingService : IReportingService
         // Outgoing payments
         // ------------------------------------------------------------
         var completedOutgoingPayments =
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -804,7 +805,7 @@ public sealed class ReportingService : IReportingService
         // Petty cash movement
         // ------------------------------------------------------------
         var pettyCashCashIn =
-            await _dbContext.PettyCashTransactions
+            await scope.Transactions
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -820,7 +821,7 @@ public sealed class ReportingService : IReportingService
                     cancellationToken) ?? 0m;
 
         var pettyCashCashOut =
-            await _dbContext.PettyCashTransactions
+            await scope.Transactions
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -884,7 +885,7 @@ public sealed class ReportingService : IReportingService
         // Petty cash accounts
         // ------------------------------------------------------------
         var pettyCashData =
-            await _dbContext.PettyCashAccounts
+            await scope.Finance(_dbContext.PettyCashAccounts)
                 .AsNoTracking()
                 .Where(
                     x =>
@@ -953,7 +954,7 @@ public sealed class ReportingService : IReportingService
             .ThenInclude(x => x.Role)
             .ThenInclude(x => x.GranularPermissions)
             .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
+                x => x.Id == currentUserId && x.IsActive && !x.IsDeleted,
                 cancellationToken)
             ?? throw new ReportingManagementException(
                 "Authenticated user was not found.");
@@ -975,8 +976,10 @@ public sealed class ReportingService : IReportingService
             GranularPermission.Reports_View);
 
         var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
+        var scope = new FinancialReadScope(_dbContext, actor, companyId);
+        var canFinance = HasPermission(actor, GranularPermission.Reports_FinancialSummary_View);
 
-        var site = await _dbContext.ConstructionSites
+        var site = await scope.Sites
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 x =>
@@ -984,10 +987,9 @@ public sealed class ReportingService : IReportingService
                     x.CompanyId == companyId &&
                     !x.IsDeleted,
                 cancellationToken)
-            ?? throw new ReportingManagementException(
-                "Construction site was not found or does not belong to the current company.");
+            ?? throw new KeyNotFoundException("Construction site was not found.");
 
-        var projects = await _dbContext.Projects
+        var projects = await scope.Projects
             .AsNoTracking()
             .Where(x =>
                 x.CompanyId == companyId &&
@@ -995,38 +997,38 @@ public sealed class ReportingService : IReportingService
                 !x.IsDeleted)
             .ToListAsync(cancellationToken);
 
-        var budgets = await _dbContext.Budgets
+        var budgets = canFinance ? await scope.Finance(_dbContext.Budgets)
             .AsNoTracking()
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
                 !x.IsDeleted)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken) : new List<CSM.Domain.Entities.Finance.Budget>();
 
-        var expenses = await _dbContext.Expenses
+        var expenses = canFinance ? await scope.Finance(_dbContext.Expenses)
             .AsNoTracking()
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
                 !x.IsDeleted)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken) : new List<CSM.Domain.Entities.Finance.Expense>();
 
-        var invoices = await _dbContext.Invoices
+        var invoices = canFinance ? await scope.Finance(_dbContext.Invoices)
             .AsNoTracking()
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
                 !x.IsDeleted)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken) : new List<CSM.Domain.Entities.Finance.Invoice>();
 
-        var payments = await _dbContext.Payments
+        var payments = canFinance ? await scope.Finance(_dbContext.Payments)
             .AsNoTracking()
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.Invoice != null &&
                 x.Invoice.ConstructionSiteId == constructionSiteId &&
                 !x.IsDeleted)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken) : new List<CSM.Domain.Entities.Finance.Payment>();
 
         var totalBudget = budgets.Sum(x => x.TotalAmount);
 
@@ -1052,12 +1054,12 @@ public sealed class ReportingService : IReportingService
             1,
             site.IsActive ? 1 : 0,
             projects.Count,
-            projects.Sum(x => x.ContractValue),
-            totalBudget,
-            totalExpenses,
-            totalInvoices,
-            totalCompletedPayments,
-            outstandingInvoices,
+            canFinance ? projects.Sum(x => x.ContractValue) : null,
+            canFinance ? totalBudget : null,
+            canFinance ? totalExpenses : null,
+            canFinance ? totalInvoices : null,
+            canFinance ? totalCompletedPayments : null,
+            canFinance ? outstandingInvoices : null,
             new Dictionary<CSM.Domain.Enums.SiteStatus, int>
             {
                 [site.Status] = 1
@@ -1078,8 +1080,7 @@ public sealed class ReportingService : IReportingService
            return;
        }
 
-       throw new ReportingManagementException(
-           "You are not authorized to view this report.");
+       throw new UnauthorizedAccessException("You are not authorized to view this report.");
    }
 
    private static bool HasPermission(

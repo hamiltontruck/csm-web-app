@@ -2,6 +2,8 @@ namespace CSM.Application.Finance.Summaries.Dtos;
 
 public sealed class CompanyFinancialSummaryResponse
 {
+    public bool IncludesCompanyLevel { get; init; } = true;
+
     public decimal TotalBudget { get; init; }
 
     public decimal TotalExpenses { get; init; }

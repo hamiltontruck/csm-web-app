@@ -8,7 +8,7 @@ namespace CSM.API.Controllers;
 
 [ApiController]
 [Route("api/FinancialSummary")]
-[Authorize]
+[Authorize(Policy = "Reports.FinancialSummary.View")]
 public sealed class FinancialSummaryController : ControllerBase
 {
     private readonly IFinancialSummaryService _service;
@@ -23,13 +23,9 @@ public sealed class FinancialSummaryController : ControllerBase
     public async Task<ActionResult<CompanyFinancialSummaryResponse>> GetCompanySummary(
         CancellationToken cancellationToken)
     {
-        var currentUserId = GetCurrentUserId();
-
-        var result = await _service.GetCompanySummaryAsync(
-            currentUserId,
-            cancellationToken);
-
-        return Ok(result);
+        try { return Ok(await _service.GetCompanySummaryAsync(GetCurrentUserId(), cancellationToken)); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new { message = "Financial summary was not found." }); }
     }
 
     [HttpGet("site/{constructionSiteId:guid}")]
@@ -37,14 +33,9 @@ public sealed class FinancialSummaryController : ControllerBase
         Guid constructionSiteId,
         CancellationToken cancellationToken)
     {
-        var currentUserId = GetCurrentUserId();
-
-        var result = await _service.GetSiteSummaryAsync(
-            currentUserId,
-            constructionSiteId,
-            cancellationToken);
-
-        return Ok(result);
+        try { return Ok(await _service.GetSiteSummaryAsync(GetCurrentUserId(), constructionSiteId, cancellationToken)); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(new { message = "Construction site was not found." }); }
     }
 
     private Guid GetCurrentUserId()

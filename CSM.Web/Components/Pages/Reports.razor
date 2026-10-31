@@ -21,7 +21,7 @@
             <h2 class="mb-1">Reports & Analytics</h2>
             <p class="text-muted mb-0">
                 @(_scope == "Company"
-                    ? "Company-wide management reports and financial analytics."
+                    ? (CanReadCompanyFinance ? "Company-wide management reports and financial analytics." : "Reports for your assigned sites.")
                     : $"{CurrentScopeLabel} management reports and financial analytics.")
             </p>
         </div>
@@ -77,7 +77,7 @@
                         <InputSelect class="form-select"
                                      @bind-Value="_scope"
                                      @bind-Value:after="ScopeChanged">
-                            <option value="Company">Company</option>
+                            <option value="Company">@(CanReadCompanyFinance ? "Company" : "Assigned sites")</option>
                             <option value="Site">Site</option>
                         </InputSelect>
                     </div>
@@ -122,6 +122,8 @@
             </div>
         </div>
 
+        @if (_executive is not null)
+        {
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-primary text-white">
                 <div class="d-flex justify-content-between align-items-center">
@@ -132,7 +134,7 @@
                         </h5>
                         <small>
                             @(_scope == "Company"
-                                ? "Company-wide management overview"
+                                ? (CanReadCompanyFinance ? "Company-wide management overview" : "Assigned site management overview")
                                 : $"{CurrentScopeLabel} management overview")
                         </small>
                     </div>
@@ -145,6 +147,8 @@
 
             <div class="card-body">
 
+                @if (_financial is not null)
+                {
                 <div class="row g-3">
 
                     <div class="col-md-6 col-lg-4">
@@ -228,6 +232,8 @@
                 </div>
 
                 <hr class="my-4" />
+                }
+
 
                 <div class="row g-4">
 
@@ -306,6 +312,10 @@
             </div>
         </div>
 
+        }
+
+        @if (_financial is not null)
+        {
         <!-- Financial Summary -->
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-success text-white">
@@ -317,7 +327,7 @@
                         </h5>
                         <small>
                             @(_scope == "Company"
-                                ? "Company-wide financial position"
+                                ? (CanReadCompanyFinance ? "Company-wide financial position" : "Assigned site financial position")
                                 : $"{CurrentScopeLabel} financial position")
                         </small>
                     </div>
@@ -445,6 +455,8 @@
             </div>
         </div>
 
+        }
+
                 <!-- All Financial Summary -->
                 @if (_scope == "Company" && _allFinancialSummary is not null)
                 {
@@ -469,6 +481,8 @@
 
                         <div class="card-body">
 
+                            @if (_allFinancialSummary.Company is not null)
+                            {
                             <!-- Company Summary -->
                             <h6 class="fw-bold mb-3">
                                 Company Summary
@@ -590,6 +604,7 @@
 
                             <hr class="my-4" />
 
+                            }
                             <!-- Site Summaries -->
                             <h6 class="fw-bold mb-3">
                                 Site Financial Summaries
@@ -929,9 +944,10 @@
     private bool _loading = true;
     private string? _error;
 
+    private bool CanReadCompanyFinance => Access.IsIn("SuperAdmin", "CompanyAdmin", "Accountant");
     private string CurrentScopeLabel
         => _scope == "Company"
-            ? "Company-wide"
+            ? (CanReadCompanyFinance ? "Company-wide" : "Assigned sites")
             : _sites
                 .FirstOrDefault(
                     x => x.Id.ToString() == _selectedSiteId)
@@ -942,8 +958,7 @@
     {
         try
         {
-            var roles = await SessionStorage.GetAsync<List<string>>("roles");
-            _canSelectCompany = roles.Success && roles.Value?.Contains("SuperAdmin") == true;
+            _canSelectCompany = Access.IsIn("SuperAdmin");
             if (_canSelectCompany)
             {
                 _companies = await DashboardService.GetCompaniesAsync();
@@ -955,7 +970,7 @@
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            _error = "Unable to load reports for your current access. Please try again.";
         }
         finally
         {
@@ -1037,18 +1052,18 @@
             _executive = Access.Has("Reports_View")
                 ? await ReportingService.GetExecutiveDashboardAsync(_selectedCompanyId) : null;
 
-            _financial = Access.Has("Reports_FinancialSummary_View")
-                ? await ReportingService.GetFinancialSummaryAsync(_selectedCompanyId) : null;
-
             _allFinancialSummary = Access.Has("Reports_FinancialSummary_View")
                 ? await ReportingService.GetAllFinancialSummariesAsync(_selectedCompanyId) : null;
+            _financial = Access.Has("Reports_FinancialSummary_View")
+                ? (CanReadCompanyFinance ? await ReportingService.GetFinancialSummaryAsync(_selectedCompanyId) : _allFinancialSummary?.Total)
+                : null;
         }
         catch (Exception ex)
         {
             _executive = null;
             _financial = null;
             _allFinancialSummary = null;
-            _error = ex.Message;
+            _error = "Unable to load reports for your current access. Please try again.";
         }
         finally
         {
@@ -1075,7 +1090,7 @@
             _executive = null;
             _financial = null;
             _allFinancialSummary = null;
-            _error = ex.Message;
+            _error = "Unable to load reports for your current access. Please try again.";
         }
         finally
         {

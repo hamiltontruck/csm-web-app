@@ -2,7 +2,7 @@ namespace CSM.Web.Models.Reporting;
 
 public sealed class AllFinancialSummaryResponse
 {
-    public FinancialSummaryResponse Company { get; set; } = new();
+    public FinancialSummaryResponse? Company { get; set; }
 
     public List<SiteFinancialSummaryResponse> Sites { get; set; } = [];
 

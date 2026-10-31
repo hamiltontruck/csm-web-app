@@ -20,27 +20,28 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await _dbContext.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
-                cancellationToken)
+        var actor = await _dbContext.Users.AsNoTracking()
+            .Include(x => x.UserRoles).ThenInclude(x => x.Role)
+            .SingleOrDefaultAsync(x => x.Id == currentUserId && x.IsActive && !x.IsDeleted, cancellationToken)
             ?? throw new UnauthorizedAccessException();
+        if (!await new CSM.Infrastructure.Security.PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Reports_FinancialSummary_View", cancellationToken))
+            throw new UnauthorizedAccessException("You are not authorized to view this financial summary.");
 
         if (actor.CompanyId == null)
         {
-            throw new InvalidOperationException(
+            throw new UnauthorizedAccessException(
                 "The current user is not associated with a company.");
         }
 
         var companyId = actor.CompanyId.Value;
+        var scope = new FinancialReadScope(_dbContext, actor, companyId);
 
         // ============================================================
         // COMPANY TOTALS
         // Includes company-level records AND all site-level records.
         // ============================================================
 
-        var totalBudget = await _dbContext.Budgets
+        var totalBudget = await scope.Finance(_dbContext.Budgets)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.Status != BudgetStatus.Cancelled &&
@@ -50,7 +51,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.TotalAmount,
                 cancellationToken);
 
-        var totalExpenses = await _dbContext.Expenses
+        var totalExpenses = await scope.Finance(_dbContext.Expenses)
             .Where(x =>
                 x.CompanyId == companyId &&
                 (x.Status == ExpenseStatus.Approved ||
@@ -60,7 +61,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.Amount + x.TaxAmount,
                 cancellationToken);
 
-        var totalInvoiceAmount = await _dbContext.Invoices
+        var totalInvoiceAmount = await scope.Finance(_dbContext.Invoices)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.Status != InvoiceStatus.Draft &&
@@ -70,7 +71,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.TotalAmount,
                 cancellationToken);
 
-        var totalPayments = await _dbContext.Payments
+        var totalPayments = await scope.Finance(_dbContext.Payments)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.Status == PaymentStatus.Completed &&
@@ -79,7 +80,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.Amount,
                 cancellationToken);
 
-        var totalPettyCashBalance = await _dbContext.PettyCashAccounts
+        var totalPettyCashBalance = await scope.Finance(_dbContext.PettyCashAccounts)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.IsActive)
@@ -93,7 +94,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         // ============================================================
 
         var outstandingReceivables =
-            await _dbContext.Invoices
+            await scope.Finance(_dbContext.Invoices)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.Type == InvoiceType.ClientInvoice &&
@@ -104,7 +105,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                     x => x.TotalAmount,
                     cancellationToken)
             -
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.Direction == PaymentDirection.Incoming &&
@@ -121,7 +122,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         // ============================================================
 
         var outstandingPayables =
-            await _dbContext.Invoices
+            await scope.Finance(_dbContext.Invoices)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.Type == InvoiceType.VendorBill &&
@@ -132,7 +133,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                     x => x.TotalAmount,
                     cancellationToken)
             -
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.Direction == PaymentDirection.Outgoing &&
@@ -148,7 +149,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         // Completed incoming cash minus completed outgoing cash.
         // ============================================================
 
-        var incomingCash = await _dbContext.Payments
+        var incomingCash = await scope.Finance(_dbContext.Payments)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.Direction == PaymentDirection.Incoming &&
@@ -158,7 +159,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.Amount,
                 cancellationToken);
 
-        var outgoingCash = await _dbContext.Payments
+        var outgoingCash = await scope.Finance(_dbContext.Payments)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.Direction == PaymentDirection.Outgoing &&
@@ -175,7 +176,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         // Each site contains ONLY its own records.
         // ============================================================
 
-        var sites = await _dbContext.ConstructionSites
+        var sites = await scope.Sites
             .AsNoTracking()
             .Where(x =>
                 x.CompanyId == companyId &&
@@ -187,7 +188,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
 
         foreach (var site in sites)
         {
-            var budget = await _dbContext.Budgets
+            var budget = await scope.Finance(_dbContext.Budgets)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == site.Id &&
@@ -198,7 +199,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                     x => x.TotalAmount,
                     cancellationToken);
 
-            var expenses = await _dbContext.Expenses
+            var expenses = await scope.Finance(_dbContext.Expenses)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == site.Id &&
@@ -209,7 +210,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                     x => x.Amount + x.TaxAmount,
                     cancellationToken);
 
-            var invoices = await _dbContext.Invoices
+            var invoices = await scope.Finance(_dbContext.Invoices)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == site.Id &&
@@ -220,7 +221,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                     x => x.TotalAmount,
                     cancellationToken);
 
-            var payments = await _dbContext.Payments
+            var payments = await scope.Finance(_dbContext.Payments)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == site.Id &&
@@ -230,7 +231,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                     x => x.Amount,
                     cancellationToken);
 
-            var pettyCash = await _dbContext.PettyCashAccounts
+            var pettyCash = await scope.Finance(_dbContext.PettyCashAccounts)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == site.Id &&
@@ -244,7 +245,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
             // --------------------------------------------------------
 
             var siteOutstandingReceivables =
-                await _dbContext.Invoices
+                await scope.Finance(_dbContext.Invoices)
                     .Where(x =>
                         x.CompanyId == companyId &&
                         x.ConstructionSiteId == site.Id &&
@@ -256,7 +257,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                         x => x.TotalAmount,
                         cancellationToken)
                 -
-                await _dbContext.Payments
+                await scope.Finance(_dbContext.Payments)
                     .Where(x =>
                         x.CompanyId == companyId &&
                         x.ConstructionSiteId == site.Id &&
@@ -273,7 +274,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
             // --------------------------------------------------------
 
             var siteOutstandingPayables =
-                await _dbContext.Invoices
+                await scope.Finance(_dbContext.Invoices)
                     .Where(x =>
                         x.CompanyId == companyId &&
                         x.ConstructionSiteId == site.Id &&
@@ -285,7 +286,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                         x => x.TotalAmount,
                         cancellationToken)
                 -
-                await _dbContext.Payments
+                await scope.Finance(_dbContext.Payments)
                     .Where(x =>
                         x.CompanyId == companyId &&
                         x.ConstructionSiteId == site.Id &&
@@ -301,7 +302,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
             // SITE NET CASH FLOW
             // --------------------------------------------------------
 
-            var siteIncomingCash = await _dbContext.Payments
+            var siteIncomingCash = await scope.Finance(_dbContext.Payments)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == site.Id &&
@@ -312,7 +313,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                     x => x.Amount,
                     cancellationToken);
 
-            var siteOutgoingCash = await _dbContext.Payments
+            var siteOutgoingCash = await scope.Finance(_dbContext.Payments)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == site.Id &&
@@ -347,6 +348,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
 
         return new CompanyFinancialSummaryResponse
         {
+            IncludesCompanyLevel = scope.IncludesCompany,
             TotalBudget = totalBudget,
             TotalExpenses = totalExpenses,
             TotalInvoiceAmount = totalInvoiceAmount,
@@ -364,22 +366,23 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         Guid constructionSiteId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await _dbContext.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
-                cancellationToken)
+        var actor = await _dbContext.Users.AsNoTracking()
+            .Include(x => x.UserRoles).ThenInclude(x => x.Role)
+            .SingleOrDefaultAsync(x => x.Id == currentUserId && x.IsActive && !x.IsDeleted, cancellationToken)
             ?? throw new UnauthorizedAccessException();
+        if (!await new CSM.Infrastructure.Security.PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Reports_FinancialSummary_View", cancellationToken))
+            throw new UnauthorizedAccessException("You are not authorized to view this financial summary.");
 
         if (actor.CompanyId == null)
         {
-            throw new InvalidOperationException(
+            throw new UnauthorizedAccessException(
                 "The current user is not associated with a company.");
         }
 
         var companyId = actor.CompanyId.Value;
+        var scope = new FinancialReadScope(_dbContext, actor, companyId);
 
-        var site = await _dbContext.ConstructionSites
+        var site = await scope.Sites
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 x =>
@@ -390,7 +393,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
             ?? throw new KeyNotFoundException(
                 "Construction site not found.");
 
-        var budget = await _dbContext.Budgets
+        var budget = await scope.Finance(_dbContext.Budgets)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
@@ -401,7 +404,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.TotalAmount,
                 cancellationToken);
 
-        var expenses = await _dbContext.Expenses
+        var expenses = await scope.Finance(_dbContext.Expenses)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
@@ -412,7 +415,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.Amount + x.TaxAmount,
                 cancellationToken);
 
-        var invoices = await _dbContext.Invoices
+        var invoices = await scope.Finance(_dbContext.Invoices)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
@@ -423,7 +426,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.TotalAmount,
                 cancellationToken);
 
-        var payments = await _dbContext.Payments
+        var payments = await scope.Finance(_dbContext.Payments)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
@@ -433,7 +436,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.Amount,
                 cancellationToken);
 
-        var pettyCash = await _dbContext.PettyCashAccounts
+        var pettyCash = await scope.Finance(_dbContext.PettyCashAccounts)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
@@ -447,7 +450,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         // ============================================================
 
         var outstandingReceivables =
-            await _dbContext.Invoices
+            await scope.Finance(_dbContext.Invoices)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == constructionSiteId &&
@@ -459,7 +462,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                     x => x.TotalAmount,
                     cancellationToken)
             -
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == constructionSiteId &&
@@ -476,7 +479,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         // ============================================================
 
         var outstandingPayables =
-            await _dbContext.Invoices
+            await scope.Finance(_dbContext.Invoices)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == constructionSiteId &&
@@ -488,7 +491,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                     x => x.TotalAmount,
                     cancellationToken)
             -
-            await _dbContext.Payments
+            await scope.Finance(_dbContext.Payments)
                 .Where(x =>
                     x.CompanyId == companyId &&
                     x.ConstructionSiteId == constructionSiteId &&
@@ -504,7 +507,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         // SITE NET CASH FLOW
         // ============================================================
 
-        var incomingCash = await _dbContext.Payments
+        var incomingCash = await scope.Finance(_dbContext.Payments)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
@@ -515,7 +518,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
                 x => x.Amount,
                 cancellationToken);
 
-        var outgoingCash = await _dbContext.Payments
+        var outgoingCash = await scope.Finance(_dbContext.Payments)
             .Where(x =>
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
