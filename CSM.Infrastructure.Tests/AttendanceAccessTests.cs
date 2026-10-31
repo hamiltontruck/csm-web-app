@@ -31,7 +31,7 @@ public sealed class AttendanceAccessTests
     {
         var services = new ServiceCollection().AddLogging();
         services.AddAuthorization(o => o.AddPolicy(AppPolicies.HRManagement, p => p.RequireRole(AppPolicies.HRManagementRoles)));
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.AddGrantedBackendPermissions(role).BuildServiceProvider();
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
         foreach (var name in new[] { "GetAll", "GetById", "CheckIn", "CheckOut", "Approve", "Override" })
         {
@@ -39,7 +39,7 @@ public sealed class AttendanceAccessTests
                 .Concat(typeof(AttendancesController).GetMethod(name)!.GetCustomAttributes(true).OfType<IAuthorizeData>());
             var policy = await AuthorizationPolicy.CombineAsync(provider.GetRequiredService<IAuthorizationPolicyProvider>(), metadata);
             Assert.Equal(name is "Approve" or "Override" ? review : record,
-                (await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!)).Succeeded);
+                (await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor), null, policy!)).Succeeded);
         }
     }
 

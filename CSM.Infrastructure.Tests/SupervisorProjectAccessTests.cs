@@ -36,7 +36,7 @@ public sealed class SupervisorProjectAccessTests
         services.AddLogging();
         services.AddAuthorization(o => o.AddPolicy(AppPolicies.ProjectManagement,
             p => p.RequireRole(AppPolicies.ProjectManagementRoles)));
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.AddGrantedBackendPermissions(role).BuildServiceProvider();
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
         foreach (var method in new[] { "GetAll", "GetById", "Create", "Update", "ChangeStatus" })
             Assert.Equal(method.StartsWith("Get") ? readPhase : writePhase,
@@ -51,7 +51,7 @@ public sealed class SupervisorProjectAccessTests
             var policy = await AuthorizationPolicy.CombineAsync(
                 provider.GetRequiredService<IAuthorizationPolicyProvider>(), data);
             return (await provider.GetRequiredService<IAuthorizationService>()
-                .AuthorizeAsync(actor, null, policy!)).Succeeded;
+                .AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor), null, policy!)).Succeeded;
         }
     }
 

@@ -29,12 +29,12 @@ public sealed class EquipmentFuelFeedbackTests
         var services = new ServiceCollection().AddLogging();
         services.AddAuthorization(options => options.AddPolicy(AppPolicies.ProcurementManagement,
             policy => policy.RequireRole(AppPolicies.ProcurementManagementRoles)));
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.AddGrantedBackendPermissions("Supervisor").BuildServiceProvider();
         var policy = await AuthorizationPolicy.CombineAsync(
             provider.GetRequiredService<IAuthorizationPolicyProvider>(),
             typeof(EquipmentFuelLogsController).GetCustomAttributes(true).OfType<IAuthorizeData>());
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, AppRoles.Supervisor)], "test"));
-        Assert.False((await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!)).Succeeded);
+        Assert.False((await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor), null, policy!)).Succeeded);
     }
 
     [Theory]

@@ -38,7 +38,7 @@ public sealed class ShiftFeedbackTests
     {
         var services = new ServiceCollection().AddLogging();
         services.AddAuthorization(o => o.AddPolicy(AppPolicies.HRManagement, p => p.RequireRole(AppPolicies.HRManagementRoles)));
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.AddGrantedBackendPermissions(role).BuildServiceProvider();
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
         foreach (var method in new[] { "GetAll", "GetById", "Create", "Update", "ChangeActiveStatus" })
         {
@@ -46,7 +46,7 @@ public sealed class ShiftFeedbackTests
                 .Concat(typeof(ShiftsController).GetMethod(method)!.GetCustomAttributes(true).OfType<IAuthorizeData>());
             var policy = await AuthorizationPolicy.CombineAsync(provider.GetRequiredService<IAuthorizationPolicyProvider>(), metadata);
             Assert.Equal(method.StartsWith("Get") ? read : write,
-                (await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!)).Succeeded);
+                (await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor), null, policy!)).Succeeded);
         }
     }
 

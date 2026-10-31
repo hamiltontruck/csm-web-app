@@ -144,4 +144,31 @@ public sealed class BackendActionPermissionTests
         db.SaveChanges(true);
         Assert.True((await authorization.AuthorizeAsync(principal, null, policy!)).Succeeded);
     }
+    [Theory]
+    [InlineData("SiteManager", "AttendancesController", "Approve", GranularPermission.HRM_Attendance_Approve)]
+    [InlineData("SiteManager", "ShiftsController", "GetAll", GranularPermission.HRM_Shift_View)]
+    [InlineData("Supervisor", "ShiftsController", "GetAll", GranularPermission.HRM_Shift_View)]
+    public async Task Eligible_role_needs_explicit_grant_and_matches_existing_UI(string role, string controllerName, string action, GranularPermission required)
+    {
+        var initial = new[] { GranularPermission.HRM_Attendance_View, GranularPermission.HRM_Attendance_Submit };
+        var registration = new ServiceCollection().AddLogging().AddGrantedBackendPermissions(role, initial);
+        using var services = registration.BuildServiceProvider();
+        var controller = typeof(CSM.Api.Controllers.ProjectsController).Assembly.GetTypes().Single(t => t.Name == controllerName);
+        var data = controller.GetCustomAttributes<AuthorizeAttribute>().Concat(controller.GetMethod(action)!.GetCustomAttributes<AuthorizeAttribute>());
+        var policy = await AuthorizationPolicy.CombineAsync(services.GetRequiredService<IAuthorizationPolicyProvider>(), data);
+        var principal = BackendAuthorizationFixture.WithGrantedIdentity(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test")));
+        var authorization = services.GetRequiredService<IAuthorizationService>();
+        Assert.False((await authorization.AuthorizeAsync(principal, null, policy!)).Succeeded);
+        var access = new CSM.Web.Services.Access.WorkspaceAccess([role], initial.Select(p => p.ToString()));
+        Assert.False(controllerName == "ShiftsController" ? access.CanVisit("/hr/shifts") : access.CanApproveAttendance);
+
+        var db = services.GetRequiredService<ApplicationDbContext>();
+        var assignedRole = db.Roles.Single();
+        db.RoleGranularPermissions.Add(new() { RoleId = assignedRole.Id, Permission = required });
+        db.SaveChanges(true);
+        Assert.True((await authorization.AuthorizeAsync(principal, null, policy!)).Succeeded);
+        var granted = new CSM.Web.Services.Access.WorkspaceAccess([role], initial.Append(required).Select(p => p.ToString()));
+        Assert.True(controllerName == "ShiftsController" ? granted.CanVisit("/hr/shifts") : granted.CanApproveAttendance);
+    }
+
 }

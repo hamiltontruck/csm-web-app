@@ -62,12 +62,12 @@ public sealed class LeaveEmployeeOptionsTests
         Assert.Equal("employee-options", method!.GetCustomAttribute<HttpGetAttribute>()!.Template);
         var metadata = typeof(LeavesController).GetCustomAttributes(true).OfType<IAuthorizeData>()
             .Concat(method.GetCustomAttributes(true).OfType<IAuthorizeData>());
-        var services = new ServiceCollection().AddLogging().AddAuthorization().BuildServiceProvider();
+        var services = new ServiceCollection().AddLogging().AddAuthorization().AddGrantedBackendPermissions(role).BuildServiceProvider();
         using (services)
         {
             var policy = await AuthorizationPolicy.CombineAsync(services.GetRequiredService<IAuthorizationPolicyProvider>(), metadata);
             var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
-            Assert.Equal(expected, (await services.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!)).Succeeded);
+            Assert.Equal(expected, (await services.GetRequiredService<IAuthorizationService>().AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor), null, policy!)).Succeeded);
         }
     }
 
@@ -76,11 +76,11 @@ public sealed class LeaveEmployeeOptionsTests
     {
         var services = new ServiceCollection().AddLogging();
         services.AddAuthorization(o => o.AddPolicy(AppPolicies.HRManagement, p => p.RequireRole(AppPolicies.HRManagementRoles)));
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.AddGrantedBackendPermissions("Supervisor").BuildServiceProvider();
         var metadata = typeof(EmployeesController).GetCustomAttributes(true).OfType<IAuthorizeData>();
         var policy = await AuthorizationPolicy.CombineAsync(provider.GetRequiredService<IAuthorizationPolicyProvider>(), metadata);
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, "Supervisor")], "test"));
-        Assert.False((await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!)).Succeeded);
+        Assert.False((await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor), null, policy!)).Succeeded);
     }
 
     [Fact]
