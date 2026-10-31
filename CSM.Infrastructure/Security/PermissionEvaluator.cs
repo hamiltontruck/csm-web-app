@@ -28,7 +28,8 @@ public sealed class PermissionEvaluator : IPermissionEvaluator
 
         return await _db.UserRoles
             .AsNoTracking()
-            .Where(x => x.UserId == userId)
+            .Where(x => x.UserId == userId && !x.IsDeleted &&
+                x.User.IsActive && !x.User.IsDeleted && !x.Role.IsDeleted)
             .SelectMany(x => x.Role.GranularPermissions)
             .AnyAsync(
                 x => x.Permission == parsedPermission,
@@ -41,7 +42,8 @@ public sealed class PermissionEvaluator : IPermissionEvaluator
     {
         return await _db.UserRoles
             .AsNoTracking()
-            .Where(x => x.UserId == userId)
+            .Where(x => x.UserId == userId && !x.IsDeleted &&
+                x.User.IsActive && !x.User.IsDeleted && !x.Role.IsDeleted)
             .SelectMany(x => x.Role.GranularPermissions)
             .Select(x => x.Permission.ToString())
             .Distinct()

@@ -12,6 +12,7 @@ public interface IRolePermissionService
         CancellationToken cancellationToken = default);
 
     Task UpdatePermissionsAsync(
+        Guid actorId,
         Guid roleId,
         UpdateRolePermissionsRequest request,
         CancellationToken cancellationToken = default);
