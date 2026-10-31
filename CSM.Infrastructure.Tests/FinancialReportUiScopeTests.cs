@@ -34,8 +34,8 @@ public sealed class FinancialReportUiScopeTests
         Assert.DoesNotContain("Company-wide", page.Markup);
         page.Find("select").Change("Site");
         page.WaitForAssertion(() => Assert.Equal(2, page.FindAll("select").Count));
-        Assert.Contains("Assigned Test Site", page.FindAll("select")[1].TextContent);
-        page.FindAll("select")[1].Change(Report.SiteId.ToString());
+        Assert.Contains("Assigned Test Site", page.FindAll("select").ToArray()[1].TextContent);
+        page.FindAll("select").ToArray()[1].Change(Report.SiteId.ToString());
         page.WaitForAssertion(() => Assert.Contains("10.00", page.Markup));
         Assert.Empty(page.FindAll(".alert-danger"));
     }
