@@ -469,12 +469,12 @@
                                         All Financial Summary
                                     </h5>
                                     <small>
-                                        Company and all construction sites
+                                        @(CanReadCompanyFinance ? "Company and all construction sites" : "Assigned construction sites")
                                     </small>
                                 </div>
 
                                 <span class="badge bg-light text-dark">
-                                    Company + All Sites
+                                    @(CanReadCompanyFinance ? "Company + All Sites" : "Assigned Sites")
                                 </span>
                             </div>
                         </div>
@@ -698,7 +698,7 @@
 
                             <!-- Combined Total -->
                             <h6 class="fw-bold mb-3">
-                                Combined Company + All Sites Total
+                                Combined @(CanReadCompanyFinance ? "Company + All Sites" : "Assigned Sites") Total
                             </h6>
 
                             <div class="row g-3">

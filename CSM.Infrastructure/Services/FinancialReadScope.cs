@@ -37,12 +37,20 @@ internal sealed class FinancialReadScope(ApplicationDbContext db, User actor, Gu
         return rows.Where(x => x.CompanyId == companyId && !x.IsDeleted &&
             (companyScope || (EF.Property<Guid?>(x, "ConstructionSiteId").HasValue && siteIds.Contains(EF.Property<Guid?>(x, "ConstructionSiteId")!.Value))));
     }
+    // Petty cash accounts carry CompanyId directly rather than inheriting TenantEntity.
+    public IQueryable<PettyCashAccount> Finance(IQueryable<PettyCashAccount> rows)
+    {
+        var companyScope = IncludesCompany;
+        var siteIds = Sites.Select(x => x.Id);
+        return rows.Where(x => x.CompanyId == companyId && !x.IsDeleted &&
+            (companyScope || (x.ConstructionSiteId.HasValue && siteIds.Contains(x.ConstructionSiteId.Value))));
+    }
     public IQueryable<PettyCashTransaction> Transactions
     {
         get
         {
             var accountIds = Finance(db.PettyCashAccounts).Select(x => x.Id);
-            return db.PettyCashTransactions.AsNoTracking().Where(x => x.CompanyId == companyId && !x.IsDeleted && accountIds.Contains(x.PettyCashAccountId));
+            return db.PettyCashTransactions.AsNoTracking().Where(x => !x.IsDeleted && accountIds.Contains(x.PettyCashAccountId));
         }
     }
 }
