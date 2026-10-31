@@ -26,6 +26,10 @@ public sealed class ProjectChildPostgresTests
             await db.SaveChangesAsync();
             Assert.Single(await new WbsTaskService(db).GetAllAsync(actor.Id));
             Assert.Empty(await new ProjectDelayService(db).GetAllAsync(actor.Id, null, null));
+            var delayDate = new DateOnly(2026, 10, 31);
+            var delay = await new ProjectDelayService(db).CreateAsync(actor.Id, new() { ProjectId = project.Id, DelayDate = delayDate, Title = "Weather", Description = "Rain" });
+            Assert.Equal(delayDate, Assert.Single(await new ProjectDelayService(db).GetAllAsync(actor.Id, null, null)).DelayDate);
+            Assert.Equal(delayDate, (await new ProjectDelayService(db).GetByIdAsync(actor.Id, delay.Id))!.DelayDate);
             Assert.Empty(await new ProjectMilestoneService(db).GetAllAsync(actor.Id, project.Id));
             var diary = await new DailySiteDiaryService(db).CreateAsync(actor.Id, new() { SiteId = site.Id, WorkPerformed = "Authorized" });
             Assert.Equal(company.Id, diary.TenantId);

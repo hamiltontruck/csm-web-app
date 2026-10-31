@@ -44,7 +44,7 @@ public sealed class UserActionAuthorizationTests
         }).Build();
         var registrations = new ServiceCollection().AddLogging();
         CSM.Infrastructure.DependencyInjection.AddInfrastructure(registrations, config);
-        registrations.AddSingleton(fixture.Db);
+        registrations.AddSingleton<ApplicationDbContext>(fixture.Db);
         using var services = registrations.BuildServiceProvider();
         var metadata = typeof(UsersController).GetCustomAttributes<AuthorizeAttribute>()
             .Concat(typeof(UsersController).GetMethod(action)!.GetCustomAttributes<AuthorizeAttribute>());
@@ -120,7 +120,7 @@ public sealed class UserActionAuthorizationTests
         var outsider = new User { CompanyId = Guid.NewGuid(), IsActive = true };
         f.Db.Users.Add(outsider);
         f.Db.UserAudits.AddRange(
-            new UserAudit { ActorUser = f.Actor, TargetUser = f.Target, Action = "local" },
+            new UserAudit { CompanyId = f.Actor.CompanyId, ActorUser = f.Actor, TargetUser = f.Target, Action = "local" },
             new UserAudit { ActorUser = outsider, TargetUser = f.Target, Action = "foreign actor" },
             new UserAudit { ActorUser = f.Actor, TargetUser = outsider, Action = "foreign target" });
         f.Db.SaveChanges(true);

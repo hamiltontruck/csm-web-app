@@ -3,7 +3,6 @@ using CSM.Application.Projects.ProjectDelays.Dtos;
 using CSM.Domain.Entities.Projects;
 using CSM.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using System.Linq.Expressions;
 using CSM.Domain.Enums;
 
 namespace CSM.Infrastructure.Services;
@@ -34,10 +33,12 @@ public sealed class ProjectDelayService : IProjectDelayService
         if (projectId.HasValue)
             query = query.Where(x => x.ProjectId == projectId.Value);
 
-        return await query
+        // DelayDate is a SQL date stored on a DateTime property. Convert only
+        // after the authorized query runs; Npgsql cannot translate this conversion.
+        var delays = await query
             .OrderByDescending(x => x.DelayDate)
-            .Select(MapToResponse)
             .ToListAsync(cancellationToken);
+        return delays.Select(Map).ToList();
     }
 
     public async Task<ProjectDelayResponse?> GetByIdAsync(
@@ -46,11 +47,11 @@ public sealed class ProjectDelayService : IProjectDelayService
         CancellationToken cancellationToken = default)
     {
         var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, false, cancellationToken);
-        return await _context.ProjectDelays
+        var delay = await _context.ProjectDelays
             .AsNoTracking()
             .Where(x => x.Id == delayId && !x.IsDeleted && access.Projects.Any(p => p.Id == x.ProjectId && p.CompanyId == x.CompanyId))
-            .Select(MapToResponse)
             .FirstOrDefaultAsync(cancellationToken);
+        return delay is null ? null : Map(delay);
     }
 
     public async Task<ProjectDelayResponse> CreateAsync(
@@ -148,25 +149,4 @@ public sealed class ProjectDelayService : IProjectDelayService
             delay.ActionTaken,
             delay.IsResolved);
 
-    private static readonly Expression<Func<ProjectDelay, ProjectDelayResponse>>
-        MapToResponse =
-            delay => new ProjectDelayResponse(
-                delay.Id,
-                delay.ProjectId,
-                Guid.Empty,
-                DateOnly.FromDateTime(delay.DelayDate),
-                delay.Category == "Weather" ? DelayCategory.Weather :
-                delay.Category == "Material" ? DelayCategory.Material :
-                delay.Category == "Labor" ? DelayCategory.Labor :
-                delay.Category == "Equipment" ? DelayCategory.Equipment :
-                delay.Category == "Client" ? DelayCategory.Client :
-                delay.Category == "Design" ? DelayCategory.Design :
-                delay.Category == "Permit" ? DelayCategory.Permit :
-                DelayCategory.Other,
-                delay.Title,
-                delay.Description,
-                delay.DelayDays,
-                0m,
-                delay.ActionTaken,
-                delay.IsResolved);
 }

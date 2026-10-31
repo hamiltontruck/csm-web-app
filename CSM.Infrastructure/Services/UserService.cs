@@ -716,8 +716,16 @@ public sealed class UserService : IUserService
         string details,
         CancellationToken cancellationToken)
     {
+        // The target may already be soft deleted. Never infer history from the actor's company.
+        var target = await _dbContext.Users.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.Id == targetUserId)
+            .Select(x => new { x.CompanyId })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new KeyNotFoundException("User was not found.");
+
         _dbContext.UserAudits.Add(new UserAudit
         {
+            CompanyId = target.CompanyId is { } tenant && tenant != Guid.Empty ? tenant : null,
             ActorUserId = actorUserId,
             TargetUserId = targetUserId,
             Action = action,
@@ -735,13 +743,13 @@ public sealed class UserService : IUserService
         var actor = await GetActorAsync(currentUserId, cancellationToken);
         await EnsurePermissionAsync(actor.Id, GranularPermission.Users_View, cancellationToken);
 
-        var query = _dbContext.UserAudits.AsNoTracking();
-        if (!IsSuperAdmin(actor))
+        var actorIsSuperAdmin = IsSuperAdmin(actor);
+        var query = _dbContext.UserAudits.IgnoreQueryFilters().AsNoTracking();
+        if (!actorIsSuperAdmin)
         {
-            if (!actor.CompanyId.HasValue)
+            if (!actor.CompanyId.HasValue || actor.CompanyId == Guid.Empty)
                 throw new UnauthorizedAccessException("User audit access is not permitted.");
-            query = query.Where(x => x.ActorUser.CompanyId == actor.CompanyId &&
-                                     x.TargetUser.CompanyId == actor.CompanyId);
+            query = query.Where(x => x.CompanyId == actor.CompanyId);
         }
 
         return await query
@@ -752,9 +760,11 @@ public sealed class UserService : IUserService
             .Select(x => new UserAuditResponse(
                 x.Id,
                 x.PerformedAtUtc,
-                x.ActorUser.FirstName + " " + x.ActorUser.LastName,
+                actorIsSuperAdmin || (!x.ActorUser.IsDeleted && x.ActorUser.CompanyId == x.CompanyId)
+                    ? x.ActorUser.FirstName + " " + x.ActorUser.LastName : "Unavailable user",
                 x.Action,
-                x.TargetUser.FirstName + " " + x.TargetUser.LastName,
+                actorIsSuperAdmin || (!x.TargetUser.IsDeleted && x.TargetUser.CompanyId == x.CompanyId)
+                    ? x.TargetUser.FirstName + " " + x.TargetUser.LastName : "Unavailable user",
                 x.Details))
             .ToListAsync(cancellationToken);
     }

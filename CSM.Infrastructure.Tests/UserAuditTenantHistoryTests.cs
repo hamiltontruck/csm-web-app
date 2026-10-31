@@ -1,5 +1,8 @@
 using CSM.Domain.Constants;
 using CSM.Domain.Entities.Identity;
+using CSM.Domain.Entities.Organization;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using CSM.Domain.Enums;
 using CSM.Infrastructure.Persistence;
 using CSM.Infrastructure.Security;
@@ -57,6 +60,61 @@ public sealed class UserAuditTenantHistoryTests
         Assert.Equal(f.CompanyA, Assert.IsType<Guid>(companyProperty.GetValue(history)));
         Assert.Empty(await f.Service.GetAuditAsync(f.Admin.Id));
         Assert.Single(await f.Service.GetAuditAsync(f.SuperAdmin.Id));
+    }
+
+    [Fact]
+    public async Task Deletion_records_the_targets_company_and_masks_its_deleted_identity()
+    {
+        using var f = new Fixture();
+        f.Db.RoleGranularPermissions.Add(new() { RoleId = f.Admin.UserRoles.Single().Role.Id, Permission = GranularPermission.Users_Delete });
+        f.Db.SaveChanges(true);
+        await f.Service.DeleteAsync(f.Admin.Id, f.Target.Id);
+        Assert.Equal(f.CompanyA, Assert.Single(f.Db.UserAudits).CompanyId);
+        Assert.Equal("Unavailable user", Assert.Single(await f.Service.GetAuditAsync(f.Admin.Id)).TargetName);
+    }
+
+    [Fact]
+    public async Task Tenant_snapshot_survives_migration_and_masks_transferred_users_in_PostgreSQL()
+    {
+        var connection = new Npgsql.NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("CSM_TEST_POSTGRES") ?? "Host=localhost;Username=postgres;Password=postgres") {
+            Database = "user_audit_" + Guid.NewGuid().ToString("N")
+        };
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).Options);
+        try
+        {
+            await db.GetService<IMigrator>().MigrateAsync("20261016161037_InitialPostgres");
+            var companyA = new Company { Code = "AUDITA", Name = "Audit A" };
+            var companyB = new Company { Code = "AUDITB", Name = "Audit B" };
+            var role = new Role { Name = AppRoles.CompanyAdmin, NormalizedName = "COMPANYADMIN", GranularPermissions = [
+                new() { Permission = GranularPermission.Users_View }, new() { Permission = GranularPermission.Users_Edit }
+            ] };
+            var admin = new User { CompanyId = companyA.Id, Email = "admin@audit.test", NormalizedEmail = "ADMIN@AUDIT.TEST", FirstName = "Current", LastName = "Admin", IsActive = true, UserRoles = [new() { Role = role }] };
+            var target = new User { CompanyId = companyA.Id, Email = "target@audit.test", NormalizedEmail = "TARGET@AUDIT.TEST", FirstName = "Current", LastName = "Target", IsActive = true };
+            var reader = new User { CompanyId = companyA.Id, Email = "reader@audit.test", NormalizedEmail = "READER@AUDIT.TEST", IsActive = true, UserRoles = [new() { Role = role }] };
+            db.Companies.AddRange(companyA, companyB); db.Users.AddRange(admin, target, reader);
+            await db.SaveChangesAsync();
+            var legacyId = Guid.NewGuid();
+            var performed = DateTime.UtcNow;
+            var legacyAction = "legacy";
+            var legacyDetails = "unknown tenant";
+            await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO \"UserAudits\" (\"Id\", \"ActorUserId\", \"TargetUserId\", \"Action\", \"Details\", \"PerformedAtUtc\") VALUES ({legacyId}, {admin.Id}, {target.Id}, {legacyAction}, {legacyDetails}, {performed})");
+            await db.Database.MigrateAsync();
+            Assert.Null((await db.UserAudits.SingleAsync()).CompanyId);
+            var service = new UserService(db, new PasswordHasher());
+            Assert.Empty(await service.GetAuditAsync(admin.Id));
+            await service.ActivateAsync(admin.Id, target.Id);
+            Assert.Equal(companyA.Id, (await db.UserAudits.SingleAsync(x => x.Id != legacyId)).CompanyId);
+            Assert.Single(await service.GetAuditAsync(admin.Id));
+            admin.CompanyId = companyB.Id; target.CompanyId = companyB.Id;
+            await db.SaveChangesAsync();
+            Assert.Empty(await service.GetAuditAsync(admin.Id));
+            var historical = Assert.Single(await service.GetAuditAsync(reader.Id));
+            Assert.Equal("Unavailable user", historical.ActorName);
+            Assert.Equal("Unavailable user", historical.TargetName);
+            Assert.Equal(2, await db.UserAudits.CountAsync());
+            Assert.Null((await db.UserAudits.SingleAsync(x => x.Id == legacyId)).CompanyId);
+        }
+        finally { await db.Database.EnsureDeletedAsync(); }
     }
 
     // Keep these regressions compilable before the tenant snapshot schema exists.
