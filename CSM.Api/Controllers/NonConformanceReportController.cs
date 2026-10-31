@@ -10,6 +10,7 @@ namespace CSM.Api.Controllers;
 
 [Authorize]
 [ApiController]
+[ComplianceAccessExceptionFilter]
 [Route("api/[controller]")]
 [Authorize(Policy = "Compliance.View")]
 public class NonConformanceReportController : ControllerBase
@@ -28,20 +29,11 @@ public class NonConformanceReportController : ControllerBase
     private Guid UserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    private async Task<Guid> GetCompanyId(CancellationToken ct)
-    {
-        return await _db.Users
-            .Where(x => x.Id == UserId)
-            .Select(x => x.CompanyId!.Value)
-            .FirstAsync(ct);
-    }
-
     [HttpGet]
     public async Task<ActionResult<List<NonConformanceReportResponse>>> GetAll(
         CancellationToken ct)
     {
-        var companyId = await GetCompanyId(ct);
-        return Ok(await _service.GetAllAsync(companyId, ct));
+        return Ok(await _service.GetAllAsync(UserId, ct));
     }
 
     [HttpGet("{id:guid}")]
@@ -49,9 +41,8 @@ public class NonConformanceReportController : ControllerBase
         Guid id,
         CancellationToken ct)
     {
-        var companyId = await GetCompanyId(ct);
 
-        var item = await _service.GetByIdAsync(companyId, id, ct);
+        var item = await _service.GetByIdAsync(UserId, id, ct);
 
         if (item is null)
             return NotFound();
@@ -77,9 +68,8 @@ public class NonConformanceReportController : ControllerBase
         UpdateNonConformanceReportRequest request,
         CancellationToken ct)
     {
-        var companyId = await GetCompanyId(ct);
 
-        var result = await _service.UpdateAsync(companyId, id, request, ct);
+        var result = await _service.UpdateAsync(UserId, id, request, ct);
 
         return Ok(result);
     }

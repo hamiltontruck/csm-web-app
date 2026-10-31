@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Features.Compliance;
 using System.Linq.Expressions;
 using CSM.Application.Features.Compliance.NonConformanceReports;
 using CSM.Domain.Entities.Compliance;
@@ -19,25 +20,29 @@ public class NonConformanceReportService
     }
 
     public async Task<List<NonConformanceReportResponse>> GetAllAsync(
-        Guid companyId,
+        Guid currentUserId,
         CancellationToken ct = default)
     {
-        return await _db.NonConformanceReports
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, ct);
+
+        return await _db.NonConformanceReports.IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(x => x.CompanyId == companyId)
+            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) && (x.AssignedToEmployeeId == null || (x.AssignedToEmployee!.CompanyId == companyId)))
             .OrderByDescending(x => x.ReportedDate)
             .Select(Map())
             .ToListAsync(ct);
     }
 
     public async Task<NonConformanceReportResponse?> GetByIdAsync(
-        Guid companyId,
+        Guid currentUserId,
         Guid id,
         CancellationToken ct = default)
     {
-        return await _db.NonConformanceReports
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, ct);
+
+        return await _db.NonConformanceReports.IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(x => x.CompanyId == companyId && x.Id == id)
+            .Where(x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) && (x.AssignedToEmployeeId == null || (x.AssignedToEmployee!.CompanyId == companyId)))
             .Select(Map())
             .FirstOrDefaultAsync(ct);
     }
@@ -47,12 +52,12 @@ public class NonConformanceReportService
         CreateNonConformanceReportRequest request,
         CancellationToken ct = default)
     {
-        var user = await GetUser(userId, ct);
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, userId, true, ct);
+        await ComplianceRecordAccess.ParentsAsync(_db, companyId, request.ConstructionSiteId, request.ProjectId, request.AssignedToEmployeeId, ct);
 
         var entity = new NonConformanceReport
         {
-            CompanyId = user.CompanyId
-                ?? throw new InvalidOperationException("User has no CompanyId."),
+            CompanyId = companyId,
             ConstructionSiteId = request.ConstructionSiteId,
             ProjectId = request.ProjectId,
             AssignedToEmployeeId = request.AssignedToEmployeeId,
@@ -73,20 +78,24 @@ public class NonConformanceReportService
         _db.NonConformanceReports.Add(entity);
         await _db.SaveChangesAsync(ct);
 
-        return (await GetByIdAsync(user.CompanyId!.Value, entity.Id, ct))!;
+        return (await GetByIdAsync(userId, entity.Id, ct))!;
     }
 
     public async Task<NonConformanceReportResponse> UpdateAsync(
-        Guid companyId,
+        Guid currentUserId,
         Guid id,
         UpdateNonConformanceReportRequest request,
         CancellationToken ct = default)
     {
-        var entity = await _db.NonConformanceReports
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, true, ct);
+
+        var entity = await _db.NonConformanceReports.IgnoreQueryFilters()
             .FirstOrDefaultAsync(
-                x => x.CompanyId == companyId && x.Id == id,
+                x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted,
                 ct)
             ?? throw new KeyNotFoundException("NCR not found.");
+
+        await ComplianceRecordAccess.ParentsAsync(_db, companyId, request.ConstructionSiteId, request.ProjectId, request.AssignedToEmployeeId, ct);
 
         entity.ConstructionSiteId = request.ConstructionSiteId;
         entity.ProjectId = request.ProjectId;
@@ -110,12 +119,7 @@ public class NonConformanceReportService
 
         await _db.SaveChangesAsync(ct);
 
-        return (await GetByIdAsync(companyId, id, ct))!;
-    }
-
-    private async Task<User> GetUser(Guid id, CancellationToken ct)
-    {
-        return await _db.Users.FirstAsync(x => x.Id == id, ct);
+        return (await GetByIdAsync(currentUserId, id, ct))!;
     }
 
     private static Expression<Func<NonConformanceReport, NonConformanceReportResponse>> Map()
@@ -132,7 +136,7 @@ public class NonConformanceReportService
             ProjectName = x.Project != null ? x.Project.Name : null,
 
             RaisedById = x.RaisedById,
-            RaisedByName = x.RaisedBy.FirstName + " " + x.RaisedBy.LastName,
+            RaisedByName = x.RaisedBy.CompanyId == x.CompanyId ? x.RaisedBy.FirstName + " " + x.RaisedBy.LastName : string.Empty,
 
             AssignedToEmployeeId = x.AssignedToEmployeeId,
             AssignedToEmployeeName = x.AssignedToEmployee != null

@@ -10,6 +10,7 @@ namespace CSM.Api.Controllers;
 
 [Authorize]
 [ApiController]
+[ComplianceAccessExceptionFilter]
 [Route("api/[controller]")]
 [Authorize(Policy = "Compliance.View")]
 public class QualityChecklistController : ControllerBase
@@ -28,20 +29,11 @@ public class QualityChecklistController : ControllerBase
     private Guid UserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    private async Task<Guid> GetCompanyId(CancellationToken ct)
-    {
-        return await _db.Users
-            .Where(x => x.Id == UserId)
-            .Select(x => x.CompanyId!.Value)
-            .FirstAsync(ct);
-    }
-
     [HttpGet]
     public async Task<ActionResult<List<QualityChecklistResponse>>> GetAll(
         CancellationToken ct)
     {
-        var companyId = await GetCompanyId(ct);
-        return Ok(await _service.GetAllAsync(companyId, ct));
+        return Ok(await _service.GetAllAsync(UserId, ct));
     }
 
     [HttpGet("{id:guid}")]
@@ -49,9 +41,8 @@ public class QualityChecklistController : ControllerBase
         Guid id,
         CancellationToken ct)
     {
-        var companyId = await GetCompanyId(ct);
 
-        var result = await _service.GetByIdAsync(companyId, id, ct);
+        var result = await _service.GetByIdAsync(UserId, id, ct);
 
         if (result == null)
             return NotFound();
@@ -77,15 +68,10 @@ public class QualityChecklistController : ControllerBase
         UpdateQualityChecklistRequest request,
         CancellationToken ct)
     {
-        Console.WriteLine("========== QC UPDATE ==========");
-        Console.WriteLine($"Checklist Id       : {id}");
-        Console.WriteLine($"ConstructionSiteId : {request.ConstructionSiteId}");
-        Console.WriteLine($"Name               : {request.Name}");
 
-        var companyId = await GetCompanyId(ct);
 
         var result = await _service.UpdateAsync(
-            companyId,
+            UserId,
             id,
             request,
             ct);
