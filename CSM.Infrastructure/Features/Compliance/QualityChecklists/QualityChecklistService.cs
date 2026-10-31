@@ -23,7 +23,7 @@ public class QualityChecklistService
     {
         var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, ct);
 
-        return await _db.QualityChecklists
+        return await _db.QualityChecklists.IgnoreQueryFilters()
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId)
             .OrderBy(x => x.Name)
@@ -38,7 +38,7 @@ public class QualityChecklistService
     {
         var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, ct);
 
-        return await _db.QualityChecklists
+        return await _db.QualityChecklists.IgnoreQueryFilters()
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId)
             .Select(Map())
@@ -89,7 +89,7 @@ public class QualityChecklistService
     {
         var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, true, ct);
 
-        var entity = await _db.QualityChecklists
+        var entity = await _db.QualityChecklists.IgnoreQueryFilters()
             .FirstOrDefaultAsync(
                 x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted,
                 ct)

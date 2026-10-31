@@ -142,6 +142,10 @@ public sealed class ComplianceParentOwnershipTests
             Assert.Single(await observations.GetAllAsync(actor.Id));
             Assert.Single(await ncrs.GetAllAsync(actor.Id));
             Assert.Single(await checklists.GetAllAsync(actor.Id));
+            site.IsDeleted = true; await db.SaveChangesAsync();
+            Assert.Single(await observations.GetAllAsync(actor.Id));
+            Assert.Single(await ncrs.GetAllAsync(actor.Id));
+            Assert.Single(await checklists.GetAllAsync(actor.Id));
             await Assert.ThrowsAsync<KeyNotFoundException>(() => observations.CreateAsync(actor.Id, new CreateSafetyObservationRequest { ConstructionSiteId = foreign.Id }));
             await Assert.ThrowsAsync<KeyNotFoundException>(() => ncrs.CreateAsync(actor.Id, new CreateNonConformanceReportRequest { ConstructionSiteId = foreign.Id }));
             await Assert.ThrowsAsync<KeyNotFoundException>(() => checklists.CreateAsync(actor.Id, new CreateQualityChecklistRequest { ConstructionSiteId = foreign.Id }));

@@ -25,7 +25,7 @@ public class NonConformanceReportService
     {
         var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, ct);
 
-        return await _db.NonConformanceReports
+        return await _db.NonConformanceReports.IgnoreQueryFilters()
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) && (x.AssignedToEmployeeId == null || (x.AssignedToEmployee!.CompanyId == companyId)))
             .OrderByDescending(x => x.ReportedDate)
@@ -40,7 +40,7 @@ public class NonConformanceReportService
     {
         var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, ct);
 
-        return await _db.NonConformanceReports
+        return await _db.NonConformanceReports.IgnoreQueryFilters()
             .AsNoTracking()
             .Where(x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) && (x.AssignedToEmployeeId == null || (x.AssignedToEmployee!.CompanyId == companyId)))
             .Select(Map())
@@ -89,7 +89,7 @@ public class NonConformanceReportService
     {
         var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, true, ct);
 
-        var entity = await _db.NonConformanceReports
+        var entity = await _db.NonConformanceReports.IgnoreQueryFilters()
             .FirstOrDefaultAsync(
                 x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted,
                 ct)

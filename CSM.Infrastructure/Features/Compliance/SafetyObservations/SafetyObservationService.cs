@@ -24,7 +24,7 @@ public sealed class SafetyObservationService : ISafetyObservationService
     {
         var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, cancellationToken);
 
-        return await _db.SafetyObservations
+        return await _db.SafetyObservations.IgnoreQueryFilters()
             .Where(x => x.CompanyId == companyId && !x.IsDeleted &&
                 x.ConstructionSite.CompanyId == companyId &&
                 (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId)) &&
@@ -51,7 +51,7 @@ public sealed class SafetyObservationService : ISafetyObservationService
     {
         var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, cancellationToken);
 
-        var entity = await _db.SafetyObservations
+        var entity = await _db.SafetyObservations.IgnoreQueryFilters()
             .Include(x => x.ConstructionSite)
             .Include(x => x.Project)
             .Include(x => x.Observer)
@@ -112,7 +112,7 @@ public sealed class SafetyObservationService : ISafetyObservationService
         var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, true, cancellationToken);
         await ComplianceRecordAccess.ParentsAsync(_db, companyId, request.ConstructionSiteId, request.ProjectId, request.EmployeeId, cancellationToken);
 
-        var entity = await _db.SafetyObservations
+        var entity = await _db.SafetyObservations.IgnoreQueryFilters()
             .Include(x => x.ConstructionSite)
             .Include(x => x.Project)
             .Include(x => x.Observer)
