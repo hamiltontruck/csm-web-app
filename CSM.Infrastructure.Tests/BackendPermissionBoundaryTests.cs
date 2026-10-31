@@ -1,3 +1,4 @@
+using CSM.Application.Common.Security;
 using Microsoft.Extensions.Configuration;
 using System.Reflection;
 using System.Security.Claims;
