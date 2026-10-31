@@ -24,14 +24,14 @@ public sealed class DocumentCategoryFeedbackTests
     {
         var services = new ServiceCollection().AddLogging();
         services.AddAuthorization(o => o.AddPolicy(AppPolicies.ProcurementManagement, p => p.RequireRole(AppPolicies.ProcurementManagementRoles)));
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.AddGrantedBackendPermissions(role).BuildServiceProvider();
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
         foreach (var method in new[] { "GetAll", "GetById", "Create", "Update" })
         {
             var metadata = typeof(DocumentCategoriesController).GetCustomAttributes(true).OfType<IAuthorizeData>()
                 .Concat(typeof(DocumentCategoriesController).GetMethod(method)!.GetCustomAttributes(true).OfType<IAuthorizeData>());
             var policy = await AuthorizationPolicy.CombineAsync(provider.GetRequiredService<IAuthorizationPolicyProvider>(), metadata);
-            Assert.Equal(allowed, (await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!)).Succeeded);
+            Assert.Equal(allowed, (await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor), null, policy!)).Succeeded);
         }
     }
 

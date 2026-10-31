@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[Authorize(Policy = "HRM.Attendance.View")]
 public sealed class AttendancesController : ControllerBase
 {
     private const string RecordRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
@@ -77,6 +78,7 @@ public sealed class AttendancesController : ControllerBase
     }
 
     [HttpPost("check-in")]
+    [Authorize(Policy = "HRM.Attendance.Submit")]
     [Authorize(Roles = RecordRoles)]
     public async Task<ActionResult<AttendanceResponse>> CheckIn(
         CheckInRequest request,
@@ -105,6 +107,7 @@ public sealed class AttendancesController : ControllerBase
     }
 
     [HttpPut("{attendanceId:guid}/check-out")]
+    [Authorize(Policy = "HRM.Attendance.Submit")]
     [Authorize(Roles = RecordRoles)]
     public async Task<ActionResult<AttendanceResponse>> CheckOut(
         Guid attendanceId,
@@ -167,6 +170,7 @@ public sealed class AttendancesController : ControllerBase
     }
 
     [HttpPut("{attendanceId:guid}/approve")]
+    [Authorize(Policy = "HRM.Attendance.Approve")]
     [Authorize(Roles = ReviewRoles)]
     public async Task<ActionResult<AttendanceResponse>> Approve(
         Guid attendanceId,
@@ -190,6 +194,7 @@ public sealed class AttendancesController : ControllerBase
         }
     }
     [HttpPut("{attendanceId:guid}/override")]
+    [Authorize(Policy = "HRM.Attendance.Approve")]
     [Authorize(Roles = ReviewRoles)]
     public async Task<ActionResult<AttendanceResponse>> Override(
         Guid attendanceId,

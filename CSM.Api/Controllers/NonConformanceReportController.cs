@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = "Compliance.View")]
 public class NonConformanceReportController : ControllerBase
 {
     private readonly NonConformanceReportService _service;
@@ -59,6 +60,7 @@ public class NonConformanceReportController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<NonConformanceReportResponse>> Create(
         CreateNonConformanceReportRequest request,
         CancellationToken ct)
@@ -69,6 +71,7 @@ public class NonConformanceReportController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<NonConformanceReportResponse>> Update(
         Guid id,
         UpdateNonConformanceReportRequest request,

@@ -274,6 +274,15 @@ services.AddScoped<IPermissionEvaluator, PermissionEvaluator>();
 
         services.AddAuthorization(options =>
         {
+            // Canonical granular policies are available to every controller action.
+            // Existing named policies below keep their original definitions.
+            foreach (var permission in Enum.GetValues<GranularPermission>())
+            {
+                var name = permission.ToString().Replace('_', '.');
+                options.AddPolicy(name, policy => policy.RequireAuthenticatedUser()
+                    .AddRequirements(new PermissionRequirement(permission.ToString())));
+            }
+
             options.AddPolicy(
                 AppPolicies.UserManagement,
                 policy => policy.RequireRole(

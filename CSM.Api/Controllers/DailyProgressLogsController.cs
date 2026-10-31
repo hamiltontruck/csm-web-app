@@ -11,6 +11,8 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Supervisor)]
+[Authorize(Policy = "Projects.DailyProgress.View")]
+[Authorize(Policy = "Projects.View")]
 public sealed class DailyProgressLogsController : ControllerBase
 {
     private readonly IDailyProgressLogService _dailyProgressLogService;
@@ -67,6 +69,7 @@ public sealed class DailyProgressLogsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Projects.DailyProgress.Create")]
     public async Task<ActionResult<DailyProgressLogResponse>> Create(
         CreateDailyProgressLogRequest request,
         CancellationToken cancellationToken)
@@ -90,6 +93,7 @@ public sealed class DailyProgressLogsController : ControllerBase
     }
 
     [HttpPut("{logId:guid}")]
+    [Authorize(Policy = "Projects.DailyProgress.Create")]
     public async Task<ActionResult<DailyProgressLogResponse>> Update(
         Guid logId,
         UpdateDailyProgressLogRequest request,

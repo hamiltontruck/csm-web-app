@@ -30,14 +30,14 @@ public sealed class EmployeeAdminAccessTests
     {
         var services = new ServiceCollection().AddLogging();
         services.AddAuthorization(o => o.AddPolicy(AppPolicies.HRManagement, p => p.RequireRole(AppPolicies.HRManagementRoles)));
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.AddGrantedBackendPermissions(role).BuildServiceProvider();
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
         foreach (var name in new[] { "GetAll", "GetById", "Create", "Update", "ChangeStatus" })
         {
             var metadata = typeof(EmployeesController).GetCustomAttributes(true).OfType<IAuthorizeData>()
                 .Concat(typeof(EmployeesController).GetMethod(name)!.GetCustomAttributes(true).OfType<IAuthorizeData>());
             var policy = await AuthorizationPolicy.CombineAsync(provider.GetRequiredService<IAuthorizationPolicyProvider>(), metadata);
-            Assert.Equal(expected, (await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!)).Succeeded);
+            Assert.Equal(expected, (await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor), null, policy!)).Succeeded);
         }
     }
 

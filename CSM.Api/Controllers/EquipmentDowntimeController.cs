@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
+[Authorize(Policy = "Procurement.Inventory.View")]
 public sealed class EquipmentDowntimeController : ControllerBase
 {
     private readonly IEquipmentDowntimeService _service;
@@ -66,6 +67,7 @@ public sealed class EquipmentDowntimeController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentDowntimeResponse>> Create(
         [FromBody] CreateEquipmentDowntimeRequest request,
         CancellationToken cancellationToken = default)
@@ -89,6 +91,7 @@ public sealed class EquipmentDowntimeController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentDowntimeResponse>> Update(
         Guid id,
         [FromBody] UpdateEquipmentDowntimeRequest request,
@@ -111,6 +114,7 @@ public sealed class EquipmentDowntimeController : ControllerBase
     }
 
     [HttpPut("{id:guid}/close")]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentDowntimeResponse>> Close(
         Guid id,
         [FromBody] CloseEquipmentDowntimeRequest request,

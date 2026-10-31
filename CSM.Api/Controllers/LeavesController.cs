@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[Authorize(Policy = "HRM.Leave.View")]
 public sealed class LeavesController : ControllerBase
 {
     private const string SubmitRoles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," +
@@ -26,6 +27,7 @@ public sealed class LeavesController : ControllerBase
     }
 
     [HttpGet("employee-options")]
+    [Authorize(Policy = "HRM.Leave.Submit")]
     [Authorize(Roles = SubmitRoles)]
     public async Task<ActionResult<IReadOnlyCollection<LeaveEmployeeOptionResponse>>> GetEmployeeOptions(
         CancellationToken cancellationToken)
@@ -90,6 +92,7 @@ public sealed class LeavesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "HRM.Leave.Submit")]
     [Authorize(Roles = SubmitRoles)]
     public async Task<ActionResult<LeaveResponse>> Create(
         CreateLeaveRequest request,
@@ -118,6 +121,7 @@ public sealed class LeavesController : ControllerBase
     }
 
     [HttpPut("{leaveRequestId:guid}/review")]
+    [Authorize(Policy = "HRM.Leave.Approve")]
     [Authorize(Roles = ReviewRoles)]
     public async Task<ActionResult<LeaveResponse>> Review(
         Guid leaveRequestId,
@@ -142,6 +146,7 @@ public sealed class LeavesController : ControllerBase
     }
 
     [HttpPut("{leaveRequestId:guid}/cancel")]
+    [Authorize(Policy = "HRM.Leave.Approve")]
     [Authorize(Roles = ReviewRoles)]
     public async Task<ActionResult<LeaveResponse>> Cancel(
         Guid leaveRequestId,

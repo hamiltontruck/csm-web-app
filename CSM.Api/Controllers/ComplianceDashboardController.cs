@@ -10,6 +10,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
+[Authorize(Policy = "Compliance.View")]
 public class ComplianceDashboardController : ControllerBase
 {
     private readonly ComplianceDashboardService _service;

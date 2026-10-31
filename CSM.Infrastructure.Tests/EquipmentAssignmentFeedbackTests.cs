@@ -38,12 +38,12 @@ public sealed class EquipmentAssignmentFeedbackTests
         var services = new ServiceCollection().AddLogging();
         services.AddAuthorization(options => options.AddPolicy(AppPolicies.ProcurementManagement,
             policy => policy.RequireRole(AppPolicies.ProcurementManagementRoles)));
-        using var provider = services.BuildServiceProvider();
+        using var provider = services.AddGrantedBackendPermissions(role).BuildServiceProvider();
         var policy = await AuthorizationPolicy.CombineAsync(
             provider.GetRequiredService<IAuthorizationPolicyProvider>(),
             typeof(EquipmentAssignmentsController).GetCustomAttributes(true).OfType<IAuthorizeData>());
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
-        var result = await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!);
+        var result = await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor), null, policy!);
         Assert.Equal(expected, result.Succeeded);
     }
 

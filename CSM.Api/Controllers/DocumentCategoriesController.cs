@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
+[Authorize(Policy = "Compliance.View")]
 public sealed class DocumentCategoriesController : ControllerBase
 {
     private readonly IDocumentCategoryService _documentCategoryService;
@@ -65,6 +66,7 @@ public sealed class DocumentCategoriesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<DocumentCategoryResponse>> Create(
         [FromBody] CreateDocumentCategoryRequest request,
         CancellationToken cancellationToken)
@@ -89,6 +91,7 @@ public sealed class DocumentCategoriesController : ControllerBase
     }
 
     [HttpPut("{documentCategoryId:guid}")]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<DocumentCategoryResponse>> Update(
         Guid documentCategoryId,
         [FromBody] UpdateDocumentCategoryRequest request,
