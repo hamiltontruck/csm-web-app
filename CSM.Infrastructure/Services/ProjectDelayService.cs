@@ -18,14 +18,18 @@ public sealed class ProjectDelayService : IProjectDelayService
     }
 
     public async Task<IReadOnlyCollection<ProjectDelayResponse>> GetAllAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid? projectId,
         Guid? siteId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, false, cancellationToken);
         var query = _context.ProjectDelays
             .AsNoTracking()
-            .Where(x => !x.IsDeleted);
+            .Where(x => !x.IsDeleted && access.Projects.Any(p => p.Id == x.ProjectId && p.CompanyId == x.CompanyId));
+
+        if (siteId.HasValue)
+            query = query.Where(x => access.Projects.Any(p => p.Id == x.ProjectId && p.ConstructionSiteId == siteId.Value));
 
         if (projectId.HasValue)
             query = query.Where(x => x.ProjectId == projectId.Value);
@@ -37,25 +41,28 @@ public sealed class ProjectDelayService : IProjectDelayService
     }
 
     public async Task<ProjectDelayResponse?> GetByIdAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid delayId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, false, cancellationToken);
         return await _context.ProjectDelays
             .AsNoTracking()
-            .Where(x => x.Id == delayId && !x.IsDeleted)
+            .Where(x => x.Id == delayId && !x.IsDeleted && access.Projects.Any(p => p.Id == x.ProjectId && p.CompanyId == x.CompanyId))
             .Select(MapToResponse)
             .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<ProjectDelayResponse> CreateAsync(
-        Guid tenantId,
+        Guid currentUserId,
         CreateProjectDelayRequest request,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, false, cancellationToken);
+        var parent = await access.ProjectAsync(request.ProjectId, cancellationToken);
         var delay = new ProjectDelay
         {
-            CompanyId = tenantId,
+            CompanyId = currentUserId,
             ProjectId = request.ProjectId,
             DelayDate = request.DelayDate.ToDateTime(TimeOnly.MinValue),
             Category = request.Category.ToString(),
@@ -73,14 +80,15 @@ public sealed class ProjectDelayService : IProjectDelayService
     }
 
     public async Task<ProjectDelayResponse?> UpdateAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid delayId,
         UpdateProjectDelayRequest request,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, false, cancellationToken);
         var delay = await _context.ProjectDelays
             .FirstOrDefaultAsync(
-                x => x.Id == delayId && !x.IsDeleted,
+                x => x.Id == delayId && !x.IsDeleted && access.Projects.Any(p => p.Id == x.ProjectId && p.CompanyId == x.CompanyId),
                 cancellationToken);
 
         if (delay is null)
@@ -103,13 +111,14 @@ public sealed class ProjectDelayService : IProjectDelayService
     }
 
     public async Task<bool> DeleteAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid delayId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, false, cancellationToken);
         var delay = await _context.ProjectDelays
             .FirstOrDefaultAsync(
-                x => x.Id == delayId && !x.IsDeleted,
+                x => x.Id == delayId && !x.IsDeleted && access.Projects.Any(p => p.Id == x.ProjectId && p.CompanyId == x.CompanyId),
                 cancellationToken);
 
         if (delay is null)

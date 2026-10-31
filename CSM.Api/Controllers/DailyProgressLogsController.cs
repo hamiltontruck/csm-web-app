@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CSM.Api.Controllers;
 
 [ApiController]
+[ScopedProjectError]
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Supervisor)]
 [Authorize(Policy = "Projects.DailyProgress.View")]

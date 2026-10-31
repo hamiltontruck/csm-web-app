@@ -10,7 +10,9 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = "SuperAdmin,CompanyAdmin,SiteManager")]
+[Authorize(Policy = "Compliance.View")]
+[ComplianceAccessExceptionFilter]
 public sealed class InspectionsController : ControllerBase
 {
     private readonly IInspectionService _inspectionService;
@@ -63,6 +65,7 @@ public sealed class InspectionsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<InspectionResponse>> Create(
         [FromBody] CreateInspectionRequest request,
         CancellationToken cancellationToken)
@@ -87,6 +90,7 @@ public sealed class InspectionsController : ControllerBase
     }
 
     [HttpPut("{inspectionId:guid}")]
+    [Authorize(Policy = "Compliance.Manage")]
     public async Task<ActionResult<InspectionResponse>> Update(
         Guid inspectionId,
         [FromBody] UpdateInspectionRequest request,

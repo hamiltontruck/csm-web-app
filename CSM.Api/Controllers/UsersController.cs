@@ -5,19 +5,23 @@ using CSM.Application.Users;
 using CSM.Application.Users.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[TypeFilter(typeof(UsersAccessExceptionFilter))]
 public sealed class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly IAuthorizationService _authorization;
 
-    public UsersController(IUserService userService)
+    public UsersController(IUserService userService, IAuthorizationService authorization)
     {
         _userService = userService;
+        _authorization = authorization;
     }
 
     [HttpGet]
@@ -40,6 +44,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpGet("{userId:guid}")]
+    [Authorize(Policy = "Users.View")]
     public async Task<ActionResult<UserResponse>> GetById(
         Guid userId,
         CancellationToken cancellationToken)
@@ -107,6 +112,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPut("{userId:guid}/roles")]
+    [Authorize(Policy = "Users.Edit")]
     public async Task<IActionResult> SetRoles(
         Guid userId,
         SetUserRolesRequest request,
@@ -129,6 +135,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPut("{userId:guid}/sites")]
+    [Authorize(Policy = "Users.Edit")]
     public async Task<IActionResult> SetSites(
         Guid userId,
         SetUserSitesRequest request,
@@ -151,6 +158,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPut("{userId:guid}/activate")]
+    [Authorize(Policy = "Users.Edit")]
     public async Task<IActionResult> Activate(
         Guid userId,
         CancellationToken cancellationToken)
@@ -172,6 +180,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPut("{userId:guid}/deactivate")]
+    [Authorize(Policy = "Users.Edit")]
     public async Task<IActionResult> Deactivate(
         Guid userId,
         CancellationToken cancellationToken)
@@ -214,6 +223,9 @@ public sealed class UsersController : ControllerBase
         CancellationToken cancellationToken)
     {
         var currentUserId = GetCurrentUserId();
+        if (currentUserId != userId && !(await _authorization.AuthorizeAsync(User, null, "Users.View")).Succeeded)
+            return Forbid();
+
 
         return Ok(await _userService.GetProfileAsync(
             currentUserId,
@@ -222,6 +234,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpGet("audit")]
+    [Authorize(Policy = "Users.View")]
     public async Task<ActionResult<IReadOnlyCollection<UserAuditResponse>>> GetAudit(
         CancellationToken cancellationToken)
     {
@@ -244,5 +257,21 @@ public sealed class UsersController : ControllerBase
         }
 
         return userId;
+    }
+}
+
+
+// Keep service authorization failures safe on every user action, including direct service rechecks.
+public sealed class UsersAccessExceptionFilter : IExceptionFilter
+{
+    public void OnException(ExceptionContext context)
+    {
+        if (context.Exception is UnauthorizedAccessException)
+            context.Result = new ForbidResult();
+        else if (context.Exception is KeyNotFoundException)
+            context.Result = new NotFoundObjectResult(new { message = "User was not found." });
+        else
+            return;
+        context.ExceptionHandled = true;
     }
 }

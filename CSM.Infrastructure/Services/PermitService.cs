@@ -29,16 +29,10 @@ public sealed class PermitService : IPermitService
 
         EnsureCanManage(actor);
 
-        var query = _dbContext.Permits
+        var query = ComplianceSiteAuthority.Records(_dbContext.Permits, _dbContext, actor)
             .AsNoTracking()
             .Include(x => x.ConstructionSite)
             .Where(x => !x.IsDeleted);
-
-        if (!IsSuperAdmin(actor))
-        {
-            query = query.Where(
-                x => x.CompanyId == GetActorCompanyId(actor));
-        }
 
         return await query
             .OrderBy(x => x.PermitNumber)
@@ -77,14 +71,14 @@ public sealed class PermitService : IPermitService
 
         EnsureCanManage(actor);
 
-        var permit = await _dbContext.Permits
+        var permit = await ComplianceSiteAuthority.Records(_dbContext.Permits, _dbContext, actor)
             .AsNoTracking()
             .Include(x => x.ConstructionSite)
             .SingleOrDefaultAsync(
                 x => x.Id == permitId &&
                      !x.IsDeleted,
                 cancellationToken)
-            ?? throw new PermitManagementException(
+            ?? throw new KeyNotFoundException(
                 "Permit was not found.");
 
         EnsureCompanyAccess(
@@ -104,8 +98,9 @@ public sealed class PermitService : IPermitService
             cancellationToken);
 
         EnsureCanManage(actor);
+        await ComplianceSiteAuthority.ManageAsync(_dbContext, actor, cancellationToken);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ComplianceSiteAuthority.CreationCompanyAsync(_dbContext, actor, request.ConstructionSiteId, cancellationToken);
 
         Validate(
             request.PermitNumber,
@@ -117,6 +112,7 @@ public sealed class PermitService : IPermitService
             request.ExpiryDate);
 
         await EnsureConstructionSiteAccess(
+            actor,
             companyId,
             request.ConstructionSiteId,
             cancellationToken);
@@ -124,6 +120,7 @@ public sealed class PermitService : IPermitService
         await EnsureProjectAccess(
             companyId,
             request.ProjectId,
+            request.ConstructionSiteId,
             cancellationToken);
 
         var normalizedPermitNumber =
@@ -180,14 +177,15 @@ public sealed class PermitService : IPermitService
             cancellationToken);
 
         EnsureCanManage(actor);
+        await ComplianceSiteAuthority.ManageAsync(_dbContext, actor, cancellationToken);
 
-        var permit = await _dbContext.Permits
+        var permit = await ComplianceSiteAuthority.Records(_dbContext.Permits, _dbContext, actor)
             .SingleOrDefaultAsync(
                 x =>
                     x.Id == permitId &&
                     !x.IsDeleted,
                 cancellationToken)
-            ?? throw new PermitManagementException(
+            ?? throw new KeyNotFoundException(
                 "Permit was not found.");
 
         EnsureCompanyAccess(
@@ -204,6 +202,7 @@ public sealed class PermitService : IPermitService
             request.ExpiryDate);
 
         await EnsureConstructionSiteAccess(
+            actor,
             permit.CompanyId,
             request.ConstructionSiteId,
             cancellationToken);
@@ -211,6 +210,7 @@ public sealed class PermitService : IPermitService
         await EnsureProjectAccess(
             permit.CompanyId,
             request.ProjectId,
+            request.ConstructionSiteId,
             cancellationToken);
 
         var normalizedPermitNumber =
@@ -280,14 +280,7 @@ public sealed class PermitService : IPermitService
         Guid currentUserId,
         CancellationToken cancellationToken)
     {
-        return await _dbContext.Users
-            .Include(x => x.UserRoles)
-                .ThenInclude(x => x.Role)
-            .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
-                cancellationToken)
-            ?? throw new PermitManagementException(
-                "Authenticated user was not found.");
+        return await ComplianceSiteAuthority.ActorAsync(_dbContext, currentUserId, cancellationToken);
     }
 
     private static void EnsureCanManage(
@@ -322,11 +315,13 @@ public sealed class PermitService : IPermitService
     }
 
     private async Task EnsureConstructionSiteAccess(
+        User actor,
         Guid companyId,
         Guid constructionSiteId,
         CancellationToken cancellationToken)
     {
-        var exists = await _dbContext.ConstructionSites
+        var sites = ComplianceSiteAuthority.Sites(_dbContext, actor);
+        var exists = await sites
             .AnyAsync(
                 x =>
                     x.Id == constructionSiteId &&
@@ -336,7 +331,7 @@ public sealed class PermitService : IPermitService
 
         if (!exists)
         {
-            throw new PermitManagementException(
+            throw new KeyNotFoundException(
                 "The specified construction site was not found in the company.");
         }
     }
@@ -344,6 +339,7 @@ public sealed class PermitService : IPermitService
     private async Task EnsureProjectAccess(
         Guid companyId,
         Guid? projectId,
+        Guid constructionSiteId,
         CancellationToken cancellationToken)
     {
         if (!projectId.HasValue)
@@ -356,6 +352,7 @@ public sealed class PermitService : IPermitService
                 x =>
                     x.Id == projectId.Value &&
                     x.CompanyId == companyId &&
+                    x.ConstructionSiteId == constructionSiteId &&
                     !x.IsDeleted,
                 cancellationToken);
 

@@ -32,3 +32,5 @@ Thumbs.db
 # Existing tracked legacy files are intentionally unaffected.
 CSM.Api/wwwroot/uploads/
 **/App_Data/documents/
+
+**/App_Data/daily-progress/

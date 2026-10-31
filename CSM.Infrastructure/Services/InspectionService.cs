@@ -29,17 +29,11 @@ public sealed class InspectionService : IInspectionService
 
         EnsureCanManage(actor);
 
-        var query = _dbContext.Inspections
+        var query = ComplianceSiteAuthority.Records(_dbContext.Inspections, _dbContext, actor)
             .AsNoTracking()
             .Include(x => x.ConstructionSite)
             .Include(x => x.ChecklistItems)
             .Where(x => !x.IsDeleted);
-
-        if (!IsSuperAdmin(actor))
-        {
-            query = query.Where(
-                x => x.CompanyId == GetActorCompanyId(actor));
-        }
 
         var inspections = await query
             .OrderByDescending(x => x.ScheduledAtUtc)
@@ -61,7 +55,7 @@ public sealed class InspectionService : IInspectionService
 
         EnsureCanManage(actor);
 
-        var inspection = await _dbContext.Inspections
+        var inspection = await ComplianceSiteAuthority.Records(_dbContext.Inspections, _dbContext, actor)
             .AsNoTracking()
             .Include(x => x.ConstructionSite)
             .Include(x => x.ChecklistItems)
@@ -70,7 +64,7 @@ public sealed class InspectionService : IInspectionService
                     x.Id == inspectionId &&
                     !x.IsDeleted,
                 cancellationToken)
-            ?? throw new InspectionManagementException(
+            ?? throw new KeyNotFoundException(
                 "Inspection was not found.");
 
         EnsureCompanyAccess(
@@ -90,8 +84,9 @@ public sealed class InspectionService : IInspectionService
             cancellationToken);
 
         EnsureCanManage(actor);
+        await ComplianceSiteAuthority.ManageAsync(_dbContext, actor, cancellationToken);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ComplianceSiteAuthority.CreationCompanyAsync(_dbContext, actor, request.ConstructionSiteId, cancellationToken);
 
         ValidateInspection(
             request.InspectionNumber,
@@ -109,6 +104,7 @@ public sealed class InspectionService : IInspectionService
             request.ChecklistItems);
 
         await EnsureConstructionSiteAccess(
+            actor,
             companyId,
             request.ConstructionSiteId,
             cancellationToken);
@@ -116,6 +112,7 @@ public sealed class InspectionService : IInspectionService
         await EnsureProjectAccess(
             companyId,
             request.ProjectId,
+            request.ConstructionSiteId,
             cancellationToken);
 
         await EnsureInspectorEmployeeAccess(
@@ -202,15 +199,16 @@ public sealed class InspectionService : IInspectionService
             cancellationToken);
 
         EnsureCanManage(actor);
+        await ComplianceSiteAuthority.ManageAsync(_dbContext, actor, cancellationToken);
 
-        var inspection = await _dbContext.Inspections
+        var inspection = await ComplianceSiteAuthority.Records(_dbContext.Inspections, _dbContext, actor)
             .Include(x => x.ChecklistItems)
             .SingleOrDefaultAsync(
                 x =>
                     x.Id == inspectionId &&
                     !x.IsDeleted,
                 cancellationToken)
-            ?? throw new InspectionManagementException(
+            ?? throw new KeyNotFoundException(
                 "Inspection was not found.");
 
         EnsureCompanyAccess(
@@ -233,6 +231,7 @@ public sealed class InspectionService : IInspectionService
             request.ChecklistItems);
 
         await EnsureConstructionSiteAccess(
+            actor,
             inspection.CompanyId,
             request.ConstructionSiteId,
             cancellationToken);
@@ -240,6 +239,7 @@ public sealed class InspectionService : IInspectionService
         await EnsureProjectAccess(
             inspection.CompanyId,
             request.ProjectId,
+            request.ConstructionSiteId,
             cancellationToken);
 
         await EnsureInspectorEmployeeAccess(
@@ -400,14 +400,7 @@ public sealed class InspectionService : IInspectionService
         Guid currentUserId,
         CancellationToken cancellationToken)
     {
-        return await _dbContext.Users
-            .Include(x => x.UserRoles)
-                .ThenInclude(x => x.Role)
-            .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
-                cancellationToken)
-            ?? throw new InspectionManagementException(
-                "Authenticated user was not found.");
+        return await ComplianceSiteAuthority.ActorAsync(_dbContext, currentUserId, cancellationToken);
     }
 
     private static void EnsureCanManage(
@@ -442,11 +435,13 @@ public sealed class InspectionService : IInspectionService
     }
 
     private async Task EnsureConstructionSiteAccess(
+        User actor,
         Guid companyId,
         Guid constructionSiteId,
         CancellationToken cancellationToken)
     {
-        var exists = await _dbContext.ConstructionSites
+        var sites = ComplianceSiteAuthority.Sites(_dbContext, actor);
+        var exists = await sites
             .AnyAsync(
                 x =>
                     x.Id == constructionSiteId &&
@@ -456,7 +451,7 @@ public sealed class InspectionService : IInspectionService
 
         if (!exists)
         {
-            throw new InspectionManagementException(
+            throw new KeyNotFoundException(
                 "The specified construction site was not found in the company.");
         }
     }
@@ -464,6 +459,7 @@ public sealed class InspectionService : IInspectionService
     private async Task EnsureProjectAccess(
         Guid companyId,
         Guid? projectId,
+        Guid constructionSiteId,
         CancellationToken cancellationToken)
     {
         if (!projectId.HasValue)
@@ -476,6 +472,7 @@ public sealed class InspectionService : IInspectionService
                 x =>
                     x.Id == projectId.Value &&
                     x.CompanyId == companyId &&
+                    x.ConstructionSiteId == constructionSiteId &&
                     !x.IsDeleted,
                 cancellationToken);
 

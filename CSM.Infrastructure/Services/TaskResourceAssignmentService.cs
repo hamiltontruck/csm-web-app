@@ -23,10 +23,12 @@ public sealed class TaskResourceAssignmentService : ITaskResourceAssignmentServi
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, false, cancellationToken);
+        var task = await access.TaskAsync(wbsTaskId, cancellationToken);
         return await _context.TaskResourceAssignments
             .AsNoTracking()
             .Include(x => x.Employee)
-            .Where(x => x.WbsTaskId == wbsTaskId)
+            .Where(x => !x.IsDeleted && x.WbsTaskId == wbsTaskId && x.CompanyId == task.CompanyId && !x.Employee.IsDeleted && x.Employee.CompanyId == task.CompanyId)
             .Select(x => new TaskResourceAssignmentResponse
             {
                 Id = x.Id,
@@ -47,13 +49,10 @@ public sealed class TaskResourceAssignmentService : ITaskResourceAssignmentServi
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var employee = await _context.Employees
-            .FirstOrDefaultAsync(x => x.Id == request.EmployeeId, cancellationToken)
-            ?? throw new InvalidOperationException("Employee not found.");
-
-        var task = await _context.WbsTasks
-            .FirstOrDefaultAsync(x => x.Id == request.WbsTaskId, cancellationToken)
-            ?? throw new InvalidOperationException("WBS Task not found.");
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, false, cancellationToken);
+        var task = await access.TaskAsync(request.WbsTaskId, cancellationToken);
+        var employee = await _context.Employees.FirstOrDefaultAsync(x => x.Id == request.EmployeeId && !x.IsDeleted && x.CompanyId == task.CompanyId, cancellationToken)
+            ?? throw new ArgumentException("Invalid employee.");
 
         var entity = new TaskResourceAssignment
         {
@@ -90,11 +89,13 @@ public sealed class TaskResourceAssignmentService : ITaskResourceAssignmentServi
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, false, cancellationToken);
         var entity = await _context.TaskResourceAssignments
             .Include(x => x.Employee)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Assignment not found.");
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted && _context.WbsTasks.Any(t => t.Id == x.WbsTaskId && !t.IsDeleted && t.CompanyId == x.CompanyId && access.Projects.Any(p => p.Id == t.ProjectId && p.CompanyId == t.CompanyId)), cancellationToken)
+            ?? throw new UnauthorizedAccessException("Access denied.");
 
+        if (entity.Employee.IsDeleted || entity.Employee.CompanyId != entity.CompanyId) throw new ArgumentException("Invalid employee.");
         entity.Role = request.Role;
         entity.PlannedHours = request.PlannedHours;
         entity.ActualHours = request.ActualHours;
@@ -123,8 +124,8 @@ public sealed class TaskResourceAssignmentService : ITaskResourceAssignmentServi
         CancellationToken cancellationToken = default)
     {
         var entity = await _context.TaskResourceAssignments
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Assignment not found.");
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted && _context.WbsTasks.Any(t => t.Id == x.WbsTaskId && !t.IsDeleted && t.CompanyId == x.CompanyId && access.Projects.Any(p => p.Id == t.ProjectId && p.CompanyId == t.CompanyId)), cancellationToken)
+            ?? throw new UnauthorizedAccessException("Access denied.");
 
         _context.TaskResourceAssignments.Remove(entity);
         await _context.SaveChangesAsync(cancellationToken);
