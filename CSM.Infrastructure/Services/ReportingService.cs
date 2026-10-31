@@ -995,6 +995,7 @@ public sealed class ReportingService : IReportingService
                 x.CompanyId == companyId &&
                 x.ConstructionSiteId == constructionSiteId &&
                 !x.IsDeleted)
+            .Select(x => new { x.Status, ContractValue = canFinance ? x.ContractValue : 0m })
             .ToListAsync(cancellationToken);
 
         var budgets = canFinance ? await scope.Finance(_dbContext.Budgets)

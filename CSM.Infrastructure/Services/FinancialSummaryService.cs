@@ -27,7 +27,7 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         if (!await new CSM.Infrastructure.Security.PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Reports_FinancialSummary_View", cancellationToken))
             throw new UnauthorizedAccessException("You are not authorized to view this financial summary.");
 
-        if (actor.CompanyId == null)
+        if (actor.CompanyId == null || actor.CompanyId == Guid.Empty)
         {
             throw new UnauthorizedAccessException(
                 "The current user is not associated with a company.");
@@ -373,13 +373,21 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
         if (!await new CSM.Infrastructure.Security.PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Reports_FinancialSummary_View", cancellationToken))
             throw new UnauthorizedAccessException("You are not authorized to view this financial summary.");
 
-        if (actor.CompanyId == null)
+        var isGlobalAdmin = actor.UserRoles.Any(x => !x.IsDeleted && !x.Role.IsDeleted &&
+            string.Equals(x.Role.Name, "SuperAdmin", StringComparison.OrdinalIgnoreCase));
+        Guid companyId;
+        if (isGlobalAdmin)
         {
-            throw new UnauthorizedAccessException(
-                "The current user is not associated with a company.");
+            companyId = await _dbContext.ConstructionSites.AsNoTracking()
+                .Where(x => x.Id == constructionSiteId && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken)
+                ?? throw new KeyNotFoundException("Construction site was not found.");
         }
-
-        var companyId = actor.CompanyId.Value;
+        else
+        {
+            companyId = actor.CompanyId ?? Guid.Empty;
+        }
+        if (companyId == Guid.Empty) throw new UnauthorizedAccessException("A company context is required.");
         var scope = new FinancialReadScope(_dbContext, actor, companyId);
 
         var site = await scope.Sites

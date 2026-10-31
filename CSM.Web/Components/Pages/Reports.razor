@@ -78,7 +78,7 @@
                                      @bind-Value="_scope"
                                      @bind-Value:after="ScopeChanged">
                             <option value="Company">@(CanReadCompanyFinance ? "Company" : "Assigned sites")</option>
-                            <option value="Site">Site</option>
+                            @if (_sites.Count > 0) { <option value="Site">Site</option> }
                         </InputSelect>
                     </div>
 
@@ -1054,6 +1054,8 @@
 
             _allFinancialSummary = Access.Has("Reports_FinancialSummary_View")
                 ? await ReportingService.GetAllFinancialSummariesAsync(_selectedCompanyId) : null;
+            if (!Access.Has("Sites_View") && _allFinancialSummary is not null)
+                _sites = _allFinancialSummary.Sites.Select(s => new SiteResponse { Id = s.SiteId, Name = s.SiteName, SiteCode = s.SiteCode }).ToList();
             _financial = Access.Has("Reports_FinancialSummary_View")
                 ? (CanReadCompanyFinance ? await ReportingService.GetFinancialSummaryAsync(_selectedCompanyId) : _allFinancialSummary?.Total)
                 : null;

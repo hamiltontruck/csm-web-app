@@ -113,6 +113,59 @@ public sealed class FinancialReportAccessTests
         await Assert.ThrowsAsync<ReportingManagementException>(() => new ReportingService(f.Db).GetExecutiveDashboardAsync(f.Actor.Id));
     }
 
+    [Fact]
+    public async Task PostgreSQL_executes_finance_and_reporting_scope_queries()
+    {
+        var connection = new Npgsql.NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("CSM_TEST_POSTGRES") ?? "Host=localhost;Username=postgres;Password=postgres") { Database = "finance_scope_" + Guid.NewGuid().ToString("N") };
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).Options);
+        try
+        {
+            await db.Database.MigrateAsync();
+            var company = new Company { Code = "FIN", Name = "Finance scope test" };
+            var first = new ConstructionSite { CompanyId = company.Id, SiteCode = "ONE", Name = "Assigned" };
+            var other = new ConstructionSite { CompanyId = company.Id, SiteCode = "TWO", Name = "Unassigned" };
+            var role = new Role { Name = "SiteManager", NormalizedName = "SITEMANAGER", GranularPermissions = [new() { Permission = GranularPermission.Reports_View }, new() { Permission = GranularPermission.Reports_FinancialSummary_View }] };
+            var actor = new User { CompanyId = company.Id, Email = "finance@example.test", NormalizedEmail = "FINANCE@EXAMPLE.TEST", IsActive = true, UserRoles = [new() { Role = role }] };
+            db.Companies.Add(company); db.ConstructionSites.AddRange(first, other); db.Users.Add(actor);
+            db.UserSiteAccesses.Add(new() { CompanyId = company.Id, UserId = actor.Id, SiteId = first.Id, IsActive = true });
+            db.Projects.AddRange(new Project { CompanyId = company.Id, ConstructionSiteId = first.Id, ProjectCode = "ONE", Name = "Assigned" }, new Project { CompanyId = company.Id, ConstructionSiteId = other.Id, ProjectCode = "TWO", Name = "Unassigned" });
+            db.Budgets.AddRange(new Budget { CompanyId = company.Id, BudgetNumber = "COMPANY", Name = "Company", TotalAmount = 100, Status = BudgetStatus.Active }, new Budget { CompanyId = company.Id, ConstructionSiteId = first.Id, BudgetNumber = "ONE", Name = "Assigned", TotalAmount = 10, Status = BudgetStatus.Active }, new Budget { CompanyId = company.Id, ConstructionSiteId = other.Id, BudgetNumber = "TWO", Name = "Unassigned", TotalAmount = 20, Status = BudgetStatus.Active });
+            await db.SaveChangesAsync();
+            var summary = await new FinancialSummaryService(db).GetCompanySummaryAsync(actor.Id);
+            Assert.Equal(10m, summary.TotalBudget);
+            var reports = new ReportingService(db);
+            Assert.Equal(1, (await reports.GetExecutiveDashboardAsync(actor.Id)).TotalProjects);
+            var all = await reports.GetAllFinancialSummariesAsync(actor.Id);
+            Assert.Null(all.Company);
+            Assert.Equal(10m, all.Total.TotalBudget);
+            Assert.Equal(10m, (await reports.GetSiteFinancialSummaryAsync(actor.Id, first.Id)).TotalBudget);
+        }
+        finally { await db.Database.EnsureDeletedAsync(); }
+    }
+
+    [Fact]
+    public async Task Empty_company_context_never_exposes_empty_tenant_finance()
+    {
+        using var f = new Fixture("CompanyAdmin", GranularPermission.Reports_FinancialSummary_View);
+        f.Actor.CompanyId = Guid.Empty;
+        f.Db.Budgets.Add(new Budget { CompanyId = Guid.Empty, Status = BudgetStatus.Active, TotalAmount = 5000 });
+        f.Db.SaveChanges(true);
+        var service = new FinancialSummaryService(f.Db);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.GetCompanySummaryAsync(f.Actor.Id));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.GetSiteSummaryAsync(f.Actor.Id, f.Site));
+    }
+
+    [Fact]
+    public async Task Companyless_superadmin_reads_a_selected_site_without_a_global_company_fallback()
+    {
+        using var f = new Fixture("SuperAdmin", GranularPermission.Reports_FinancialSummary_View);
+        f.Actor.CompanyId = null; f.Db.SaveChanges(true);
+        var service = new FinancialSummaryService(f.Db);
+        Assert.Equal(999m, (await service.GetSiteSummaryAsync(f.Actor.Id, f.ForeignSite)).BudgetAmount);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.GetCompanySummaryAsync(f.Actor.Id));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.GetSiteSummaryAsync(f.Actor.Id, Guid.NewGuid()));
+    }
+
     private sealed class Fixture : IDisposable
     {
         public ApplicationDbContext Db = new(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
