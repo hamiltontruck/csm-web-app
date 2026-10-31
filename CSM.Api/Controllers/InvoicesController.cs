@@ -11,6 +11,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[Authorize(Policy = "Finance.Invoice.View")]
 public sealed class InvoicesController : ControllerBase
 {
     private readonly IInvoiceService _invoiceService;
