@@ -13,6 +13,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[Authorize(Policy = "HRM.Payroll.View")]
 public sealed class PayrollController : ControllerBase
 {
     private readonly IPayrollService _payrollService;
