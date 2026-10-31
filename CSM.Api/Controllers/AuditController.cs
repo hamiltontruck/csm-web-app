@@ -1,4 +1,5 @@
 using CSM.Application.Common.Audit;
+using CSM.Application.Common.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -6,8 +7,9 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
-public sealed class AuditController : ControllerBase
+[Authorize(Policy = AppPolicies.UserManagement)]
+[Authorize(Policy = "Users.View")]
+public sealed class AuditController : CurrentUserControllerBase
 {
     private readonly IAuditQueryService _service;
 
@@ -23,12 +25,10 @@ public sealed class AuditController : ControllerBase
         [FromQuery] DateTime? toUtc,
         CancellationToken cancellationToken)
     {
-        var logs = await _service.GetLogsAsync(
-            module,
-            fromUtc,
-            toUtc,
-            cancellationToken);
-
-        return Ok(logs);
+        try
+        {
+            return Ok(await _service.GetLogsAsync(CurrentUserId, module, fromUtc, toUtc, cancellationToken));
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
     }
 }
