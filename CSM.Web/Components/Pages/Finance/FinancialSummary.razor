@@ -15,7 +15,7 @@
         <div>
             <h2>Financial Summary</h2>
             <div class="text-muted">
-                Company-wide financial position and site breakdown
+                @(_summary?.IncludesCompanyLevel == false ? "Financial position for your assigned sites" : "Company-wide financial position and site breakdown")
             </div>
         </div>
 

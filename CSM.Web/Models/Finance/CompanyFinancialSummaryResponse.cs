@@ -2,6 +2,8 @@ namespace CSM.Web.Models.Finance;
 
 public sealed class CompanyFinancialSummaryResponse
 {
+    public bool IncludesCompanyLevel { get; init; } = true;
+
     public decimal TotalBudget { get; set; }
     public decimal TotalExpenses { get; set; }
     public decimal TotalInvoiceAmount { get; set; }
