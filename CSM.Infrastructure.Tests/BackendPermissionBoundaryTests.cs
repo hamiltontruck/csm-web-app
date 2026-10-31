@@ -166,8 +166,13 @@ public sealed class BackendPermissionBoundaryTests
         var signature = token.LastIndexOf('.') + 1;
         var tampered = token[..signature] + (token[signature] == 'A' ? "B" : "A") + token[(signature + 1)..];
         Assert.False((await Authenticate(tampered)).Succeeded);
-        var expiredSettings = new JwtSettings { SecretKey = settings.SecretKey, Issuer = settings.Issuer, Audience = settings.Audience, AccessTokenMinutes = -5 };
-        var expired = new TokenService(Microsoft.Extensions.Options.Options.Create(expiredSettings)).GenerateAccessToken(actor, ["Supervisor"]);
+        var signing = new Microsoft.IdentityModel.Tokens.SigningCredentials(
+            new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(settings.SecretKey)),
+            Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256);
+        var expired = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().WriteToken(
+            new System.IdentityModel.Tokens.Jwt.JwtSecurityToken(settings.Issuer, settings.Audience,
+                [new Claim(ClaimTypes.NameIdentifier, actor.Id.ToString())],
+                DateTime.UtcNow.AddMinutes(-10), DateTime.UtcNow.AddMinutes(-5), signing));
         Assert.False((await Authenticate(expired)).Succeeded);
         actor.IsActive = false; db.SaveChanges(true);
         Assert.False((await Authenticate(token)).Succeeded);
