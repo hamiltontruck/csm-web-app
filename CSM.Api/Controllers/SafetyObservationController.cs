@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CSM.Api.Controllers;
 
 [ApiController]
+[ComplianceAccessExceptionFilter]
 [Authorize]
 [Route("api/[controller]")]
 [Authorize(Policy = "Compliance.View")]

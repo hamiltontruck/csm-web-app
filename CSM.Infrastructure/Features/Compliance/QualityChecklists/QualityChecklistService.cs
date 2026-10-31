@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Features.Compliance;
 using System.Linq.Expressions;
 using CSM.Application.Features.Compliance.QualityChecklists;
 using CSM.Domain.Entities.Compliance;
@@ -17,25 +18,29 @@ public class QualityChecklistService
     }
 
     public async Task<List<QualityChecklistResponse>> GetAllAsync(
-        Guid companyId,
+        Guid currentUserId,
         CancellationToken ct = default)
     {
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, ct);
+
         return await _db.QualityChecklists
             .AsNoTracking()
-            .Where(x => x.CompanyId == companyId)
+            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted)
             .OrderBy(x => x.Name)
             .Select(Map())
             .ToListAsync(ct);
     }
 
     public async Task<QualityChecklistResponse?> GetByIdAsync(
-        Guid companyId,
+        Guid currentUserId,
         Guid id,
         CancellationToken ct = default)
     {
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, ct);
+
         return await _db.QualityChecklists
             .AsNoTracking()
-            .Where(x => x.CompanyId == companyId && x.Id == id)
+            .Where(x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted)
             .Select(Map())
             .FirstOrDefaultAsync(ct);
     }
@@ -45,13 +50,13 @@ public class QualityChecklistService
         CreateQualityChecklistRequest request,
         CancellationToken ct = default)
     {
-        var user = await GetUser(userId, ct);
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, userId, true, ct);
+        await ComplianceRecordAccess.ParentsAsync(_db, companyId, request.ConstructionSiteId, null, null, ct);
 
         var entity = new QualityChecklist
         {
 
-            CompanyId = user.CompanyId
-                ?? throw new InvalidOperationException("User has no company."),
+            CompanyId = companyId,
 
             ConstructionSiteId = request.ConstructionSiteId,
             Name = request.Name.Trim(),
@@ -73,30 +78,24 @@ public class QualityChecklistService
         _db.QualityChecklists.Add(entity);
         await _db.SaveChangesAsync(ct);
 
-        return (await GetByIdAsync(entity.CompanyId, entity.Id, ct))!;
+        return (await GetByIdAsync(userId, entity.Id, ct))!;
     }
 
     public async Task<QualityChecklistResponse> UpdateAsync(
-        Guid companyId,
+        Guid currentUserId,
         Guid id,
         UpdateQualityChecklistRequest request,
         CancellationToken ct = default)
     {
-        // Load ONLY the checklist (no Include)
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, true, ct);
+
         var entity = await _db.QualityChecklists
             .FirstOrDefaultAsync(
-                x => x.CompanyId == companyId && x.Id == id,
+                x => x.CompanyId == companyId && x.Id == id && !x.IsDeleted,
                 ct)
             ?? throw new KeyNotFoundException("Checklist not found.");
 
-        var siteExists = await _db.ConstructionSites.AnyAsync(
-            s => s.CompanyId == companyId &&
-                 s.Id == request.ConstructionSiteId,
-            ct);
-
-        if (!siteExists)
-            throw new InvalidOperationException(
-                $"Construction site not found: {request.ConstructionSiteId}");
+        await ComplianceRecordAccess.ParentsAsync(_db, companyId, request.ConstructionSiteId, null, null, ct);
 
         entity.ConstructionSiteId = request.ConstructionSiteId;
         entity.Name = request.Name.Trim();
@@ -130,12 +129,7 @@ public class QualityChecklistService
         await _db.QualityChecklistItems.AddRangeAsync(newItems, ct);
         await _db.SaveChangesAsync(ct);
 
-        return (await GetByIdAsync(companyId, id, ct))!;
-    }
-
-    private async Task<User> GetUser(Guid id, CancellationToken ct)
-    {
-        return await _db.Users.FirstAsync(x => x.Id == id, ct);
+        return (await GetByIdAsync(currentUserId, id, ct))!;
     }
 
     private static Expression<Func<QualityChecklist, QualityChecklistResponse>> Map()

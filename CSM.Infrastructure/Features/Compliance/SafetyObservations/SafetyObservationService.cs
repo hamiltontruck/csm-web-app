@@ -3,6 +3,7 @@ using CSM.Application.Features.Compliance.SafetyObservations.Services;
 using CSM.Domain.Entities.Compliance;
 using CSM.Domain.Entities.Identity;
 using CSM.Domain.Enums;
+using CSM.Infrastructure.Features.Compliance;
 using CSM.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,10 +22,13 @@ public sealed class SafetyObservationService : ISafetyObservationService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var user = await GetUser(currentUserId, cancellationToken);
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, cancellationToken);
 
         return await _db.SafetyObservations
-            .Where(x => x.CompanyId == user.CompanyId && !x.IsDeleted)
+            .Where(x => x.CompanyId == companyId && !x.IsDeleted &&
+                x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted &&
+                (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId && !x.Project.IsDeleted)) &&
+                (x.EmployeeId == null || (x.Employee!.CompanyId == companyId && !x.Employee.IsDeleted)))
             .Include(x => x.ConstructionSite)
             .OrderByDescending(x => x.ObservationDate)
             .Select(x => new SafetyObservationListItem
@@ -45,7 +49,7 @@ public sealed class SafetyObservationService : ISafetyObservationService
         Guid observationId,
         CancellationToken cancellationToken = default)
     {
-        var user = await GetUser(currentUserId, cancellationToken);
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, false, cancellationToken);
 
         var entity = await _db.SafetyObservations
             .Include(x => x.ConstructionSite)
@@ -54,10 +58,13 @@ public sealed class SafetyObservationService : ISafetyObservationService
             .Include(x => x.Employee)
             .SingleOrDefaultAsync(
                 x => x.Id == observationId &&
-                     x.CompanyId == user.CompanyId &&
-                     !x.IsDeleted,
+                     x.CompanyId == companyId &&
+                     !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted &&
+                     (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId && !x.Project.IsDeleted)) &&
+                     (x.EmployeeId == null || (x.Employee!.CompanyId == companyId && !x.Employee.IsDeleted)) &&
+                     x.Observer.CompanyId == companyId,
                 cancellationToken)
-            ?? throw new Exception("Safety observation not found.");
+            ?? throw new KeyNotFoundException("Safety observation not found.");
 
         return Map(entity);
     }
@@ -67,12 +74,12 @@ public sealed class SafetyObservationService : ISafetyObservationService
         CreateSafetyObservationRequest request,
         CancellationToken cancellationToken = default)
     {
-        var user = await GetUser(currentUserId, cancellationToken);
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, true, cancellationToken);
+        await ComplianceRecordAccess.ParentsAsync(_db, companyId, request.ConstructionSiteId, request.ProjectId, request.EmployeeId, cancellationToken);
 
         var entity = new SafetyObservation
         {
-            CompanyId = user.CompanyId
-                ?? throw new InvalidOperationException("User is not assigned to a company."),
+            CompanyId = companyId,
             ConstructionSiteId = request.ConstructionSiteId,
             ProjectId = request.ProjectId,
             ObserverId = currentUserId,
@@ -103,7 +110,8 @@ public sealed class SafetyObservationService : ISafetyObservationService
         UpdateSafetyObservationRequest request,
         CancellationToken cancellationToken = default)
     {
-        var user = await GetUser(currentUserId, cancellationToken);
+        var companyId = await ComplianceRecordAccess.CompanyAsync(_db, currentUserId, true, cancellationToken);
+        await ComplianceRecordAccess.ParentsAsync(_db, companyId, request.ConstructionSiteId, request.ProjectId, request.EmployeeId, cancellationToken);
 
         var entity = await _db.SafetyObservations
             .Include(x => x.ConstructionSite)
@@ -112,10 +120,13 @@ public sealed class SafetyObservationService : ISafetyObservationService
             .Include(x => x.Employee)
             .SingleOrDefaultAsync(
                 x => x.Id == observationId &&
-                     x.CompanyId == user.CompanyId &&
-                     !x.IsDeleted,
+                     x.CompanyId == companyId &&
+                     !x.IsDeleted && x.ConstructionSite.CompanyId == companyId && !x.ConstructionSite.IsDeleted &&
+                     (x.ProjectId == null || (x.Project!.CompanyId == companyId && x.Project.ConstructionSiteId == x.ConstructionSiteId && !x.Project.IsDeleted)) &&
+                     (x.EmployeeId == null || (x.Employee!.CompanyId == companyId && !x.Employee.IsDeleted)) &&
+                     x.Observer.CompanyId == companyId,
                 cancellationToken)
-            ?? throw new Exception("Safety observation not found.");
+            ?? throw new KeyNotFoundException("Safety observation not found.");
 
         entity.ConstructionSiteId = request.ConstructionSiteId;
         entity.ProjectId = request.ProjectId;
@@ -135,14 +146,6 @@ public sealed class SafetyObservationService : ISafetyObservationService
         await _db.SaveChangesAsync(cancellationToken);
 
         return Map(entity);
-    }
-
-    private async Task<User> GetUser(
-        Guid id,
-        CancellationToken cancellationToken)
-    {
-        return await _db.Users
-            .SingleAsync(x => x.Id == id, cancellationToken);
     }
 
     private static string? Clean(string? value)
