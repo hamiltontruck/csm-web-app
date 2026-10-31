@@ -123,6 +123,7 @@ public sealed class TaskResourceAssignmentService : ITaskResourceAssignmentServi
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, false, cancellationToken);
         var entity = await _context.TaskResourceAssignments
             .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted && _context.WbsTasks.Any(t => t.Id == x.WbsTaskId && !t.IsDeleted && t.CompanyId == x.CompanyId && access.Projects.Any(p => p.Id == t.ProjectId && p.CompanyId == t.CompanyId)), cancellationToken)
             ?? throw new UnauthorizedAccessException("Access denied.");
