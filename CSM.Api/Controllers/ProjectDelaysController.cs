@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using CSM.Domain.Constants;
+using CSM.Api.Controllers;
 using CSM.Application.Projects.ProjectDelays;
 using CSM.Application.Projects.ProjectDelays.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -7,9 +10,12 @@ namespace CSM.API.Controllers;
 
 [ApiController]
 [Route("api/project-delays")]
-[Authorize]
+[Authorize(Policy = "Projects.View")]
+[ScopedProjectError]
 public sealed class ProjectDelaysController : ControllerBase
 {
+    private Guid CurrentUserId => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
+
     private readonly IProjectDelayService _service;
 
     public ProjectDelaysController(IProjectDelayService service)
@@ -23,7 +29,7 @@ public sealed class ProjectDelaysController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _service.GetAllAsync(
-            Guid.Empty,
+            CurrentUserId,
             projectId,
             null,
             cancellationToken);
@@ -37,7 +43,7 @@ public sealed class ProjectDelaysController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _service.GetByIdAsync(
-            Guid.Empty,
+            CurrentUserId,
             id,
             cancellationToken);
 
@@ -45,12 +51,14 @@ public sealed class ProjectDelaysController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<IActionResult> Create(
         CreateProjectDelayRequest request,
         CancellationToken cancellationToken)
     {
         var created = await _service.CreateAsync(
-            Guid.Empty,
+            CurrentUserId,
             request,
             cancellationToken);
 
@@ -61,13 +69,15 @@ public sealed class ProjectDelaysController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<IActionResult> Update(
         Guid id,
         UpdateProjectDelayRequest request,
         CancellationToken cancellationToken)
     {
         var updated = await _service.UpdateAsync(
-            Guid.Empty,
+            CurrentUserId,
             id,
             request,
             cancellationToken);
@@ -76,12 +86,14 @@ public sealed class ProjectDelaysController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<IActionResult> Delete(
         Guid id,
         CancellationToken cancellationToken)
     {
         var deleted = await _service.DeleteAsync(
-            Guid.Empty,
+            CurrentUserId,
             id,
             cancellationToken);
 

@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.InvoiceLines;
 using CSM.Application.Finance.InvoiceLines.Dtos;
@@ -40,7 +41,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
 
         var lines = await _dbContext.InvoiceLines
             .AsNoTracking()
-            .Where(x => x.InvoiceId == invoiceId)
+            .Where(x => x.InvoiceId == invoiceId && x.CompanyId == invoice.CompanyId && !x.IsDeleted)
             .OrderBy(x => x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
@@ -161,6 +162,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
             line.InvoiceId,
             cancellationToken);
 
+        EnsureCompanyAccess(actor, invoice.CompanyId);
         EnsureInvoiceEditable(invoice);
 
         ValidateLine(
@@ -219,6 +221,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
             line.InvoiceId,
             cancellationToken);
 
+        EnsureCompanyAccess(actor, invoice.CompanyId);
         EnsureInvoiceEditable(invoice);
 
         line.IsDeleted = true;
@@ -235,14 +238,21 @@ public sealed class InvoiceLineService : IInvoiceLineService
         Guid currentUserId,
         CancellationToken cancellationToken)
     {
-        return await _dbContext.Users
+        var actor = await _dbContext.Users
+            .AsNoTracking()
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)
             .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
+                x => x.Id == currentUserId && x.IsActive && !x.IsDeleted,
                 cancellationToken)
             ?? throw new InvoiceLineManagementException(
                 "Authenticated user was not found.");
+
+        if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(
+                currentUserId, "Finance_Invoice_View", cancellationToken))
+            throw new InvoiceLineManagementException("Invoice access is not permitted.");
+
+        return actor;
     }
 
     private static void EnsureCanRead(
@@ -324,7 +334,8 @@ public sealed class InvoiceLineService : IInvoiceLineService
             .SingleOrDefaultAsync(
                 x =>
                     x.Id == invoiceLineId &&
-                    !x.IsDeleted,
+                    !x.IsDeleted && !x.Invoice.IsDeleted &&
+                    x.Invoice.CompanyId == x.CompanyId,
                 cancellationToken)
             ?? throw new InvoiceLineManagementException(
                 "Invoice line was not found.");
@@ -404,6 +415,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
             .Where(
                 x =>
                     x.InvoiceId == invoice.Id &&
+                    x.CompanyId == invoice.CompanyId &&
                     !x.IsDeleted)
             .GroupBy(x => x.InvoiceId)
             .Select(

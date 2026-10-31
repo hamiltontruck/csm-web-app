@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using CSM.Domain.Constants;
+using CSM.Api.Controllers;
 using CSM.Application.Projects.DailySiteDiaries;
 using CSM.Application.Projects.DailySiteDiaries.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -7,9 +10,13 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/daily-site-diaries")]
-[Authorize]
+[Authorize(Policy = "Projects.View")]
+[ScopedProjectError]
+[Authorize(Policy = "Projects.DailyProgress.View")]
 public class DailySiteDiaryController : ControllerBase
 {
+    private Guid CurrentUserId => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
+
     private readonly IDailySiteDiaryService _service;
 
     public DailySiteDiaryController(IDailySiteDiaryService service)
@@ -24,7 +31,7 @@ public class DailySiteDiaryController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _service.GetAllAsync(
-            Guid.Empty,
+            CurrentUserId,
             projectId,
             siteId,
             cancellationToken);
@@ -38,7 +45,7 @@ public class DailySiteDiaryController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _service.GetByIdAsync(
-            Guid.Empty,
+            CurrentUserId,
             id,
             cancellationToken);
 
@@ -49,12 +56,14 @@ public class DailySiteDiaryController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Projects.DailyProgress.Create")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Supervisor)]
     public async Task<ActionResult<DailySiteDiaryResponse>> Create(
         CreateDailySiteDiaryRequest request,
         CancellationToken cancellationToken)
     {
         var created = await _service.CreateAsync(
-            Guid.Empty,
+            CurrentUserId,
             request,
             cancellationToken);
 
@@ -65,13 +74,15 @@ public class DailySiteDiaryController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Projects.DailyProgress.Create")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Supervisor)]
     public async Task<ActionResult<DailySiteDiaryResponse>> Update(
         Guid id,
         UpdateDailySiteDiaryRequest request,
         CancellationToken cancellationToken)
     {
         var updated = await _service.UpdateAsync(
-            Guid.Empty,
+            CurrentUserId,
             id,
             request,
             cancellationToken);
@@ -83,12 +94,14 @@ public class DailySiteDiaryController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "Projects.DailyProgress.Create")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Supervisor)]
     public async Task<IActionResult> Delete(
         Guid id,
         CancellationToken cancellationToken)
     {
         var deleted = await _service.DeleteAsync(
-            Guid.Empty,
+            CurrentUserId,
             id,
             cancellationToken);
 

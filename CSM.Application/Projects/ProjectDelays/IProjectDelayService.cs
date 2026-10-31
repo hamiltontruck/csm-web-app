@@ -5,29 +5,29 @@ namespace CSM.Application.Projects.ProjectDelays;
 public interface IProjectDelayService
 {
     Task<IReadOnlyCollection<ProjectDelayResponse>> GetAllAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid? projectId,
         Guid? siteId,
         CancellationToken cancellationToken = default);
 
     Task<ProjectDelayResponse?> GetByIdAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid delayId,
         CancellationToken cancellationToken = default);
 
     Task<ProjectDelayResponse> CreateAsync(
-        Guid tenantId,
+        Guid currentUserId,
         CreateProjectDelayRequest request,
         CancellationToken cancellationToken = default);
 
     Task<ProjectDelayResponse?> UpdateAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid delayId,
         UpdateProjectDelayRequest request,
         CancellationToken cancellationToken = default);
 
     Task<bool> DeleteAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid delayId,
         CancellationToken cancellationToken = default);
 }

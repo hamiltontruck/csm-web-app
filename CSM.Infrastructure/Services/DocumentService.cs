@@ -3,6 +3,8 @@ using CSM.Application.Common.Security;
 using CSM.Application.Compliance.Documents;
 using CSM.Application.Compliance.Documents.Dtos;
 using CSM.Domain.Constants;
+using CSM.Domain.Enums;
+using Microsoft.AspNetCore.Hosting;
 using CSM.Domain.Entities.Compliance;
 using CSM.Domain.Entities.Identity;
 using CSM.Infrastructure.Persistence;
@@ -14,10 +16,12 @@ namespace CSM.Infrastructure.Services;
 public sealed class DocumentService : IDocumentService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly DocumentFileStorage _files;
 
-    public DocumentService(ApplicationDbContext dbContext)
+    public DocumentService(ApplicationDbContext dbContext, IWebHostEnvironment? environment = null)
     {
         _dbContext = dbContext;
+        _files = new(environment);
     }
 
     public async Task<IReadOnlyCollection<DocumentResponse>> GetAllAsync(
@@ -50,7 +54,7 @@ public sealed class DocumentService : IDocumentService
                 CompanyId = d.CompanyId,
 
                 ConstructionSiteId = d.ConstructionSiteId,
-                ConstructionSiteName = site != null ? site.Name : null,
+                ConstructionSiteName = site != null && site.CompanyId == d.CompanyId ? site.Name : null,
 
                 DocumentNumber = d.DocumentNumber,
                 Name = d.Name,
@@ -109,7 +113,7 @@ public sealed class DocumentService : IDocumentService
         CreateDocumentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await RequireAccessAsync(_dbContext, currentUserId, true, cancellationToken);
 
         EnsureCanManage(actor);
 
@@ -123,6 +127,8 @@ public sealed class DocumentService : IDocumentService
             request.FileSizeBytes,
             request.IssueDate,
             request.ExpiryDate);
+
+        await ValidateParentsAsync(companyId, request.ConstructionSiteId, request.ProjectId, request.EmployeeId, cancellationToken);
 
         var normalizedNumber = request.DocumentNumber.Trim();
 
@@ -153,7 +159,7 @@ public sealed class DocumentService : IDocumentService
             CurrentRevision = request.CurrentRevision,
 
             FileName = request.FileName.Trim(),
-            StoragePath = request.StoragePath.Trim(),
+            StoragePath = string.Empty,
             ContentType = Clean(request.ContentType),
             FileSizeBytes = request.FileSizeBytes,
 
@@ -190,7 +196,7 @@ public sealed class DocumentService : IDocumentService
         UpdateDocumentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await RequireAccessAsync(_dbContext, currentUserId, true, cancellationToken);
 
         EnsureCanManage(actor);
 
@@ -210,6 +216,8 @@ public sealed class DocumentService : IDocumentService
             request.FileSizeBytes,
             request.IssueDate,
             request.ExpiryDate);
+
+        await ValidateParentsAsync(document.CompanyId, request.ConstructionSiteId, request.ProjectId, request.EmployeeId, cancellationToken);
 
         var normalizedNumber = request.DocumentNumber.Trim();
 
@@ -237,13 +245,8 @@ public sealed class DocumentService : IDocumentService
         document.DrawingStatus = request.DrawingStatus;
         document.CurrentRevision = request.CurrentRevision;
 
-        document.FileName = request.FileName.Trim();
-        var fileName = Path.GetFileName(request.StoragePath);
-
-        document.StoragePath = $"/uploads/documents/{fileName}";
-        document.ContentType = Clean(request.ContentType);
-        document.FileSizeBytes = request.FileSizeBytes;
-
+        // File metadata and location are changed only by an authorized upload.
+        document.ConstructionSiteId = request.ConstructionSiteId;
 
         document.ProjectId = request.ProjectId;
         document.EmployeeId = request.EmployeeId;
@@ -269,101 +272,113 @@ public sealed class DocumentService : IDocumentService
     }
 
 
-public async Task<DocumentVersionResponse> UploadVersionAsync(
-    Guid currentUserId,
-    Guid documentId,
-    Stream fileStream,
-    string fileName,
-    string? contentType,
-    long fileSizeBytes,
-    string? revisionNotes,
-    CancellationToken cancellationToken = default)
-{
-    var actor = await GetActorAsync(currentUserId, cancellationToken);
-
-    EnsureCanManage(actor);
-
-    var document = await _dbContext.Documents
-        .SingleOrDefaultAsync(
-            x => x.Id == documentId && !x.IsDeleted,
-            cancellationToken)
-        ?? throw new DocumentManagementException("Document not found.");
-
-    EnsureCompanyAccess(actor, document.CompanyId);
-
-    var uploads = Path.Combine(
-        Directory.GetCurrentDirectory(),
-        "wwwroot",
-        "uploads",
-        "documents");
-
-    Directory.CreateDirectory(uploads);
-
-    var storedName =
-        $"{Guid.NewGuid()}{Path.GetExtension(fileName)}";
-
-    var fullPath = Path.Combine(uploads, storedName);
-
-    await using var stream = File.Create(fullPath);
-    await fileStream.CopyToAsync(stream, cancellationToken);
-
-    var nextVersion = await _dbContext.DocumentVersions
-        .Where(x => x.DocumentId == documentId)
-        .CountAsync(cancellationToken) + 1;
-
-    var currentVersions = await _dbContext.DocumentVersions
-        .Where(x => x.DocumentId == documentId && x.IsCurrent)
-        .ToListAsync(cancellationToken);
-
-    foreach (var v in currentVersions)
-        v.IsCurrent = false;
-
-    var version = new DocumentVersion
+    public async Task<DocumentVersionResponse> UploadVersionAsync(
+        Guid currentUserId,
+        Guid documentId,
+        Stream fileStream,
+        string fileName,
+        string? contentType,
+        long fileSizeBytes,
+        string? revisionNotes,
+        CancellationToken cancellationToken = default)
     {
-        DocumentId = documentId,
-        VersionNumber = nextVersion,
-        FileName = fileName,
-        StoragePath = $"/uploads/documents/{storedName}",
-        ContentType = contentType,
-        FileSizeBytes = fileSizeBytes,
-        RevisionNotes = revisionNotes,
-        IsCurrent = true,
-        CreatedAtUtc = DateTime.UtcNow
-    };
+        var actor = await RequireAccessAsync(_dbContext, currentUserId, true, cancellationToken);
 
-    _dbContext.DocumentVersions.Add(version);
+        EnsureCanManage(actor);
 
-    document.CurrentRevision = version.VersionNumber.ToString();
-    document.UpdatedAtUtc = DateTime.UtcNow;
+        var document = await _dbContext.Documents
+            .SingleOrDefaultAsync(
+                x => x.Id == documentId && !x.IsDeleted,
+                cancellationToken)
+            ?? throw new DocumentManagementException("Document not found.");
 
-    await _dbContext.SaveChangesAsync(cancellationToken);
+        EnsureCompanyAccess(actor, document.CompanyId);
 
-    return new DocumentVersionResponse
-    {
-        Id = version.Id,
-        VersionNumber = version.VersionNumber,
-        FileName = version.FileName,
-        StoragePath = version.StoragePath,
-        ContentType = version.ContentType,
-        FileSizeBytes = version.FileSizeBytes,
-        RevisionNotes = version.RevisionNotes,
-        IsCurrent = version.IsCurrent,
-        CreatedAtUtc = version.CreatedAtUtc
-    };
-}
+        var uploadName = Path.GetFileName(fileName.Replace('\\', '/'));
+        if (string.IsNullOrWhiteSpace(uploadName) || uploadName.Length > 255 || fileSizeBytes < 0)
+            throw new DocumentManagementException("A valid file name and size are required.");
+        var location = await _files.WriteAsync(document, fileStream, cancellationToken);
+
+        var nextVersion = await _dbContext.DocumentVersions
+            .Where(x => x.DocumentId == documentId)
+            .MaxAsync(x => (int?)x.VersionNumber, cancellationToken) ?? 0;
+        nextVersion++;
+
+        var currentVersions = await _dbContext.DocumentVersions
+            .Where(x => x.DocumentId == documentId && x.IsCurrent)
+            .ToListAsync(cancellationToken);
+
+        foreach (var v in currentVersions)
+            v.IsCurrent = false;
+
+        var version = new DocumentVersion
+        {
+            DocumentId = documentId,
+            VersionNumber = nextVersion,
+            FileName = uploadName,
+            StoragePath = location.StoragePath,
+            UploadedByUserId = currentUserId,
+            ContentType = contentType,
+            FileSizeBytes = location.Length,
+            RevisionNotes = revisionNotes,
+            IsCurrent = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        _dbContext.DocumentVersions.Add(version);
+
+        document.FileName = version.FileName;
+        document.StoragePath = version.StoragePath;
+        document.ContentType = version.ContentType;
+        document.FileSizeBytes = version.FileSizeBytes;
+        document.CurrentRevision = version.VersionNumber.ToString();
+        document.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new DocumentVersionResponse
+        {
+            Id = version.Id,
+            DocumentId = version.DocumentId,
+            UploadedByUserId = version.UploadedByUserId,
+            VersionNumber = version.VersionNumber,
+            FileName = version.FileName,
+            StoragePath = version.StoragePath,
+            ContentType = version.ContentType,
+            FileSizeBytes = version.FileSizeBytes,
+            RevisionNotes = version.RevisionNotes,
+            IsCurrent = version.IsCurrent,
+            CreatedAtUtc = version.CreatedAtUtc
+        };
+    }
 
     private async Task<User> GetActorAsync(
         Guid currentUserId,
         CancellationToken cancellationToken)
     {
-        return await _dbContext.Users
-            .Include(x => x.UserRoles)
-                .ThenInclude(x => x.Role)
-            .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
-                cancellationToken)
-            ?? throw new DocumentManagementException(
-                "Authenticated user was not found.");
+        return await RequireAccessAsync(_dbContext, currentUserId, false, cancellationToken);
+    }
+
+    internal static async Task<User> RequireAccessAsync(ApplicationDbContext db, Guid actorId, bool manage, CancellationToken ct)
+    {
+        var actor = await db.Users.AsNoTracking().Include(x => x.UserRoles).ThenInclude(x => x.Role).ThenInclude(x => x.GranularPermissions)
+            .SingleOrDefaultAsync(x => x.Id == actorId && x.IsActive && !x.IsDeleted, ct);
+        if (actor is null) throw new DocumentManagementException("You are not authorized to access this document.");
+        EnsureCanManage(actor);
+        var grants = actor.UserRoles.Where(x => !x.IsDeleted && !x.Role.IsDeleted).SelectMany(x => x.Role.GranularPermissions).Select(x => x.Permission).ToHashSet();
+        if (!grants.Contains(GranularPermission.Compliance_View) || (manage && !grants.Contains(GranularPermission.Compliance_Manage)))
+            throw new DocumentManagementException("You are not authorized to access this document.");
+        return actor;
+    }
+
+    private async Task ValidateParentsAsync(Guid companyId, Guid? siteId, Guid? projectId, Guid? employeeId, CancellationToken ct)
+    {
+        if (siteId.HasValue && !await _dbContext.ConstructionSites.AnyAsync(x => x.Id == siteId.Value && x.CompanyId == companyId && !x.IsDeleted, ct))
+            throw new DocumentManagementException("The selected construction site is unavailable.");
+        if (projectId.HasValue && !await _dbContext.Projects.AnyAsync(x => x.Id == projectId.Value && x.CompanyId == companyId && !x.IsDeleted && (!siteId.HasValue || x.ConstructionSiteId == siteId.Value), ct))
+            throw new DocumentManagementException("The selected project is unavailable.");
+        if (employeeId.HasValue && !await _dbContext.Employees.AnyAsync(x => x.Id == employeeId.Value && x.CompanyId == companyId && !x.IsDeleted, ct))
+            throw new DocumentManagementException("The selected employee is unavailable.");
     }
 
     private static void EnsureCanManage(User actor)
@@ -445,10 +460,7 @@ public async Task<DocumentVersionResponse> UploadVersionAsync(
         if (fileName.Trim().Length > 255)
             throw new DocumentManagementException("File name cannot exceed 255 characters.");
 
-        if (string.IsNullOrWhiteSpace(storagePath))
-            throw new DocumentManagementException("Storage path is required.");
-
-        if (storagePath.Trim().Length > 1000)
+        if (storagePath is { Length: > 1000 })
             throw new DocumentManagementException("Storage path cannot exceed 1000 characters.");
 
         if (fileSizeBytes < 0)

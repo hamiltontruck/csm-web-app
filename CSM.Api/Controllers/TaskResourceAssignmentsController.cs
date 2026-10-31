@@ -1,3 +1,5 @@
+using CSM.Domain.Constants;
+using CSM.Api.Controllers;
 using CSM.Application.Projects.ResourceAssignments;
 using CSM.Application.Projects.ResourceAssignments.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -7,7 +9,8 @@ using System.Security.Claims;
 namespace CSM.API.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Policy = "Projects.View")]
+[ScopedProjectError]
 [Route("api/task-resource-assignments")]
 public sealed class TaskResourceAssignmentsController : ControllerBase
 {
@@ -20,7 +23,7 @@ public sealed class TaskResourceAssignmentsController : ControllerBase
     }
 
     private Guid CurrentUserId =>
-        Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
 
     [HttpGet("task/{wbsTaskId:guid}")]
     public async Task<ActionResult<IReadOnlyList<TaskResourceAssignmentResponse>>> GetByTask(
@@ -36,6 +39,8 @@ public sealed class TaskResourceAssignmentsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<TaskResourceAssignmentResponse>> Create(
         CreateTaskResourceAssignmentRequest request,
         CancellationToken cancellationToken)
@@ -52,6 +57,8 @@ public sealed class TaskResourceAssignmentsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<TaskResourceAssignmentResponse>> Update(
         Guid id,
         UpdateTaskResourceAssignmentRequest request,
@@ -67,6 +74,8 @@ public sealed class TaskResourceAssignmentsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<IActionResult> Delete(
         Guid id,
         CancellationToken cancellationToken)

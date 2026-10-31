@@ -4,6 +4,9 @@ namespace CSM.Domain.Entities.Identity;
 
 public class UserAudit : BaseEntity
 {
+    // Tenant at the time of the event. Null legacy rows have no provable tenant.
+    public Guid? CompanyId { get; init; }
+
     public Guid ActorUserId { get; set; }
 
     public User ActorUser { get; set; } = null!;
