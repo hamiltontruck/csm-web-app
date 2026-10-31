@@ -10,6 +10,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
+[Authorize(Policy = "Notifications.View")]
 public sealed class NotificationsController : ControllerBase
 {
     private readonly INotificationService _notificationService;
@@ -35,6 +36,10 @@ public sealed class NotificationsController : ControllerBase
 
             return Ok(result);
         }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
         catch (NotificationManagementException ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -54,6 +59,10 @@ public sealed class NotificationsController : ControllerBase
 
             return Ok(result);
         }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
         catch (NotificationManagementException ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -61,6 +70,7 @@ public sealed class NotificationsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Notifications.Manage")]
     public async Task<ActionResult<NotificationResponse>> Create(
         [FromBody] CreateNotificationRequest request,
         CancellationToken cancellationToken)
@@ -74,6 +84,10 @@ public sealed class NotificationsController : ControllerBase
                     cancellationToken);
 
             return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
         catch (NotificationManagementException ex)
         {
@@ -97,6 +111,10 @@ public sealed class NotificationsController : ControllerBase
                     cancellationToken);
 
             return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
         catch (NotificationManagementException ex)
         {

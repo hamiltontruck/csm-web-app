@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Notifications;
 using CSM.Application.Notifications.Dtos;
@@ -83,6 +84,9 @@ public sealed class NotificationService : INotificationService
         var actor = await GetActorAsync(
             currentUserId,
             cancellationToken);
+
+        if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Notifications_Manage", cancellationToken))
+            throw new UnauthorizedAccessException("Notification management is not permitted.");
 
         if (!actor.CompanyId.HasValue)
         {
@@ -180,12 +184,15 @@ public sealed class NotificationService : INotificationService
         Guid currentUserId,
         CancellationToken cancellationToken)
     {
+        if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Notifications_View", cancellationToken))
+            throw new UnauthorizedAccessException("Notification access is not permitted.");
+
         return await _dbContext.Users
             .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
+                x => x.Id == currentUserId && x.IsActive && !x.IsDeleted,
                 cancellationToken)
-            ?? throw new NotificationManagementException(
-                "Authenticated user was not found.");
+            ?? throw new UnauthorizedAccessException(
+                "Notification access is not permitted.");
     }
 
     private static NotificationResponse ToResponse(
