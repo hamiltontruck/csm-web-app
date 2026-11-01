@@ -1,0 +1,29 @@
+name: Backend model diagnostic
+on:
+  push:
+    branches: [qa/backend-model-diagnostic-20261101]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ConnectionStrings__DefaultConnection: Host=localhost;Database=unused;Username=postgres;Password=postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore CSM.sln
+      - run: dotnet build CSM.sln --configuration Release --no-restore
+      - run: dotnet tool install --global dotnet-ef --version 10.0.10
+      - run: dotnet ef migrations add AuditModelDiagnostic --project CSM.Infrastructure/CSM.Infrastructure.csproj --startup-project CSM.Api/CSM.Api.csproj --configuration Release --no-build
+      - name: Show exact model delta
+        run: |
+          git diff -- CSM.Infrastructure/Persistence/Migrations/ApplicationDbContextModelSnapshot.cs
+          python - <<'PY'
+          from pathlib import Path
+          for path in Path("CSM.Infrastructure/Persistence/Migrations").glob("*_AuditModelDiagnostic.cs"):
+              print(path.read_text())
+          PY
