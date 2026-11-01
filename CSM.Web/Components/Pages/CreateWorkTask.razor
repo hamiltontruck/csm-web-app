@@ -1,3 +1,4 @@
+@page "/projects/{ProjectId:guid}/tasks/create"
 @page "/projects/{ProjectId:guid}/phases/{PhaseId:guid}/tasks/create"
 @rendermode InteractiveServer
 
@@ -13,12 +14,12 @@
 
     <button class="btn btn-outline-secondary mb-3"
             @onclick="Back">
-        ← Phase Details
+        ← @(PhaseId == Guid.Empty ? "Project Details" : "Phase Details")
     </button>
 
     <h2>Create Work Task</h2>
     <p class="text-muted">
-        Add an executable activity under this phase.
+        Select a project phase and add an executable activity.
     </p>
 
     @if (!string.IsNullOrWhiteSpace(_error))
@@ -26,6 +27,21 @@
         <div class="alert alert-danger">@_error</div>
     }
 
+    @if (_loading)
+    {
+        <p role="status">Loading project phases...</p>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="alert alert-danger" role="alert">@_loadError</div>
+    }
+    else if (_phases.Count == 0)
+    {
+        <div class="alert alert-info">Create a project phase before adding a task.</div>
+        <a class="btn btn-outline-primary" href="@($"/projects/{ProjectId}/phases")">View project phases</a>
+    }
+    else
+    {
     <EditForm Model="_task" OnValidSubmit="Save">
 
         <DataAnnotationsValidator/>
@@ -35,6 +51,17 @@
             <div class="card-body">
 
                 <div class="row g-3">
+
+                    <div class="col-12">
+                        <label class="form-label" for="task-phase">Project phase</label>
+                        <InputSelect id="task-phase" class="form-select" @bind-Value="_task.ProjectPhaseId" disabled="@(PhaseId != Guid.Empty)">
+                            <option value="">Select a project phase</option>
+                            @foreach (var phase in _phases)
+                            {
+                                <option value="@phase.Id">@phase.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
 
                     <div class="col-md-4">
                         <label class="form-label">Task No.</label>
@@ -94,7 +121,7 @@
                 </button>
 
                 <button class="btn btn-primary"
-                        type="submit">
+                        type="submit" disabled="@_saving">
                     Create Task
                 </button>
 
@@ -103,46 +130,87 @@
         </div>
 
     </EditForm>
+    }
 
 </div>
 
-@code{
-
+@code {
     [Parameter] public Guid ProjectId { get; set; }
-
     [Parameter] public Guid PhaseId { get; set; }
-
     private CreateWorkTaskRequest _task = new();
-
+    private List<ProjectPhase> _phases = new();
+    private bool _loading = true;
+    private bool _saving;
+    private string? _loadError;
     private string? _error;
 
     protected override void OnInitialized()
     {
         _task.ProjectId = ProjectId;
-        _task.ProjectPhaseId = PhaseId;
+        _task.ProjectPhaseId = PhaseId == Guid.Empty ? null : PhaseId;
         _task.TaskNumber = "WT-001";
         _task.Priority = Priority.Medium;
     }
 
-    async Task Save()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var result = await ProjectService.CreateTaskAsync(_task);
-
-        if (!result.Success)
+        if (!firstRender) return;
+        try
         {
-            _error = result.Message;
+            _phases = (await ProjectService.GetProjectPhasesAsync(ProjectId))
+                .Where(p => p.ProjectId == ProjectId).OrderBy(p => p.Sequence).ToList();
+            if (PhaseId != Guid.Empty && !_phases.Any(p => p.Id == PhaseId))
+                _loadError = "The selected phase was not found in this project.";
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view project phases.",
+                _ => "Unable to load project phases. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            _loadError = "Unable to load project phases. Please try again.";
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_saving || _loading || _loadError is not null) return;
+        if (!_phases.Any(p => p.Id == _task.ProjectPhaseId))
+        {
+            _error = "Select a project phase before creating a task.";
             return;
         }
-
-        Navigation.NavigateTo(
-            $"/projects/{ProjectId}/phases/{PhaseId}",
-            true);
+        _saving = true;
+        _error = null;
+        try
+        {
+            _task.ProjectId = ProjectId;
+            var result = await ProjectService.CreateTaskAsync(_task);
+            if (!result.Success)
+            {
+                _error = result.Message;
+                return;
+            }
+            Navigation.NavigateTo($"/projects/{ProjectId}/phases/{_task.ProjectPhaseId}", true);
+        }
+        catch (Exception)
+        {
+            _error = "Unable to create the task. Please try again.";
+        }
+        finally { _saving = false; }
     }
 
-    void Back()
-    {
-        Navigation.NavigateTo(
-            $"/projects/{ProjectId}/phases/{PhaseId}");
-    }
-
+    private void Back() => Navigation.NavigateTo(PhaseId == Guid.Empty
+        ? $"/projects/{ProjectId}"
+        : $"/projects/{ProjectId}/phases/{PhaseId}");
 }
