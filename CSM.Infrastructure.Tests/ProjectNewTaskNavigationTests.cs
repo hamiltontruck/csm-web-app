@@ -49,6 +49,7 @@ public sealed class ProjectNewTaskNavigationTests
         var page = context.RenderComponent<CreateWorkTask>(p => p.Add(x => x.ProjectId, service.ProjectId));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("#task-phase")));
         Assert.Contains("Foundation", page.Markup);
+        Assert.DoesNotContain("Other project phase", page.Markup);
         page.Find("#task-phase").Change(service.PhaseId.ToString());
         page.Find("form").Submit();
         page.WaitForAssertion(() => Assert.NotNull(service.Submitted));
@@ -67,6 +68,42 @@ public sealed class ProjectNewTaskNavigationTests
         Assert.Contains("Select a project phase", page.Markup);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Successful_creation_returns_to_selected_phase_from_either_entry(bool phaseEntry)
+    {
+        using var context = new TestContext(); var service = Service(context); service.CreateSuccess = true;
+        var page = context.RenderComponent<CreateWorkTask>(p => p.Add(x => x.ProjectId, service.ProjectId)
+            .Add(x => x.PhaseId, phaseEntry ? service.PhaseId : Guid.Empty));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("#task-phase")));
+        if (phaseEntry) Assert.True(page.Find("#task-phase").HasAttribute("disabled"));
+        else page.Find("#task-phase").Change(service.PhaseId.ToString());
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal($"http://localhost/projects/{service.ProjectId}/phases/{service.PhaseId}",
+            context.Services.GetRequiredService<NavigationManager>().Uri));
+        Assert.Equal(service.PhaseId, service.Submitted!.ProjectPhaseId);
+    }
+
+    [Fact]
+    public void Forbidden_phase_lookup_does_not_render_a_creation_form()
+    {
+        using var context = new TestContext(); var service = Service(context); service.DenyPhases = true;
+        var page = context.RenderComponent<CreateWorkTask>(p => p.Add(x => x.ProjectId, service.ProjectId));
+        page.WaitForAssertion(() => Assert.Contains("You do not have permission", page.Markup));
+        Assert.Empty(page.FindAll("form")); Assert.Null(service.Submitted);
+    }
+
+    [Fact]
+    public void Project_without_phases_offers_phase_setup_instead_of_an_invalid_submit()
+    {
+        using var context = new TestContext(); var service = Service(context); service.NoPhases = true;
+        var page = context.RenderComponent<CreateWorkTask>(p => p.Add(x => x.ProjectId, service.ProjectId));
+        page.WaitForAssertion(() => Assert.Contains("Create a project phase", page.Markup));
+        Assert.Empty(page.FindAll("form"));
+        Assert.Equal($"/projects/{service.ProjectId}/phases", page.Find("a").GetAttribute("href"));
+    }
+
     private static ProjectServiceProbe Service(TestContext context)
     {
         var proxy = DispatchProxy.Create<IProjectService, ProjectServiceProbe>();
@@ -77,11 +114,18 @@ public sealed class ProjectNewTaskNavigationTests
         public Guid ProjectId { get; } = Guid.NewGuid();
         public Guid PhaseId { get; } = Guid.NewGuid();
         public CreateWorkTaskRequest? Submitted;
+        public bool CreateSuccess, DenyPhases, NoPhases;
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
             if (method!.Name == nameof(IProjectService.GetProjectAsync)) return Task.FromResult<ProjectDetail?>(new() { Id = ProjectId, Name = "Test project", Status = "Active" });
-            if (method.Name == nameof(IProjectService.GetProjectPhasesAsync)) return Task.FromResult(new List<ProjectPhase> { new() { Id = PhaseId, ProjectId = ProjectId, Name = "Foundation" } });
-            if (method.Name == nameof(IProjectService.CreateTaskAsync)) { Submitted = (CreateWorkTaskRequest)args![0]!; return Task.FromResult((false, "Synthetic validation response")); }
+            if (method.Name == nameof(IProjectService.GetProjectPhasesAsync))
+            {
+                if (DenyPhases) throw new HttpRequestException("Synthetic forbidden", null, System.Net.HttpStatusCode.Forbidden);
+                return Task.FromResult(NoPhases ? new List<ProjectPhase>() : new List<ProjectPhase> {
+                    new() { Id = PhaseId, ProjectId = ProjectId, Name = "Foundation" },
+                    new() { Id = Guid.NewGuid(), ProjectId = Guid.NewGuid(), Name = "Other project phase" } });
+            }
+            if (method.Name == nameof(IProjectService.CreateTaskAsync)) { Submitted = (CreateWorkTaskRequest)args![0]!; return Task.FromResult((CreateSuccess, "Synthetic validation response")); }
             throw new NotSupportedException(method.Name);
         }
     }
