@@ -41,6 +41,13 @@ public sealed class ExpenseDetailLookupTests
         page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
         Assert.DoesNotContain("EXP-0001", page.Markup);
         Assert.DoesNotContain("private diagnostic", page.Markup);
+        var expected = status switch {
+            401 => "Your session is missing or has expired",
+            403 => "You do not have permission to view this expense",
+            404 => "Expense not found",
+            _ => "Unable to load expense details"
+        };
+        Assert.Contains(expected, page.Markup);
         Assert.Equal(status == 404, page.Markup.Contains("Expense not found"));
         Assert.Contains(page.FindAll("button"), b => b.TextContent.Contains("Expenses"));
         Assert.Empty(state.RelatedCalls);
@@ -56,12 +63,43 @@ public sealed class ExpenseDetailLookupTests
         Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Mark as Paid"));
     }
 
-    [Fact]
-    public void Allowed_finance_manager_keeps_paid_control()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void Allowed_finance_manager_keeps_paid_control(bool companyPage)
     {
         using var context = new TestContext(); var state = Services(context);
-        var page = Render(context, state, false, "CompanyAdmin", "Finance_Expense_View,Finance_Expense_Approve");
+        var page = Render(context, state, companyPage, "CompanyAdmin", "Finance_Expense_View,Finance_Expense_Approve");
         page.WaitForAssertion(() => Assert.Contains(page.FindAll("button"), b => b.TextContent.Contains("Mark as Paid")));
+    }
+
+    [Theory]
+    [InlineData(false, 401)] [InlineData(true, 401)]
+    [InlineData(false, 404)] [InlineData(true, 404)]
+    [InlineData(false, 500)] [InlineData(true, 500)]
+    public void Related_lookup_expiry_withholds_data_while_other_lookup_failures_preserve_it(bool companyPage, int status)
+    {
+        using var context = new TestContext(); var state = Services(context);
+        state.DeniedLookup = "costcodes"; state.RelatedStatus = (HttpStatusCode)status;
+        var page = Render(context, state, companyPage);
+        if (status == 401) {
+            page.WaitForAssertion(() => Assert.Contains("Your session is missing or has expired", page.Markup));
+            Assert.DoesNotContain("EXP-0001", page.Markup);
+        } else {
+            page.WaitForAssertion(() => Assert.Contains("EXP-0001", page.Markup));
+            Assert.Contains("Some related names are unavailable", page.Markup);
+        }
+        Assert.DoesNotContain("private diagnostic", page.Markup);
+    }
+
+    [Theory]
+    [InlineData("SiteManager", "Finance_Expense_View,Finance_Expense_Approve")]
+    [InlineData("CompanyAdmin", "Finance_Expense_View")]
+    public void Paid_action_requires_both_approval_permission_and_finance_manager_role(string role, string permissions)
+    {
+        using var context = new TestContext(); var state = Services(context);
+        var page = Render(context, state, false, role, permissions);
+        page.WaitForAssertion(() => Assert.Contains("EXP-0001", page.Markup));
+        Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Mark as Paid"));
     }
 
     [Fact]
@@ -102,8 +140,9 @@ public sealed class ExpenseDetailLookupTests
     {
         public Guid ExpenseId = Guid.NewGuid(), SiteId = Guid.NewGuid();
         public string? DeniedLookup; public HttpStatusCode? PrimaryStatus; public bool WrongSite;
+        public HttpStatusCode RelatedStatus = HttpStatusCode.Forbidden;
         public List<string> RelatedCalls = [];
-        public void Check(string lookup) { RelatedCalls.Add(lookup); if (DeniedLookup == lookup) throw Error(HttpStatusCode.Forbidden); }
+        public void Check(string lookup) { RelatedCalls.Add(lookup); if (DeniedLookup == lookup) throw Error(RelatedStatus); }
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
             if (method!.Name == nameof(IFinanceService.GetExpenseAsync)) {
