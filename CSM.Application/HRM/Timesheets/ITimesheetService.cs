@@ -47,4 +47,3 @@ public interface ITimesheetService
         GenerateTimesheetRequest request,
         CancellationToken cancellationToken = default);
 }
-

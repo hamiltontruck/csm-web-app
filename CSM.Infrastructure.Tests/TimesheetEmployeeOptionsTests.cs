@@ -130,7 +130,7 @@ public sealed class TimesheetEmployeeOptionsTests
         var actor = db.Users.Single(x => x.Id == actorId);
         if (deactivate) actor.IsActive = false;
         else actor.UserRoles.Single().IsDeleted = true;
-        await db.SaveChangesAsync();
+        db.SaveChanges(true);
         await Assert.ThrowsAsync<TimesheetManagementException>(() => Options(service, actorId));
     }
 

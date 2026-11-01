@@ -239,4 +239,3 @@ public sealed class TimesheetsController : ControllerBase
         return userId;
     }
 }
-

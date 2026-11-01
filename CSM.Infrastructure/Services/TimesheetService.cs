@@ -633,4 +633,3 @@ public sealed class TimesheetService : ITimesheetService
             timesheet.CreatedAtUtc);
     }
 }
-

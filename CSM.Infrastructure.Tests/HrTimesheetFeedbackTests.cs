@@ -222,4 +222,3 @@ public sealed class HrTimesheetFeedbackTests
     }
     private static HttpRequestException Error(HttpStatusCode status) => new("private diagnostic", null, status);
 }
-
