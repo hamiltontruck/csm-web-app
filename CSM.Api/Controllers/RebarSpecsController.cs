@@ -1,3 +1,4 @@
+using CSM.Domain.Constants;
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
@@ -10,7 +11,9 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
+[Authorize(Policy = "Procurement.Inventory.View")]
+[ScopedProjectError]
 public sealed class RebarSpecsController : ControllerBase
 {
     private readonly IRebarSpecService _rebarSpecService;
@@ -46,6 +49,7 @@ public sealed class RebarSpecsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<RebarSpecResponse>> Create(
         [FromBody] CreateRebarSpecRequest request,
         CancellationToken cancellationToken)
@@ -70,6 +74,7 @@ public sealed class RebarSpecsController : ControllerBase
     }
 
     [HttpPut("{materialId:guid}")]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<RebarSpecResponse>> Update(
         Guid materialId,
         [FromBody] UpdateRebarSpecRequest request,

@@ -1,3 +1,4 @@
+using CSM.Domain.Constants;
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
@@ -10,7 +11,9 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProjectManagement)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Supervisor)]
+[Authorize(Policy = "Projects.View")]
+[ScopedProjectError]
 public sealed class MilestonesController : ControllerBase
 {
     private readonly IMilestoneService _milestoneService;
@@ -63,6 +66,8 @@ public sealed class MilestonesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<MilestoneResponse>> Create(
         CreateMilestoneRequest request,
         CancellationToken cancellationToken)
@@ -86,6 +91,8 @@ public sealed class MilestonesController : ControllerBase
     }
 
     [HttpPut("{milestoneId:guid}")]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<MilestoneResponse>> Update(
         Guid milestoneId,
         UpdateMilestoneRequest request,
@@ -108,6 +115,8 @@ public sealed class MilestonesController : ControllerBase
     }
 
     [HttpPut("{milestoneId:guid}/complete")]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<MilestoneResponse>> Complete(
         Guid milestoneId,
         CancellationToken cancellationToken)
@@ -128,6 +137,8 @@ public sealed class MilestonesController : ControllerBase
     }
 
     [HttpPut("{milestoneId:guid}/reopen")]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<MilestoneResponse>> Reopen(
         Guid milestoneId,
         CancellationToken cancellationToken)

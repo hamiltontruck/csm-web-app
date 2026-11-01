@@ -33,7 +33,7 @@ public sealed class MilestoneService : IMilestoneService
             projectId,
             cancellationToken);
 
-        EnsureProjectAccess(actor, project);
+        await EnsureProjectAccessAsync(actor, project, false, cancellationToken);
 
         if (projectPhaseId.HasValue)
         {
@@ -46,7 +46,7 @@ public sealed class MilestoneService : IMilestoneService
         IQueryable<Milestone> query =
             _dbContext.Milestones
                 .AsNoTracking()
-                .Where(x => x.ProjectId == project.Id);
+                .Where(x => x.ProjectId == project.Id && x.CompanyId == project.CompanyId && !x.IsDeleted);
 
         if (projectPhaseId.HasValue)
         {
@@ -77,7 +77,7 @@ public sealed class MilestoneService : IMilestoneService
             milestoneId,
             cancellationToken);
 
-        EnsureMilestoneAccess(actor, milestone);
+        await EnsureMilestoneAccessAsync(actor, milestone, false, cancellationToken);
 
         return Map(milestone);
     }
@@ -89,7 +89,7 @@ public sealed class MilestoneService : IMilestoneService
     {
         var actor = await GetActorAsync(
             currentUserId,
-            cancellationToken);
+            cancellationToken, true);
 
         EnsureCanModify(actor);
         ValidateName(request.Name);
@@ -98,7 +98,7 @@ public sealed class MilestoneService : IMilestoneService
             request.ProjectId,
             cancellationToken);
 
-        EnsureProjectAccess(actor, project);
+        await EnsureProjectAccessAsync(actor, project, true, cancellationToken);
         EnsureProjectCanBeModified(project);
 
         if (request.ProjectPhaseId.HasValue)
@@ -159,7 +159,7 @@ public sealed class MilestoneService : IMilestoneService
     {
         var actor = await GetActorAsync(
             currentUserId,
-            cancellationToken);
+            cancellationToken, true);
 
         EnsureCanModify(actor);
         ValidateName(request.Name);
@@ -168,7 +168,7 @@ public sealed class MilestoneService : IMilestoneService
             milestoneId,
             cancellationToken);
 
-        EnsureMilestoneAccess(actor, milestone);
+        await EnsureMilestoneAccessAsync(actor, milestone, true, cancellationToken);
 
         var project = await GetProjectAsync(
             milestone.ProjectId,
@@ -215,7 +215,7 @@ public sealed class MilestoneService : IMilestoneService
     {
         var actor = await GetActorAsync(
             currentUserId,
-            cancellationToken);
+            cancellationToken, true);
 
         EnsureCanModify(actor);
 
@@ -223,7 +223,7 @@ public sealed class MilestoneService : IMilestoneService
             milestoneId,
             cancellationToken);
 
-        EnsureMilestoneAccess(actor, milestone);
+        await EnsureMilestoneAccessAsync(actor, milestone, true, cancellationToken);
 
         var project = await GetProjectAsync(
             milestone.ProjectId,
@@ -252,7 +252,7 @@ public sealed class MilestoneService : IMilestoneService
     {
         var actor = await GetActorAsync(
             currentUserId,
-            cancellationToken);
+            cancellationToken, true);
 
         EnsureCanModify(actor);
 
@@ -260,7 +260,7 @@ public sealed class MilestoneService : IMilestoneService
             milestoneId,
             cancellationToken);
 
-        EnsureMilestoneAccess(actor, milestone);
+        await EnsureMilestoneAccessAsync(actor, milestone, true, cancellationToken);
 
         var project = await GetProjectAsync(
             milestone.ProjectId,
@@ -284,16 +284,18 @@ public sealed class MilestoneService : IMilestoneService
 
     private async Task<User> GetActorAsync(
         Guid userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool write = false)
     {
-        var user = await _dbContext.Users
+        await ProjectChildAccess.ForAsync(_dbContext, userId, write, false, cancellationToken);
+        var user = await _dbContext.Users.AsNoTracking()
             .Include(x => x.UserRoles)
                 .ThenInclude(x => x.Role)
             .SingleOrDefaultAsync(
                 x => x.Id == userId,
                 cancellationToken);
 
-        if (user is null || !user.IsActive)
+        if (user is null || !user.IsActive || user.IsDeleted)
         {
             throw new MilestoneManagementException(
                 "Current user was not found or is inactive.");
@@ -308,7 +310,7 @@ public sealed class MilestoneService : IMilestoneService
     {
         return await _dbContext.Projects
             .SingleOrDefaultAsync(
-                x => x.Id == projectId,
+                x => x.Id == projectId && !x.IsDeleted,
                 cancellationToken)
             ?? throw new MilestoneManagementException(
                 "Project was not found.");
@@ -320,7 +322,7 @@ public sealed class MilestoneService : IMilestoneService
     {
         return await _dbContext.Milestones
             .SingleOrDefaultAsync(
-                x => x.Id == milestoneId,
+                x => x.Id == milestoneId && !x.IsDeleted,
                 cancellationToken)
             ?? throw new MilestoneManagementException(
                 "Milestone was not found.");
@@ -334,7 +336,7 @@ public sealed class MilestoneService : IMilestoneService
         var phase = await _dbContext.ProjectPhases
             .AsNoTracking()
             .SingleOrDefaultAsync(
-                x => x.Id == phaseId,
+                x => x.Id == phaseId && !x.IsDeleted && !x.Project.IsDeleted && x.CompanyId == x.Project.CompanyId,
                 cancellationToken);
 
         if (phase is null)
@@ -350,42 +352,19 @@ public sealed class MilestoneService : IMilestoneService
         }
     }
 
-    private static void EnsureProjectAccess(
-        User actor,
-        Project project)
+    private async Task EnsureProjectAccessAsync(User actor, Project project, bool write, CancellationToken cancellationToken)
     {
-        if (IsSuperAdmin(actor))
-        {
-            return;
-        }
-
-        EnsureProjectRole(actor);
-
-        if (!actor.CompanyId.HasValue ||
-            actor.CompanyId.Value != project.CompanyId)
-        {
-            throw new MilestoneManagementException(
-                "You cannot access a project outside your company.");
-        }
+        if (!IsSuperAdmin(actor)) EnsureProjectRole(actor);
+        var access = await ProjectChildAccess.ForAsync(_dbContext, actor.Id, write, false, cancellationToken);
+        await access.ProjectAsync(project.Id, cancellationToken);
     }
 
-    private static void EnsureMilestoneAccess(
-        User actor,
-        Milestone milestone)
+    private async Task EnsureMilestoneAccessAsync(User actor, Milestone milestone, bool write, CancellationToken cancellationToken)
     {
-        if (IsSuperAdmin(actor))
-        {
-            return;
-        }
-
-        EnsureProjectRole(actor);
-
-        if (!actor.CompanyId.HasValue ||
-            actor.CompanyId.Value != milestone.CompanyId)
-        {
-            throw new MilestoneManagementException(
-                "You cannot access a milestone outside your company.");
-        }
+        var project = await GetProjectAsync(milestone.ProjectId, cancellationToken);
+        await EnsureProjectAccessAsync(actor, project, write, cancellationToken);
+        if (milestone.CompanyId != project.CompanyId)
+            throw new UnauthorizedAccessException("Access denied.");
     }
 
     private static void EnsureCanModify(User actor)
