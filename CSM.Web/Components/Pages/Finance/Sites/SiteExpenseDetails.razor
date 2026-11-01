@@ -8,6 +8,7 @@
 @using CSM.Web.Models.Procurement
 
 @using CSM.Web.Services
+@using System.Net
 
 @inject IFinanceService FinanceService
 @inject IProjectService ProjectService
@@ -27,14 +28,19 @@
 else if (_expense is null)
 {
     <div class="container py-4">
-        <div class="alert alert-danger">
-            Expense not found.
+        <div class="alert alert-danger" role="alert">
+            @(_loadError ?? "Expense not found.")
         </div>
+        <button class="btn btn-outline-secondary" @onclick="Back">← Expenses</button>
     </div>
 }
 else
 {
     <div class="container-fluid py-4">
+        @if (_relatedDataUnavailable)
+        {
+            <div class="alert alert-info" role="status">Some related names are unavailable. Expense details are shown below.</div>
+        }
 
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-start mb-4">
@@ -155,7 +161,7 @@ else
                         <div class="fw-semibold">
                             @(_costCodes.FirstOrDefault(x => x.Id == _expense!.CostCodeId) is { } costCode
                                 ? $"{costCode.Code} - {costCode.Name}"
-                                : "Unknown Cost Code")
+                                : "Not available")
                         </div>
                     </div>
 
@@ -297,7 +303,8 @@ else
 
                     @if (_expense.Status == "Approved")
                     {
-                        <button class="btn btn-success"
+                        <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Approve" Roles="SuperAdmin,CompanyAdmin,Accountant">
+<button class="btn btn-success"
                                 @onclick="MarkExpenseAsPaid"
                                 disabled="@_saving">
                             @if (_saving)
@@ -306,6 +313,7 @@ else
                             }
                             Mark as Paid
                         </button>
+</WorkspaceAction>
                     }
 
                     <div class="col-md-6">
@@ -358,6 +366,8 @@ else
 
     private ExpenseResponse? _expense;
     private bool _loading = true;
+    private string? _loadError;
+    private bool _relatedDataUnavailable;
 
     private List<SiteResponse> _sites = [];
     private List<ProjectResponse> _projects = [];
@@ -418,20 +428,20 @@ else
     private string ConstructionSiteDisplay =>
         _sites.FirstOrDefault(x => x.Id == _expense?.ConstructionSiteId) is { } site
             ? $"{site.SiteCode} - {site.Name}"
-            : "Unknown Site";
+            : "Not available";
 
     private string ProjectDisplay =>
         _expense?.ProjectId is Guid projectId
             ? _projects.FirstOrDefault(x => x.Id == projectId) is { } project
                 ? $"{project.ProjectCode} - {project.Name}"
-                : "Unknown Project"
+                : "Not available"
             : "—";
 
     private string VendorDisplay =>
         _expense?.VendorId is Guid vendorId
             ? _vendors.FirstOrDefault(x => x.Id == vendorId) is { } vendor
                 ? $"{vendor.VendorCode} - {vendor.Name}"
-                : "Unknown Vendor"
+                : "Not available"
             : "—";
 
     protected override async Task OnInitializedAsync()
@@ -445,20 +455,49 @@ else
                 _expense = null;
                 return;
             }
-            _sites = await ProjectService.GetSitesAsync();
+            _sites = await LoadRelatedAsync(() => ProjectService.GetSitesAsync(), new List<SiteResponse>());
             _projects = _expense.ProjectId.HasValue
-                ? await ProjectService.GetProjectsBySiteAsync(SiteId)
+                ? await LoadRelatedAsync(() => ProjectService.GetProjectsBySiteAsync(SiteId), new List<ProjectResponse>())
                 : new List<ProjectResponse>();
-            _vendors = await VendorService.GetVendorsAsync();
-            _costCodes = await FinanceService.GetActiveCostCodesAsync();
+            _vendors = await LoadRelatedAsync(() => VendorService.GetVendorsAsync(), new List<VendorResponse>());
+            _costCodes = await LoadRelatedAsync<IReadOnlyList<CostCodeResponse>>(() => FinanceService.GetActiveCostCodesAsync(), []);
+        }
+        catch (HttpRequestException ex)
+        {
+            _expense = null;
+            _loadError = ex.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                HttpStatusCode.Forbidden => "You do not have permission to view this expense.",
+                HttpStatusCode.NotFound => "Expense not found.",
+                _ => "Unable to load expense details. Please try again."
+            };
         }
         catch
         {
             _expense = null;
+            _loadError = "Unable to load expense details. Please try again.";
         }
         finally
         {
             _loading = false;
+        }
+    }
+
+    private async Task<T> LoadRelatedAsync<T>(Func<Task<T>> load, T fallback)
+    {
+        try
+        {
+            return await load();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            throw;
+        }
+        catch
+        {
+            _relatedDataUnavailable = true;
+            return fallback;
         }
     }
 
