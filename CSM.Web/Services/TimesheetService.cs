@@ -36,6 +36,13 @@ public sealed class TimesheetService : ITimesheetService
         return client;
     }
 
+    public async Task<IReadOnlyCollection<TimesheetEmployeeOptionResponse>> GetEmployeeOptionsAsync()
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<List<TimesheetEmployeeOptionResponse>>(
+            "Timesheets/employee-options") ?? [];
+    }
+
     public async Task<IReadOnlyCollection<TimesheetResponse>>
         GetAllAsync(
             Guid? employeeId = null,

@@ -196,6 +196,11 @@ public sealed class HrTimesheetFeedbackTests
             if (method!.Name == nameof(ITimesheetService.GetAllAsync))
                 return State.Status.HasValue ? Task.FromException<IReadOnlyCollection<TimesheetResponse>>(Error(State.Status.Value))
                     : Task.FromResult<IReadOnlyCollection<TimesheetResponse>>(new[] { row });
+            if (method.Name == nameof(ITimesheetService.GetEmployeeOptionsAsync))
+                return State.OptionsDenied
+                    ? Task.FromException<IReadOnlyCollection<TimesheetEmployeeOptionResponse>>(Error(HttpStatusCode.Forbidden))
+                    : Task.FromResult<IReadOnlyCollection<TimesheetEmployeeOptionResponse>>(new[] {
+                        new TimesheetEmployeeOptionResponse(Guid.NewGuid(), "EMP-001", "Test Employee") });
             if (method.Name == nameof(ITimesheetService.GetByIdAsync))
                 return State.Status.HasValue ? Task.FromException<TimesheetResponse?>(Error(State.Status.Value))
                     : Task.FromResult<TimesheetResponse?>(State.Missing ? null : row);
@@ -217,3 +222,4 @@ public sealed class HrTimesheetFeedbackTests
     }
     private static HttpRequestException Error(HttpStatusCode status) => new("private diagnostic", null, status);
 }
+

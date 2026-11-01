@@ -20,6 +20,26 @@ public sealed class TimesheetService : ITimesheetService
         _dbContext = dbContext;
     }
 
+    public async Task<IReadOnlyCollection<TimesheetEmployeeOptionResponse>> GetEmployeeOptionsAsync(
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanManage(actor);
+        var companyId = GetActorCompanyId(actor);
+
+        var employees = await _dbContext.Employees.AsNoTracking()
+            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.Status == EmployeeStatus.Active)
+            .OrderBy(x => x.EmployeeNumber).ThenBy(x => x.Id)
+            .Select(x => new { x.Id, x.EmployeeNumber, x.FirstName, x.MiddleName, x.LastName })
+            .ToListAsync(cancellationToken);
+
+        return employees.Select(x => new TimesheetEmployeeOptionResponse(
+            x.Id, x.EmployeeNumber,
+            string.Join(" ", new[] { x.FirstName, x.MiddleName, x.LastName }
+                .Where(name => !string.IsNullOrWhiteSpace(name))))).ToList();
+    }
+
     public async Task<IReadOnlyCollection<TimesheetResponse>> GetAllAsync(
         Guid currentUserId,
         Guid? employeeId = null,
@@ -613,3 +633,4 @@ public sealed class TimesheetService : ITimesheetService
             timesheet.CreatedAtUtc);
     }
 }
+

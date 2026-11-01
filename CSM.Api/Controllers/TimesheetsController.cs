@@ -25,6 +25,21 @@ public sealed class TimesheetsController : ControllerBase
         _timesheetService = timesheetService;
     }
 
+    [HttpGet("employee-options")]
+    [Authorize(Roles = ManageRoles)]
+    public async Task<ActionResult<IReadOnlyCollection<TimesheetEmployeeOptionResponse>>> GetEmployeeOptions(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _timesheetService.GetEmployeeOptionsAsync(GetCurrentUserId(), cancellationToken));
+        }
+        catch (TimesheetManagementException ex)
+        {
+            return ErrorResult(ex);
+        }
+    }
+
     [HttpGet]
     [Authorize(Roles = ReadRoles)]
     public async Task<
@@ -224,3 +239,4 @@ public sealed class TimesheetsController : ControllerBase
         return userId;
     }
 }
+
