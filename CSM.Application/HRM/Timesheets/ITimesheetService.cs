@@ -4,6 +4,9 @@ namespace CSM.Application.HRM.Timesheets;
 
 public interface ITimesheetService
 {
+    Task<IReadOnlyCollection<TimesheetEmployeeOptionResponse>> GetEmployeeOptionsAsync(
+        Guid currentUserId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<TimesheetResponse>> GetAllAsync(
         Guid currentUserId,
         Guid? employeeId = null,

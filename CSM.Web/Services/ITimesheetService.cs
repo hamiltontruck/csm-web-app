@@ -4,6 +4,8 @@ namespace CSM.Web.Services;
 
 public interface ITimesheetService
 {
+    Task<IReadOnlyCollection<TimesheetEmployeeOptionResponse>> GetEmployeeOptionsAsync();
+
     Task<IReadOnlyCollection<TimesheetResponse>> GetAllAsync(
         Guid? employeeId = null,
         DateOnly? fromDate = null,
