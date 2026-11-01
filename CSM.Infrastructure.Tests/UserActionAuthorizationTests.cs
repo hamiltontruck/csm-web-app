@@ -98,7 +98,9 @@ public sealed class UserActionAuthorizationTests
     public async Task Company_admin_cannot_deactivate_SuperAdmin_even_in_same_company()
     {
         using var f = new Fixture(AppRoles.CompanyAdmin, true);
-        f.Target.UserRoles.Add(new() { Role = new Role { Name = AppRoles.SuperAdmin } });
+        var superAdminRole = new Role { Name = AppRoles.SuperAdmin };
+        f.Db.Roles.Add(superAdminRole);
+        f.Db.UserRoles.Add(new UserRole { UserId = f.Target.Id, Role = superAdminRole });
         f.Db.SaveChanges(true);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => f.Service.SetActiveStatusAsync(f.Actor.Id, f.Target.Id, false, default));
         Assert.True(f.Target.IsActive);

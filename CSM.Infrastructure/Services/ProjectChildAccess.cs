@@ -12,8 +12,9 @@ internal sealed class ProjectChildAccess
     private readonly Guid actor;
     private readonly bool global;
     private readonly bool allSites;
-    private ProjectChildAccess(ApplicationDbContext db, Guid actor, Guid? company, bool global, bool allSites)
-        => (this.db, this.actor, this.company, this.global, this.allSites) = (db, actor, company, global, allSites);
+    private readonly bool write;
+    private ProjectChildAccess(ApplicationDbContext db, Guid actor, Guid? company, bool global, bool allSites, bool write)
+        => (this.db, this.actor, this.company, this.global, this.allSites, this.write) = (db, actor, company, global, allSites, write);
     internal static async Task<ProjectChildAccess> ForAsync(ApplicationDbContext db, Guid actor, bool write, bool daily, CancellationToken ct)
     {
         if (actor == Guid.Empty) throw new UnauthorizedAccessException("Access denied.");
@@ -31,9 +32,9 @@ internal sealed class ProjectChildAccess
             (write && (!Grant(daily ? GranularPermission.Projects_DailyProgress_Create : GranularPermission.Projects_Manage) ||
                 !(global || admin || Role(AppRoles.SiteManager) || (daily && Role(AppRoles.Supervisor))))))
             throw new UnauthorizedAccessException("Access denied.");
-        return new(db, actor, user.CompanyId, global, global || admin);
+        return new(db, actor, user.CompanyId, global, global || admin, write);
     }
-    internal IQueryable<Guid> Sites => db.ConstructionSites.Where(s => !s.IsDeleted && s.IsActive &&
+    internal IQueryable<Guid> Sites => db.ConstructionSites.Where(s => !s.IsDeleted && (!write || s.IsActive) &&
         (global || s.CompanyId == company) && (allSites || db.UserSiteAccesses.Any(a =>
             a.UserId == actor && a.CompanyId == s.CompanyId && a.SiteId == s.Id && a.IsActive && !a.IsDeleted))).Select(s => s.Id);
     internal IQueryable<Project> Projects => db.Projects.Where(p => !p.IsDeleted && (global || p.CompanyId == company) &&
