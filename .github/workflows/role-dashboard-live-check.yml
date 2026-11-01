@@ -27,7 +27,7 @@ jobs:
               print(method, status, url)
               return data
           html = check(web + "/login", 200, read=True).decode()
-          scripts = re.findall(r'src="([^"]*blazor.web[^"]*\\.js)"', html)
+          scripts = re.findall(r'src="([^"]*blazor.web[^"]*[.]js)"', html)
           assert scripts, "Blazor startup script missing"
           script = scripts[0]
           script = web + "/" + script.lstrip("/") if not script.startswith("http") else script
