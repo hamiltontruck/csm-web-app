@@ -209,7 +209,7 @@ else
                             </div>
 
                             <div class="col-md-3">
-                                <WorkspaceAction Route="/projects/{Id}/gantt">
+                                <WorkspaceAction Route="/projects/{Id}/tasks/create">
                                     <button class="btn btn-primary w-100 action-btn"
                                         @onclick="NewTask">
                                     New Task
@@ -381,7 +381,7 @@ else
         => Navigation.NavigateTo($"/projects/{Id}/milestones");
 
     void NewTask()
-        => Navigation.NavigateTo($"/projects/{Id}/gantt");
+        => Navigation.NavigateTo($"/projects/{Id}/tasks/create");
 
     static string StatusBadge(string status) => status switch
     {
@@ -400,3 +400,4 @@ else
         font-weight:600;
     }
 </style>
+
