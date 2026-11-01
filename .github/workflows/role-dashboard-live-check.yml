@@ -9,31 +9,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify public assets and dashboard authentication
+      - name: Verify live UI assets and backend authentication boundaries
         run: |
           python - <<'PY'
           import re, urllib.request, urllib.error
           web = "https://csm-web-app.onrender.com"
           api = "https://csm-apicsm-api-dockerfile.onrender.com"
-          def get(url, expected):
+          def check(url, expected, method="GET", read=False):
               try:
-                  with urllib.request.urlopen(url, timeout=60) as response:
+                  with urllib.request.urlopen(urllib.request.Request(url, method=method), timeout=60) as response:
                       status = response.status
-                      data = response.read()
+                      data = response.read() if read else b""
               except urllib.error.HTTPError as error:
                   status = error.code
-                  data = error.read()
+                  data = b""
               assert status == expected, (url, status, expected)
-              print(status, url)
+              print(method, status, url)
               return data
-          html = get(web + "/login", 200).decode()
-          scripts = re.findall(r'src="([^"]*blazor.web[^"]*\.js)"', html)
+          html = check(web + "/login", 200, read=True).decode()
+          scripts = re.findall(r'src="([^"]*blazor.web[^"]*\\.js)"', html)
           assert scripts, "Blazor startup script missing"
           script = scripts[0]
           script = web + "/" + script.lstrip("/") if not script.startswith("http") else script
-          assert len(get(script, 200)) > 1000
-          for path in ["/api/auth/me", "/api/dashboard/workspace", "/api/dashboard/executive", "/api/Payroll"]:
-              get(api + path, 401)
+          assert len(check(script, 200, read=True)) > 1000
+          for path in ["/api/auth/me", "/api/dashboard/workspace", "/api/dashboard/executive", "/api/Payroll", "/api/Users", "/api/Users/audit", "/api/Audit", "/api/Backup", "/api/Milestones", "/api/ProjectEquipment", "/api/RebarSpecs/00000000-0000-0000-0000-000000000001", "/api/documents/00000000-0000-0000-0000-000000000001/versions/00000000-0000-0000-0000-000000000002/download", "/api/daily-progress-photos/00000000-0000-0000-0000-000000000001/content"]:
+              check(api + path, 401)
+          # Headers only: never retrieve contents of legacy tracked uploads.
+          for path in ["/uploads/daily-progress/3cf7ad3d-ba6d-48c5-baf5-6755c22bc205.jpg","/uploads/daily-progress/4d8bc160-570c-4151-b105-81d62406f687.jpg","/uploads/daily-progress/768492b4-9871-4412-99f5-ecef6f4c0818.jpg","/uploads/documents/3b89146e-f56c-41c2-9744-5bdbaf1e14a8.pdf","/uploads/documents/532e869b-602f-4857-ba4f-742608f5f105.pdf","/uploads/documents/ad74dd44-8972-40d6-a8a0-e4d80db57c35.pdf","/uploads/documents/arc.pdf","/uploads/documents/c3c66e7a-8ab6-4667-b823-3475f94cad4f.pdf","/uploads/documents/f0e2d0be-3330-4263-a839-5de2c5340efc.pdf","/uploads/documents/fc5d1a11-bce5-47b2-b8c4-a13c6cd841aa.pdf"]:
+              check(api + path, 404, method="HEAD")
           PY
-
-# Verify live authorization release PR86, 2026-10-31.
