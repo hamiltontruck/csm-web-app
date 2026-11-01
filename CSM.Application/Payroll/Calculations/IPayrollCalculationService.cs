@@ -5,6 +5,7 @@ namespace CSM.Application.Payroll.Calculations;
 public interface IPayrollCalculationService
 {
     Task<PayrollCalculationResponse> CalculateAsync(
+        Guid currentUserId,
         CalculatePayrollRequest request,
         CancellationToken cancellationToken);
 }

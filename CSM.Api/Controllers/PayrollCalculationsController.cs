@@ -1,4 +1,4 @@
-using CSM.Application.Common.Security;
+using System.Security.Claims;
 using CSM.Application.Payroll.Calculations;
 using CSM.Application.Payroll.Calculations.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -8,13 +8,13 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/payroll/calculations")]
-[Authorize(Policy = AppPolicies.HRManagement)]
+[Authorize(Policy = "HRM.Payroll.View")]
+[Authorize(Roles = "HrOfficer,HROfficer,SuperAdmin,CompanyAdmin")]
 public sealed class PayrollCalculationsController : ControllerBase
 {
     private readonly IPayrollCalculationService _service;
 
-    public PayrollCalculationsController(
-        IPayrollCalculationService service)
+    public PayrollCalculationsController(IPayrollCalculationService service)
     {
         _service = service;
     }
@@ -24,10 +24,13 @@ public sealed class PayrollCalculationsController : ControllerBase
         CalculatePayrollRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _service.CalculateAsync(
-            request,
-            cancellationToken);
-
-        return Ok(result);
+        try
+        {
+            if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) || id == Guid.Empty)
+                return Forbid();
+            return Ok(await _service.CalculateAsync(id, request, cancellationToken));
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
     }
 }

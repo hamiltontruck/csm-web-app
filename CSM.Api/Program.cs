@@ -71,7 +71,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-app.UseStaticFiles();
+// Uploaded files are served only through authorized document/photo endpoints.
 
 app.UseCors("FlutterWeb");
 

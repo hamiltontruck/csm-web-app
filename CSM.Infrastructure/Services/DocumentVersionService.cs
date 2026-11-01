@@ -4,6 +4,7 @@ using CSM.Application.Compliance.Documents.Dtos;
 using CSM.Domain.Entities.Compliance;
 using CSM.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
 
 
 namespace CSM.Infrastructure.Services;
@@ -12,11 +13,13 @@ public sealed class DocumentVersionService : IDocumentVersionService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IDocumentService _documents;
+    private readonly DocumentFileStorage _files;
 
-    public DocumentVersionService(ApplicationDbContext dbContext, IDocumentService documents)
+    public DocumentVersionService(ApplicationDbContext dbContext, IDocumentService documents, IWebHostEnvironment? environment = null)
     {
         _dbContext = dbContext;
         _documents = documents;
+        _files = new(environment);
     }
 
     public async Task<IReadOnlyCollection<DocumentVersionResponse>>
@@ -57,10 +60,16 @@ public sealed class DocumentVersionService : IDocumentVersionService
         CreateDocumentVersionRequest request,
         CancellationToken cancellationToken)
     {
+        await DocumentService.RequireAccessAsync(_dbContext, currentUserId, true, cancellationToken);
         var document = await GetDocumentAsync(
             currentUserId,
             documentId,
             cancellationToken);
+
+        var existing = await _dbContext.DocumentVersions.AsNoTracking().Where(x => x.DocumentId == document.Id).ToListAsync(cancellationToken);
+        var registered = existing.FirstOrDefault(x => _files.SameFile(document, x.StoragePath, request.StoragePath))
+            ?? throw new DocumentManagementException("Upload a file or reuse a file already registered to this document.");
+        await _files.OwnedFileAsync(_dbContext, document, registered.StoragePath, cancellationToken);
 
         var nextVersion = await _dbContext.DocumentVersions
             .Where(x => x.DocumentId == documentId)
@@ -68,20 +77,17 @@ public sealed class DocumentVersionService : IDocumentVersionService
                 x => (int?)x.VersionNumber,
                 cancellationToken) ?? 0;
 
-        await _dbContext.DocumentVersions
-            .Where(x => x.DocumentId == documentId && x.IsCurrent)
-            .ExecuteUpdateAsync(
-                s => s.SetProperty(v => v.IsCurrent, false),
-                cancellationToken);
+        var currentVersions = await _dbContext.DocumentVersions.Where(x => x.DocumentId == documentId && x.IsCurrent).ToListAsync(cancellationToken);
+        foreach (var current in currentVersions) current.IsCurrent = false;
 
         var version = new DocumentVersion
         {
             DocumentId = documentId,
             VersionNumber = nextVersion + 1,
-            FileName = request.FileName,
-            StoragePath = request.StoragePath,
-            ContentType = request.ContentType,
-            FileSizeBytes = request.FileSizeBytes,
+            FileName = registered.FileName,
+            StoragePath = registered.StoragePath,
+            ContentType = registered.ContentType,
+            FileSizeBytes = registered.FileSizeBytes,
             RevisionNotes = request.RevisionNotes,
             UploadedByUserId = currentUserId,
             IsCurrent = true,
@@ -130,46 +136,9 @@ public sealed class DocumentVersionService : IDocumentVersionService
             ?? throw new DocumentManagementException(
                 "Document version not found.");
 
-        var webRoot = Path.Combine(
-            Directory.GetCurrentDirectory(),
-            "wwwroot");
+        var fullPath = await _files.OwnedFileAsync(_dbContext, document, version.StoragePath, cancellationToken);
 
-        var relativePath = version.StoragePath
-            .TrimStart('/', '\\')
-            .Replace(
-                '/',
-                Path.DirectorySeparatorChar)
-            .Replace(
-                '\\',
-                Path.DirectorySeparatorChar);
-
-        var fullPath = Path.GetFullPath(
-            Path.Combine(webRoot, relativePath));
-
-        var webRootFullPath = Path.GetFullPath(
-            webRoot + Path.DirectorySeparatorChar);
-
-        if (!fullPath.StartsWith(
-                webRootFullPath,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            throw new DocumentManagementException(
-                "Invalid document storage path.");
-        }
-
-        if (!File.Exists(fullPath))
-        {
-            throw new DocumentManagementException(
-                "Document version file was not found.");
-        }
-
-        var stream = new FileStream(
-            fullPath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            64 * 1024,
-            useAsync: true);
+        var stream = DocumentFileStorage.OpenRead(fullPath);
 
         return (
             stream,
@@ -182,6 +151,7 @@ public sealed class DocumentVersionService : IDocumentVersionService
         Guid documentId,
         CancellationToken cancellationToken)
     {
+        await DocumentService.RequireAccessAsync(_dbContext, currentUserId, false, cancellationToken);
         // Reuse document authorization before reading versions, changing metadata, or opening a file.
         await _documents.GetByIdAsync(currentUserId, documentId, cancellationToken);
 

@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using CSM.Domain.Constants;
+using CSM.Api.Controllers;
 using CSM.Application.Projects.WbsTasks;
 using CSM.Application.Projects.WbsTasks.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -7,9 +10,12 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/wbs-tasks")]
-[Authorize]
+[Authorize(Policy = "Projects.View")]
+[ScopedProjectError]
 public class WbsTasksController : ControllerBase
 {
+    private Guid CurrentUserId => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
+
     private readonly IWbsTaskService _service;
 
     public WbsTasksController(IWbsTaskService service)
@@ -22,7 +28,7 @@ public class WbsTasksController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _service.GetAllAsync(
-            Guid.Empty,
+            CurrentUserId,
             cancellationToken);
 
         return Ok(result);
@@ -34,7 +40,7 @@ public class WbsTasksController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _service.GetByIdAsync(
-            Guid.Empty,
+            CurrentUserId,
             id,
             cancellationToken);
 
@@ -45,12 +51,14 @@ public class WbsTasksController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<WbsTaskResponse>> Create(
         CreateWbsTaskRequest request,
         CancellationToken cancellationToken)
     {
         var created = await _service.CreateAsync(
-            Guid.Empty,
+            CurrentUserId,
             request,
             cancellationToken);
 

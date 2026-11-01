@@ -16,9 +16,13 @@ public sealed class SalaryStructureService : ISalaryStructureService
     }
 
     public async Task<SalaryStructureDto?> GetByEmployeeAsync(
+        Guid currentUserId,
         Guid employeeId,
         CancellationToken cancellationToken)
     {
+        await PayrollAuxiliaryAccess.GetEmployeeAsync(
+            _context, currentUserId, employeeId, manage: false, cancellationToken);
+
         var entity = await _context.SalaryStructures
             .AsNoTracking()
             .FirstOrDefaultAsync(
@@ -29,9 +33,13 @@ public sealed class SalaryStructureService : ISalaryStructureService
     }
 
     public async Task<SalaryStructureDto> CreateOrUpdateAsync(
+        Guid currentUserId,
         UpdateSalaryStructureRequest request,
         CancellationToken cancellationToken)
     {
+        await PayrollAuxiliaryAccess.GetEmployeeAsync(
+            _context, currentUserId, request.EmployeeId, manage: true, cancellationToken);
+
         var entity = await _context.SalaryStructures
             .FirstOrDefaultAsync(
                 x => x.EmployeeId == request.EmployeeId,

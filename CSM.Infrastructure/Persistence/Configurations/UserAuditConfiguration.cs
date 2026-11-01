@@ -34,5 +34,6 @@ public sealed class UserAuditConfiguration
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(x => x.PerformedAtUtc);
+        builder.HasIndex(x => new { x.CompanyId, x.PerformedAtUtc });
     }
 }

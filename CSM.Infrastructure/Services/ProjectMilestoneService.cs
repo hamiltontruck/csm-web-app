@@ -21,9 +21,10 @@ public sealed class ProjectMilestoneService : IProjectMilestoneService
         Guid projectId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, false, cancellationToken);
         return await _context.Milestones
             .AsNoTracking()
-            .Where(x => x.ProjectId == projectId)
+            .Where(x => !x.IsDeleted && x.ProjectId == projectId && access.Projects.Any(p => p.Id == x.ProjectId && p.CompanyId == x.CompanyId))
             .OrderBy(x => x.PlannedDate)
             .Select(MapToResponse)
             .ToListAsync(cancellationToken);
@@ -34,9 +35,10 @@ public sealed class ProjectMilestoneService : IProjectMilestoneService
         Guid milestoneId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, false, cancellationToken);
         return await _context.Milestones
             .AsNoTracking()
-            .Where(x => x.Id == milestoneId)
+            .Where(x => !x.IsDeleted && x.Id == milestoneId && access.Projects.Any(p => p.Id == x.ProjectId && p.CompanyId == x.CompanyId))
             .Select(MapToResponse)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -46,11 +48,8 @@ public sealed class ProjectMilestoneService : IProjectMilestoneService
         CreateProjectMilestoneRequest request,
         CancellationToken cancellationToken = default)
     {
-        var project = await _context.Projects
-            .FirstOrDefaultAsync(x => x.Id == request.ProjectId, cancellationToken);
-
-        if (project is null)
-            throw new Exception("Project not found.");
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, false, cancellationToken);
+        var project = await access.ProjectAsync(request.ProjectId, cancellationToken);
 
         var exists = await _context.Milestones.AnyAsync(x =>
             x.CompanyId == project.CompanyId &&
@@ -59,7 +58,7 @@ public sealed class ProjectMilestoneService : IProjectMilestoneService
             cancellationToken);
 
         if (exists)
-            throw new Exception("A milestone with this milestone number already exists.");
+            throw new ArgumentException("A milestone with this milestone number already exists.");
 
         var milestone = new Milestone
         {

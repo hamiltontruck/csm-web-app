@@ -5,6 +5,7 @@ using CSM.Application.Inventory.DailyMaterialUsage.Dtos;
 using CSM.Application.Inventory.StockIssues.Dtos;
 using CSM.Application.Notifications;
 using CSM.Domain.Constants;
+using CSM.Domain.Enums;
 using CSM.Domain.Entities.Identity;
 using CSM.Domain.Entities.Organization;
 using CSM.Domain.Entities.Procurement;
@@ -124,7 +125,7 @@ public sealed class DailyUsageStockIntegrationTests
         await using var fixture = await Fixture.CreateAsync();
         var db = fixture.Db;
         var companyId = (await db.Companies.SingleAsync()).Id;
-        db.Roles.Add(new Role { Name = AppRoles.Storekeeper, NormalizedName = "STOREKEEPER" });
+        db.Roles.Add(new Role { Name = AppRoles.Storekeeper, NormalizedName = "STOREKEEPER", GranularPermissions = [new() { Permission = GranularPermission.Users_Edit }] });
         await db.SaveChangesAsync();
         var hasher = new CSM.Infrastructure.Security.PasswordHasher();
         var request = new CSM.Application.Users.Dtos.CreateUserRequest(
@@ -243,14 +244,18 @@ public sealed class DailyUsageStockIntegrationTests
         {
             var actor = new User { CompanyId = target.CompanyId, Email = "companyadmin@example.test", NormalizedEmail = "COMPANYADMIN@EXAMPLE.TEST",
                 FirstName = "Company", LastName = "Admin", IsActive = true,
-                UserRoles = [new UserRole { Role = new Role { Name = AppRoles.CompanyAdmin, NormalizedName = "COMPANYADMIN" } }] };
+                UserRoles = [new UserRole { Role = new Role { Name = AppRoles.CompanyAdmin, NormalizedName = "COMPANYADMIN", GranularPermissions = [new() { Permission = GranularPermission.Users_Edit }] } }] };
             db.Users.Add(actor);
             await db.SaveChangesAsync();
             actorId = actor.Id;
         }
-        await Assert.ThrowsAsync<UserManagementException>(() => new UserService(db,
-            new CSM.Infrastructure.Security.PasswordHasher()).SetRolesAsync(actorId, target.Id,
-                new CSM.Application.Users.Dtos.SetUserRolesRequest([AppRoles.SuperAdmin]), default));
+        var service = new UserService(db, new CSM.Infrastructure.Security.PasswordHasher());
+        Task SetRoles() => service.SetRolesAsync(actorId, target.Id,
+            new CSM.Application.Users.Dtos.SetUserRolesRequest([AppRoles.SuperAdmin]), default);
+        if (actorRole == "Storekeeper")
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(SetRoles);
+        else
+            await Assert.ThrowsAsync<UserManagementException>(SetRoles);
         db.ChangeTracker.Clear();
         Assert.Equal("Storekeeper", (await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role)
             .SingleAsync(x => x.Id == target.Id)).UserRoles.Single().Role.Name);
@@ -278,7 +283,7 @@ public sealed class DailyUsageStockIntegrationTests
     private static async Task<CSM.Application.Users.Dtos.UserResponse> CreateManagedUserAsync(Fixture fixture)
     {
         var db = fixture.Db;
-        db.Roles.Add(new Role { Name = AppRoles.Storekeeper, NormalizedName = "STOREKEEPER" });
+        db.Roles.Add(new Role { Name = AppRoles.Storekeeper, NormalizedName = "STOREKEEPER", GranularPermissions = [new() { Permission = GranularPermission.Users_Edit }] });
         await db.SaveChangesAsync();
         var companyId = (await db.Companies.SingleAsync()).Id;
         return await new UserService(db, new CSM.Infrastructure.Security.PasswordHasher()).CreateAsync(fixture.ActorId,
@@ -342,7 +347,10 @@ public sealed class DailyUsageStockIntegrationTests
                 fixture.Db.Users.Add(new User { Id = fixture.ActorId, Email = "test@example.com",
                     FirstName = "Test", LastName = "Admin", IsActive = true,
                     UserRoles = [new UserRole { Id = Guid.NewGuid(), Role = new Role {
-                        Id = Guid.NewGuid(), Name = AppRoles.SuperAdmin } }] });
+                        Id = Guid.NewGuid(), Name = AppRoles.SuperAdmin, GranularPermissions = [
+                            new() { Permission = GranularPermission.Users_Create }, new() { Permission = GranularPermission.Users_Edit },
+                            new() { Permission = GranularPermission.Users_View }, new() { Permission = GranularPermission.Users_Delete }
+                        ] } }] });
                 fixture.Db.StockItems.Add(new StockItem { Id = Guid.NewGuid(), CompanyId = company.Id,
                     ConstructionSite = site, ConstructionSiteId = site.Id, Material = material, MaterialId = material.Id,
                     QuantityOnHand = 10m, AverageUnitCost = 1000m });

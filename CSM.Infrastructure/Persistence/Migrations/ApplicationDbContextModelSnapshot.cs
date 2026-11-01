@@ -3222,6 +3222,9 @@ namespace CSM.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ActorUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Details")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -3240,6 +3243,8 @@ namespace CSM.Infrastructure.Persistence.Migrations
                     b.HasIndex("PerformedAtUtc");
 
                     b.HasIndex("TargetUserId");
+
+                    b.HasIndex("CompanyId", "PerformedAtUtc");
 
                     b.ToTable("UserAudits", (string)null);
                 });

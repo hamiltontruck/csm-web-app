@@ -5,7 +5,7 @@ namespace CSM.Application.Projects.DailySiteDiaries;
 public interface IDailySiteDiaryService
 {
     Task<IReadOnlyCollection<DailySiteDiaryResponse>> GetAllAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid? projectId,
         Guid? siteId,
         CancellationToken cancellationToken = default);
@@ -21,13 +21,13 @@ public interface IDailySiteDiaryService
         CancellationToken cancellationToken = default);
 
     Task<DailySiteDiaryResponse?> UpdateAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid diaryId,
         UpdateDailySiteDiaryRequest request,
         CancellationToken cancellationToken = default);
 
     Task<bool> DeleteAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid diaryId,
         CancellationToken cancellationToken = default);
 }

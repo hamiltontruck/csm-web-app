@@ -1,3 +1,5 @@
+using CSM.Domain.Constants;
+using CSM.Api.Controllers;
 using CSM.Application.Projects.ProjectMilestones;
 using CSM.Application.Projects.ProjectMilestones.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -9,9 +11,12 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/projectmilestones")]
-[Authorize]
+[Authorize(Policy = "Projects.View")]
+[ScopedProjectError]
 public class ProjectMilestonesController : ControllerBase
 {
+    private Guid CurrentUserId => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
+
     private readonly IProjectMilestoneService _service;
 
     public ProjectMilestonesController(
@@ -26,7 +31,7 @@ public class ProjectMilestonesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _service.GetAllAsync(
-            GetCurrentUserId(),
+            CurrentUserId,
             projectId,
             cancellationToken);
 
@@ -39,7 +44,7 @@ public class ProjectMilestonesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _service.GetByIdAsync(
-            Guid.Empty,
+            CurrentUserId,
             id,
             cancellationToken);
 
@@ -50,12 +55,14 @@ public class ProjectMilestonesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Projects.Manage")]
+    [Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
     public async Task<ActionResult<ProjectMilestoneResponse>> Create(
         CreateProjectMilestoneRequest request,
         CancellationToken cancellationToken)
     {
         var created = await _service.CreateAsync(
-            Guid.Empty,
+            CurrentUserId,
             request,
             cancellationToken);
 
@@ -65,13 +72,4 @@ public class ProjectMilestonesController : ControllerBase
             created);
     }
 
-    private Guid GetCurrentUserId()
-    {
-        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        if (!Guid.TryParse(value, out var userId))
-            throw new Exception("Invalid authenticated user.");
-
-        return userId;
-    }
 }

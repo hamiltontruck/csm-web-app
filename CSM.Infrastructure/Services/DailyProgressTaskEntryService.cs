@@ -22,16 +22,17 @@ public class DailyProgressTaskEntryService : IDailyProgressTaskEntryService
         CreateDailyProgressTaskEntryRequest request,
         CancellationToken cancellationToken = default)
     {
-        var log = await _db.DailyProgressLogs
-            .FirstOrDefaultAsync(x => x.Id == request.DailyProgressLogId, cancellationToken)
-            ?? throw new DailyProgressLogManagementException("Daily log not found.");
+        var access = await ProjectChildAccess.ForAsync(_db, currentUserId, true, true, cancellationToken);
+        var log = await access.LogAsync(request.DailyProgressLogId, cancellationToken);
 
         var task = await _db.WorkTasks
             .Include(x => x.ProjectPhase)
                 .ThenInclude(x => x!.Tasks)
-            .FirstOrDefaultAsync(x => x.Id == request.WorkTaskId, cancellationToken)
-            ?? throw new DailyProgressLogManagementException("Task not found.");
+            .FirstOrDefaultAsync(x => x.Id == request.WorkTaskId && !x.IsDeleted && x.ProjectId == log.ProjectId && x.CompanyId == log.CompanyId, cancellationToken)
+            ?? throw new ArgumentException("Invalid task.");
 
+        if (task.ProjectPhase is not null && (task.ProjectPhase.IsDeleted || task.ProjectPhase.CompanyId != log.CompanyId || task.ProjectPhase.ProjectId != log.ProjectId))
+            throw new ArgumentException("Invalid task phase.");
         var entry = new DailyProgressTaskEntry
         {
             CompanyId = log.CompanyId,
@@ -58,8 +59,8 @@ public class DailyProgressTaskEntryService : IDailyProgressTaskEntryService
         // Update phase
         if (task.ProjectPhase is { } phase)
         {
-            phase.ProgressPercentage = phase.Tasks.Any()
-                ? phase.Tasks.Average(x => x.ProgressPercentage)
+            phase.ProgressPercentage = phase.Tasks.Any(x => !x.IsDeleted && x.CompanyId == log.CompanyId && x.ProjectId == log.ProjectId)
+                ? phase.Tasks.Where(x => !x.IsDeleted && x.CompanyId == log.CompanyId && x.ProjectId == log.ProjectId).Average(x => x.ProgressPercentage)
                 : 0;
 
             phase.Status = phase.ProgressPercentage switch
@@ -90,12 +91,15 @@ public class DailyProgressTaskEntryService : IDailyProgressTaskEntryService
         CreateEquipmentEntryRequest request,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_db, currentUserId, true, true, cancellationToken);
         var taskEntry = await _db.DailyProgressTaskEntries
             .FirstOrDefaultAsync(
-                x => x.Id == request.DailyProgressTaskEntryId,
+                x => x.Id == request.DailyProgressTaskEntryId && !x.IsDeleted && _db.DailyProgressLogs.Any(l => l.Id == x.DailyProgressLogId && !l.IsDeleted && l.CompanyId == x.CompanyId && _db.WorkTasks.Any(t => t.Id == x.WorkTaskId && !t.IsDeleted && t.CompanyId == l.CompanyId && t.ProjectId == l.ProjectId) && access.Projects.Any(p => p.Id == l.ProjectId && p.CompanyId == l.CompanyId)),
                 cancellationToken)
-            ?? throw new DailyProgressLogManagementException("Task entry not found.");
+            ?? throw new UnauthorizedAccessException("Access denied.");
 
+        if (!await _db.Equipment.AnyAsync(e => e.Id == request.EquipmentId && !e.IsDeleted && e.IsActive && e.CompanyId == taskEntry.CompanyId, cancellationToken))
+            throw new ArgumentException("Invalid equipment.");
         var equipment = new DailyProgressEquipmentEntry
         {
             CompanyId = taskEntry.CompanyId,
@@ -128,8 +132,10 @@ public class DailyProgressTaskEntryService : IDailyProgressTaskEntryService
         Guid dailyProgressLogId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_db, currentUserId, false, true, cancellationToken);
+        var log = await access.LogAsync(dailyProgressLogId, cancellationToken);
         return await _db.DailyProgressTaskEntries
-            .Where(x => x.DailyProgressLogId == dailyProgressLogId)
+            .Where(x => x.DailyProgressLogId == dailyProgressLogId && !x.IsDeleted && x.CompanyId == log.CompanyId && !x.WorkTask.IsDeleted && x.WorkTask.CompanyId == log.CompanyId && x.WorkTask.ProjectId == log.ProjectId)
             .Include(x => x.WorkTask)
             .Include(x => x.EquipmentEntries)
             .Select(x => new DailyProgressTaskEntryResponse(
@@ -139,7 +145,7 @@ public class DailyProgressTaskEntryService : IDailyProgressTaskEntryService
                 x.WorkTask.Title,
                 x.ProgressPercentage,
                 x.LabourCount,
-                x.EquipmentEntries.Count,
+                x.EquipmentEntries.Count(e => !e.IsDeleted && e.CompanyId == log.CompanyId),
                 x.EquipmentHours,
                 x.WorkCompleted,
                 x.Remarks))
@@ -151,8 +157,10 @@ public class DailyProgressTaskEntryService : IDailyProgressTaskEntryService
         Guid taskEntryId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_db, currentUserId, false, true, cancellationToken);
+        var entry = await _db.DailyProgressTaskEntries.SingleOrDefaultAsync(x => x.Id == taskEntryId && !x.IsDeleted && _db.DailyProgressLogs.Any(l => l.Id == x.DailyProgressLogId && !l.IsDeleted && l.CompanyId == x.CompanyId && _db.WorkTasks.Any(t => t.Id == x.WorkTaskId && !t.IsDeleted && t.CompanyId == l.CompanyId && t.ProjectId == l.ProjectId) && access.Projects.Any(p => p.Id == l.ProjectId && p.CompanyId == l.CompanyId)), cancellationToken) ?? throw new UnauthorizedAccessException("Access denied.");
         return await _db.DailyProgressEquipmentEntries
-            .Where(x => x.DailyProgressTaskEntryId == taskEntryId)
+            .Where(x => x.DailyProgressTaskEntryId == taskEntryId && !x.IsDeleted && x.CompanyId == entry.CompanyId)
             .Select(x => new EquipmentEntryResponse(
                 x.Id,
                 x.EquipmentId,

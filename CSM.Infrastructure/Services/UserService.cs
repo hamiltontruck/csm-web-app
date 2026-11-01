@@ -3,6 +3,8 @@ using CSM.Application.Common.Security;
 using CSM.Application.Users;
 using CSM.Application.Users.Dtos;
 using CSM.Domain.Constants;
+using CSM.Domain.Enums;
+using CSM.Infrastructure.Security;
 using CSM.Domain.Entities.Identity;
 using CSM.Domain.Entities.Organization;
 using CSM.Infrastructure.Persistence;
@@ -28,6 +30,7 @@ public sealed class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_View, cancellationToken);
         var query = _dbContext.Users.AsNoTracking().Where(x => !x.IsDeleted);
         if (!IsSuperAdmin(actor))
             query = query.Where(x => x.CompanyId == actor.CompanyId);
@@ -48,12 +51,13 @@ public sealed class UserService : IUserService
         var actor = await GetActorAsync(
             currentUserId,
             cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_View, cancellationToken);
 
         var target = await GetUserAsync(
             userId,
             cancellationToken);
 
-        EnsureCanManage(actor, target);
+        if (actor.Id != target.Id) EnsureCanManage(actor, target);
 
         return Map(target);
     }
@@ -66,6 +70,7 @@ public sealed class UserService : IUserService
         var actor = await GetActorAsync(
             currentUserId,
             cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_Create, cancellationToken);
 
         ValidateBasicInput(request);
         ValidatePassword(request.TemporaryPassword);
@@ -240,6 +245,7 @@ public sealed class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_Edit, cancellationToken);
 
         var target = await GetUserAsync(userId, cancellationToken);
 
@@ -294,10 +300,7 @@ public sealed class UserService : IUserService
             "Updated profile information",
             cancellationToken);
 
-        return await GetByIdAsync(
-            currentUserId,
-            userId,
-            cancellationToken);
+        return Map(target);
     }
 
    public async Task SetRolesAsync(
@@ -307,6 +310,7 @@ public sealed class UserService : IUserService
        CancellationToken cancellationToken)
    {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_Edit, cancellationToken);
         var target = await GetUserAsync(userId, cancellationToken);
         EnsureCanManage(actor, target);
 
@@ -393,25 +397,10 @@ public sealed class UserService : IUserService
         bool isActive,
         CancellationToken cancellationToken)
     {
-        var currentUser = await _dbContext.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
-                cancellationToken)
-            ?? throw new UserManagementException("Current user not found.");
-
-        var user = await _dbContext.Users
-            .SingleOrDefaultAsync(
-                x => x.Id == userId,
-                cancellationToken)
-            ?? throw new UserManagementException("User not found.");
-
-        if (currentUser.CompanyId != null &&
-            user.CompanyId != currentUser.CompanyId)
-        {
-            throw new UserManagementException(
-                "You can only manage users in your own company.");
-        }
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_Edit, cancellationToken);
+        var user = await GetUserAsync(userId, cancellationToken);
+        EnsureCanManage(actor, user);
 
         user.IsActive = isActive;
         user.UpdatedAtUtc = DateTime.UtcNow;
@@ -419,19 +408,20 @@ public sealed class UserService : IUserService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    private async Task EnsurePermissionAsync(Guid userId, GranularPermission permission, CancellationToken cancellationToken)
+    {
+        if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(userId, permission.ToString(), cancellationToken))
+            throw new UnauthorizedAccessException("User administration is not permitted.");
+    }
+
     private async Task<User> GetActorAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var user = await GetUserAsync(
-            userId,
-            cancellationToken);
-
-        if (!user.IsActive)
-        {
-            throw new UserManagementException(
-                "Current user account is inactive.");
-        }
+        var user = await _dbContext.Users.AsNoTracking()
+            .Include(x => x.UserRoles).ThenInclude(x => x.Role)
+            .SingleOrDefaultAsync(x => x.Id == userId && !x.IsDeleted && x.IsActive, cancellationToken)
+            ?? throw new UnauthorizedAccessException("User administration is not permitted.");
 
         return user;
     }
@@ -448,8 +438,7 @@ public sealed class UserService : IUserService
         .SingleOrDefaultAsync(
             x => x.Id == userId,
             cancellationToken)
-        ?? throw new UserManagementException(
-            "User was not found.");
+        ?? throw new KeyNotFoundException("User was not found.");
 }
 
     private void EnsureCanManage(
@@ -466,14 +455,14 @@ public sealed class UserService : IUserService
         if (!actor.CompanyId.HasValue ||
             actor.CompanyId != target.CompanyId)
         {
-            throw new UserManagementException(
-                "You cannot manage users outside your company.");
+            throw new UnauthorizedAccessException(
+                "User administration is not permitted.");
         }
 
         if (IsSuperAdmin(target))
         {
-            throw new UserManagementException(
-                "Company administrators cannot manage SuperAdmin users.");
+            throw new UnauthorizedAccessException(
+                "User administration is not permitted.");
         }
     }
 
@@ -481,8 +470,8 @@ public sealed class UserService : IUserService
     {
         if (!HasRole(user, AppRoles.CompanyAdmin))
         {
-            throw new UserManagementException(
-                "You are not authorized to manage users.");
+            throw new UnauthorizedAccessException(
+                "User administration is not permitted.");
         }
     }
 
@@ -533,6 +522,7 @@ public sealed class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_Edit, cancellationToken);
         var target = await GetUserAsync(userId, cancellationToken);
 
         EnsureCanManage(actor, target);
@@ -610,6 +600,7 @@ public sealed class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_Edit, cancellationToken);
         var target = await GetUserAsync(userId, cancellationToken);
 
         EnsureCanManage(actor, target);
@@ -632,6 +623,7 @@ public sealed class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_Edit, cancellationToken);
         var target = await GetUserAsync(userId, cancellationToken);
 
         EnsureCanManage(actor, target);
@@ -654,6 +646,7 @@ public sealed class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_Delete, cancellationToken);
         var target = await GetUserAsync(userId, cancellationToken);
 
         EnsureCanManage(actor, target);
@@ -683,13 +676,10 @@ public sealed class UserService : IUserService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
 
-        var user = await _dbContext.Users
-            .AsNoTracking()
-            .Include(x => x.UserRoles)
-                .ThenInclude(x => x.Role)
-            .Include(x => x.SiteAccesses)
-                .ThenInclude(x => x.Site)
-            .SingleAsync(x => x.Id == userId, cancellationToken);
+        if (actor.Id != userId)
+            await EnsurePermissionAsync(actor.Id, GranularPermission.Users_View, cancellationToken);
+        var user = await GetUserAsync(userId, cancellationToken);
+        if (actor.Id != userId) EnsureCanManage(actor, user);
 
         return new UserProfileResponse(
             user.Id,
@@ -726,8 +716,16 @@ public sealed class UserService : IUserService
         string details,
         CancellationToken cancellationToken)
     {
+        // The target may already be soft deleted. Never infer history from the actor's company.
+        var target = await _dbContext.Users.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.Id == targetUserId)
+            .Select(x => new { x.CompanyId })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new KeyNotFoundException("User was not found.");
+
         _dbContext.UserAudits.Add(new UserAudit
         {
+            CompanyId = target.CompanyId is { } tenant && tenant != Guid.Empty ? tenant : null,
             ActorUserId = actorUserId,
             TargetUserId = targetUserId,
             Action = action,
@@ -743,8 +741,18 @@ public sealed class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        await EnsurePermissionAsync(actor.Id, GranularPermission.Users_View, cancellationToken);
 
-        return await _dbContext.UserAudits
+        var actorIsSuperAdmin = IsSuperAdmin(actor);
+        var query = _dbContext.UserAudits.IgnoreQueryFilters().AsNoTracking();
+        if (!actorIsSuperAdmin)
+        {
+            if (!actor.CompanyId.HasValue || actor.CompanyId == Guid.Empty)
+                throw new UnauthorizedAccessException("User audit access is not permitted.");
+            query = query.Where(x => x.CompanyId == actor.CompanyId);
+        }
+
+        return await query
             .AsNoTracking()
             .Include(x => x.ActorUser)
             .Include(x => x.TargetUser)
@@ -752,9 +760,11 @@ public sealed class UserService : IUserService
             .Select(x => new UserAuditResponse(
                 x.Id,
                 x.PerformedAtUtc,
-                x.ActorUser.FirstName + " " + x.ActorUser.LastName,
+                actorIsSuperAdmin || (!x.ActorUser.IsDeleted && x.ActorUser.CompanyId == x.CompanyId)
+                    ? x.ActorUser.FirstName + " " + x.ActorUser.LastName : "Unavailable user",
                 x.Action,
-                x.TargetUser.FirstName + " " + x.TargetUser.LastName,
+                actorIsSuperAdmin || (!x.TargetUser.IsDeleted && x.TargetUser.CompanyId == x.CompanyId)
+                    ? x.TargetUser.FirstName + " " + x.TargetUser.LastName : "Unavailable user",
                 x.Details))
             .ToListAsync(cancellationToken);
     }

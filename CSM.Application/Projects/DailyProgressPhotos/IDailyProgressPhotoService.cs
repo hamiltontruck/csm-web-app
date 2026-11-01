@@ -5,20 +5,22 @@ namespace CSM.Application.Projects.DailyProgressPhotos;
 public interface IDailyProgressPhotoService
 {
     Task<IReadOnlyCollection<DailyProgressPhotoResponse>> GetByDiaryAsync(
-        Guid companyId,
+        Guid currentUserId,
         Guid diaryId,
         CancellationToken cancellationToken = default);
 
     Task<DailyProgressPhotoResponse> UploadAsync(
-        Guid companyId,
+        Guid currentUserId,
         Guid diaryId,
         Stream fileStream,
         string fileName,
         string? caption,
         CancellationToken cancellationToken = default);
 
+    Task<DailyProgressPhotoContent?> DownloadAsync(Guid currentUserId, Guid photoId, CancellationToken cancellationToken = default);
+
     Task DeleteAsync(
-        Guid companyId,
+        Guid currentUserId,
         Guid photoId,
         CancellationToken cancellationToken = default);
 }

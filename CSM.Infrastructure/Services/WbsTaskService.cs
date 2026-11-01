@@ -20,8 +20,10 @@ public sealed class WbsTaskService : IWbsTaskService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, false, cancellationToken);
         return await _context.WbsTasks
             .AsNoTracking()
+            .Where(x => !x.IsDeleted && access.Projects.Any(p => p.Id == x.ProjectId && p.CompanyId == x.CompanyId))
             .OrderBy(x => x.TaskCode)
             .Select(MapToResponse)
             .ToListAsync(cancellationToken);
@@ -32,8 +34,10 @@ public sealed class WbsTaskService : IWbsTaskService
         Guid taskId,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, false, cancellationToken);
         return await _context.WbsTasks
             .AsNoTracking()
+            .Where(x => !x.IsDeleted && access.Projects.Any(p => p.Id == x.ProjectId && p.CompanyId == x.CompanyId))
             .Where(x => x.Id == taskId)
             .Select(MapToResponse)
             .FirstOrDefaultAsync(cancellationToken);
@@ -44,12 +48,18 @@ public sealed class WbsTaskService : IWbsTaskService
         CreateWbsTaskRequest request,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, false, cancellationToken);
+        var parent = await access.ProjectAsync(request.ProjectId, cancellationToken);
+        if (request.MilestoneId != Guid.Empty && !await _context.Milestones.AnyAsync(m => m.Id == request.MilestoneId && !m.IsDeleted && m.ProjectId == parent.Id && m.CompanyId == parent.CompanyId, cancellationToken))
+            throw new ArgumentException("Invalid milestone.");
+        if (request.AssignedEmployeeId.HasValue && !await _context.Employees.AnyAsync(e => e.Id == request.AssignedEmployeeId && !e.IsDeleted && e.CompanyId == parent.CompanyId, cancellationToken))
+            throw new ArgumentException("Invalid employee.");
         var task = new WbsTask
         {
-            CompanyId = Guid.Empty, // Replace with tenant later
+            CompanyId = parent.CompanyId,
 
             ProjectId = request.ProjectId,
-            MilestoneId = request.MilestoneId,
+            MilestoneId = request.MilestoneId == Guid.Empty ? null : request.MilestoneId,
             AssignedEmployeeId = request.AssignedEmployeeId,
 
             TaskCode = request.TaskCode,

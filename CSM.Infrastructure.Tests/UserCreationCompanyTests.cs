@@ -2,6 +2,7 @@ using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
 using CSM.Application.Users.Dtos;
 using CSM.Domain.Constants;
+using CSM.Domain.Enums;
 using CSM.Domain.Entities.Identity;
 using CSM.Domain.Entities.Organization;
 using CSM.Domain.Entities.HRM;
@@ -104,7 +105,7 @@ public sealed class UserCreationCompanyTests
     public async Task Employee_cannot_create_users_even_in_own_company()
     {
         using var db = Database(AppRoles.Employee);
-        await Assert.ThrowsAsync<UserManagementException>(() =>
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             new UserService(db, new Hasher()).CreateAsync(ActorId, Request()));
         Assert.Single(db.Users);
     }
@@ -123,7 +124,9 @@ public sealed class UserCreationCompanyTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         db.Companies.Add(new Company { Id = CompanyId, Code = "HBG", Name = "Hamilton Business Group", IsActive = true });
         db.ConstructionSites.Add(new ConstructionSite { Id = SiteId, CompanyId = CompanyId, Name = "Hamilton Test Site" });
-        var role = new Role { Id = Guid.NewGuid(), Name = actorRole, NormalizedName = actorRole.ToUpperInvariant() };
+        var role = new Role { Id = Guid.NewGuid(), Name = actorRole, NormalizedName = actorRole.ToUpperInvariant(), GranularPermissions = [
+            new() { Permission = GranularPermission.Users_Create }, new() { Permission = GranularPermission.Users_View }
+        ] };
         db.Users.Add(new User { Id = ActorId, IsActive = true, CompanyId = actorRole == AppRoles.SuperAdmin ? null : CompanyId,
             UserRoles = [new UserRole { Role = role }] });
         db.Roles.Add(new Role { Id = Guid.NewGuid(), Name = AppRoles.Storekeeper, NormalizedName = "STOREKEEPER" });

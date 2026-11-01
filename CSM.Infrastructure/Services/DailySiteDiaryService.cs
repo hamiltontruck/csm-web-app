@@ -16,12 +16,13 @@ public sealed class DailySiteDiaryService : IDailySiteDiaryService
     }
 
     public async Task<IReadOnlyCollection<DailySiteDiaryResponse>> GetAllAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid? projectId,
         Guid? siteId,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.DailySiteDiaries
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, true, cancellationToken);
+        var query = access.Diaries
             .AsNoTracking()
             .AsQueryable();
 
@@ -49,7 +50,8 @@ public sealed class DailySiteDiaryService : IDailySiteDiaryService
         Guid diaryId,
         CancellationToken cancellationToken = default)
     {
-        return await _context.DailySiteDiaries
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, false, true, cancellationToken);
+        return await access.Diaries
             .AsNoTracking()
             .Where(x => x.Id == diaryId)
             .Select(MapToResponse)
@@ -61,9 +63,11 @@ public sealed class DailySiteDiaryService : IDailySiteDiaryService
         CreateDailySiteDiaryRequest request,
         CancellationToken cancellationToken = default)
     {
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, true, cancellationToken);
+        var company = await access.DiaryParentAsync(request.SiteId, request.ProjectId, cancellationToken);
         var diary = new DailySiteDiary
         {
-            CompanyId = Guid.Empty,              // replace with current tenant later
+            CompanyId = company,
             SiteId = request.SiteId,
             ProjectId = request.ProjectId,
             DiaryDate = request.DiaryDate,
@@ -83,17 +87,20 @@ public sealed class DailySiteDiaryService : IDailySiteDiaryService
     }
 
     public async Task<DailySiteDiaryResponse?> UpdateAsync(
-        Guid tenantId,
+        Guid currentUserId,
         Guid diaryId,
         UpdateDailySiteDiaryRequest request,
         CancellationToken cancellationToken = default)
     {
-        var diary = await _context.DailySiteDiaries
+        var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, true, cancellationToken);
+        var diary = await access.Diaries
             .FirstOrDefaultAsync(x => x.Id == diaryId, cancellationToken);
 
         if (diary is null)
             return null;
 
+        var company = await access.DiaryParentAsync(request.SiteId, request.ProjectId, cancellationToken);
+        if (company != diary.CompanyId) throw new ArgumentException("Diary company cannot change.");
         diary.SiteId = request.SiteId;
         diary.ProjectId = request.ProjectId;
         diary.DiaryDate = request.DiaryDate;
@@ -107,19 +114,20 @@ public sealed class DailySiteDiaryService : IDailySiteDiaryService
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        return await GetByIdAsync(tenantId, diaryId, cancellationToken);
+        return await GetByIdAsync(currentUserId, diaryId, cancellationToken);
     }
 
    public async Task<bool> DeleteAsync(
-       Guid tenantId,
+       Guid currentUserId,
        Guid diaryId,
        CancellationToken cancellationToken = default)
    {
-       var rows = await _context.DailySiteDiaries
-           .Where(x => x.Id == diaryId)
-           .ExecuteDeleteAsync(cancellationToken);
-
-       return rows > 0;
+       var access = await ProjectChildAccess.ForAsync(_context, currentUserId, true, true, cancellationToken);
+       var diary = await access.Diaries.SingleOrDefaultAsync(x => x.Id == diaryId, cancellationToken);
+       if (diary is null) return false;
+       _context.DailySiteDiaries.Remove(diary);
+       await _context.SaveChangesAsync(cancellationToken);
+       return true;
    }
 
     private static readonly System.Linq.Expressions.Expression<

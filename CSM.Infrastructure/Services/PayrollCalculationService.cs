@@ -1,4 +1,3 @@
-using CSM.Application.Common.Exceptions;
 using CSM.Application.Payroll.Calculations;
 using CSM.Application.Payroll.Calculations.Dtos;
 using CSM.Infrastructure.Persistence;
@@ -16,21 +15,12 @@ public sealed class PayrollCalculationService : IPayrollCalculationService
     }
 
     public async Task<PayrollCalculationResponse> CalculateAsync(
+        Guid currentUserId,
         CalculatePayrollRequest request,
         CancellationToken cancellationToken)
     {
-        // Optional debug
-        Console.WriteLine($"OT Hours: {request.OvertimeHours}");
-        Console.WriteLine($"Pension: {request.PensionDeduction}, Tax: {request.TaxDeduction}, Other: {request.OtherDeduction}");
-
-        var employee = await _context.Employees
-            .AsNoTracking()
-            .FirstOrDefaultAsync(
-                x => x.Id == request.EmployeeId,
-                cancellationToken);
-
-        if (employee is null)
-            throw new CompanyManagementException("Employee not found.");
+        var employee = await PayrollAuxiliaryAccess.GetEmployeeAsync(
+            _context, currentUserId, request.EmployeeId, manage: true, cancellationToken);
 
         var salary = await _context.SalaryStructures
             .AsNoTracking()
@@ -39,8 +29,7 @@ public sealed class PayrollCalculationService : IPayrollCalculationService
                 cancellationToken);
 
         if (salary is null)
-            throw new CompanyManagementException(
-                $"Salary structure is not configured for employee {employee.EmployeeNumber}.");
+            throw new KeyNotFoundException("Salary structure was not found.");
 
         // Monthly salary → hourly rate
         var hourlyRate = salary.BasicSalary / (30m * 8m);
