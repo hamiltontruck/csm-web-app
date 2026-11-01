@@ -1,4 +1,6 @@
 using CSM.Application.Common.Audit;
+using CSM.Domain.Constants;
+using CSM.Infrastructure.Security;
 using CSM.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,12 +16,33 @@ public sealed class AuditQueryService : IAuditQueryService
     }
 
     public async Task<IReadOnlyCollection<AuditLogDto>> GetLogsAsync(
+        Guid actorId,
         string? module,
         DateTime? fromUtc,
         DateTime? toUtc,
         CancellationToken cancellationToken)
     {
-        var query = _context.AuditLogs.AsNoTracking();
+        var actor = await _context.Users.AsNoTracking()
+            .Include(x => x.UserRoles).ThenInclude(x => x.Role)
+            .SingleOrDefaultAsync(x => x.Id == actorId && x.IsActive && !x.IsDeleted, cancellationToken);
+        var roles = actor?.UserRoles.Where(x => !x.IsDeleted && !x.Role.IsDeleted)
+            .Select(x => x.Role.Name).ToArray() ?? [];
+        var isSuperAdmin = roles.Contains(AppRoles.SuperAdmin);
+        if (actor is null ||
+            !roles.Any(x => x == AppRoles.SuperAdmin || x == AppRoles.CompanyAdmin || x == AppRoles.Administrator) ||
+            !await new PermissionEvaluator(_context).HasPermissionAsync(actorId, "Users_View", cancellationToken) ||
+            (!isSuperAdmin && (!actor.CompanyId.HasValue || actor.CompanyId == Guid.Empty)))
+        {
+            throw new UnauthorizedAccessException("You are not authorized to read audit logs.");
+        }
+
+        var query = _context.AuditLogs.AsNoTracking().Where(x => !x.IsDeleted);
+        if (!isSuperAdmin)
+        {
+            // Unknown historical/system tenants cannot be attributed to an actor’s current company.
+            var companyId = actor.CompanyId!.Value;
+            query = query.Where(x => x.CompanyId == companyId);
+        }
 
         if (!string.IsNullOrWhiteSpace(module))
         {
