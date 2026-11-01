@@ -119,6 +119,21 @@ public sealed class TimesheetEmployeeOptionsTests
         Assert.DoesNotContain("secret", page.Markup);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Lookup_rechecks_active_actor_and_current_role_on_each_call(bool deactivate)
+    {
+        using var db = Database("SiteManager", true, true, out var actorId);
+        var service = new CSM.Infrastructure.Services.TimesheetService(db);
+        Assert.Single((await Options(service, actorId)).EnumerateArray());
+        var actor = db.Users.Single(x => x.Id == actorId);
+        if (deactivate) actor.IsActive = false;
+        else actor.UserRoles.Single().IsDeleted = true;
+        await db.SaveChangesAsync();
+        await Assert.ThrowsAsync<TimesheetManagementException>(() => Options(service, actorId));
+    }
+
     private static async Task<JsonElement> Options(CSM.Infrastructure.Services.TimesheetService service, Guid actor)
     {
         var method = service.GetType().GetMethod("GetEmployeeOptionsAsync");
