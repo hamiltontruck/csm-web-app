@@ -1,3 +1,4 @@
+using CSM.Domain.Constants;
 using CSM.Application.Common.Security;
 using CSM.Application.Projects.Equipment;
 using CSM.Application.Projects.Equipment.Dtos;
@@ -8,8 +9,10 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProjectManagement)]
-public sealed class ProjectEquipmentController : ControllerBase
+[Authorize(Roles = AppRoles.SuperAdmin)]
+[Authorize(Policy = "Projects.View")]
+[ScopedProjectError]
+public sealed class ProjectEquipmentController : CurrentUserControllerBase
 {
     private readonly IProjectEquipmentService _service;
 
@@ -23,7 +26,7 @@ public sealed class ProjectEquipmentController : ControllerBase
     public async Task<ActionResult<IReadOnlyCollection<EquipmentResponse>>> GetAll(
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetAllAsync(cancellationToken);
+        var result = await _service.GetAllAsync(CurrentUserId, cancellationToken);
         return Ok(result);
     }
 
@@ -32,7 +35,7 @@ public sealed class ProjectEquipmentController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var result = await _service.GetByIdAsync(id, cancellationToken);
+        var result = await _service.GetByIdAsync(CurrentUserId, id, cancellationToken);
 
         if (result is null)
             return NotFound();
@@ -41,11 +44,13 @@ public sealed class ProjectEquipmentController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Projects.Manage")]
     public async Task<ActionResult<EquipmentResponse>> Create(
         [FromBody] CreateEquipmentRequest request,
         CancellationToken cancellationToken)
     {
         var result = await _service.CreateAsync(
+            CurrentUserId,
             request,
             cancellationToken);
 
@@ -56,11 +61,12 @@ public sealed class ProjectEquipmentController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "Projects.Manage")]
     public async Task<IActionResult> Delete(
         Guid id,
         CancellationToken cancellationToken)
     {
-        await _service.DeleteAsync(id, cancellationToken);
+        await _service.DeleteAsync(CurrentUserId, id, cancellationToken);
         return NoContent();
     }
 }

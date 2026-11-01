@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Procurement.RebarSpecs;
 using CSM.Application.Procurement.RebarSpecs.Dtos;
@@ -46,7 +47,7 @@ public sealed class RebarSpecService : IRebarSpecService
             .AsNoTracking()
             .Include(x => x.Material)
             .SingleOrDefaultAsync(
-                x => x.MaterialId == materialId,
+                x => x.MaterialId == materialId && x.CompanyId == material.CompanyId && !x.IsDeleted,
                 cancellationToken)
             ?? throw new MaterialManagementException(
                 "Rebar specification was not found.");
@@ -61,7 +62,7 @@ public sealed class RebarSpecService : IRebarSpecService
     {
         var actor = await GetActorAsync(
             currentUserId,
-            cancellationToken);
+            cancellationToken, true);
 
         EnsureCanAccess(actor);
 
@@ -82,7 +83,7 @@ public sealed class RebarSpecService : IRebarSpecService
 
         var exists = await _dbContext.RebarSpecs
             .AnyAsync(
-                x => x.MaterialId == material.Id,
+                x => x.MaterialId == material.Id && x.CompanyId == material.CompanyId && !x.IsDeleted,
                 cancellationToken);
 
         if (exists)
@@ -119,7 +120,7 @@ public sealed class RebarSpecService : IRebarSpecService
     {
         var actor = await GetActorAsync(
             currentUserId,
-            cancellationToken);
+            cancellationToken, true);
 
         EnsureCanAccess(actor);
 
@@ -140,7 +141,7 @@ public sealed class RebarSpecService : IRebarSpecService
 
         var spec = await _dbContext.RebarSpecs
             .SingleOrDefaultAsync(
-                x => x.MaterialId == material.Id,
+                x => x.MaterialId == material.Id && x.CompanyId == material.CompanyId && !x.IsDeleted,
                 cancellationToken)
             ?? throw new MaterialManagementException(
                 "Rebar specification was not found.");
@@ -164,7 +165,7 @@ public sealed class RebarSpecService : IRebarSpecService
     {
         var query = _dbContext.Materials
             .Include(x => x.RebarSpec)
-            .Where(x => x.Id == materialId);
+            .Where(x => x.Id == materialId && !x.IsDeleted);
 
         if (!IsSuperAdmin(actor))
         {
@@ -182,18 +183,22 @@ public sealed class RebarSpecService : IRebarSpecService
 
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool write = false)
     {
-        return await _dbContext.Users
+        var actor = await _dbContext.Users.AsNoTracking()
             .Include(x => x.UserRoles)
                 .ThenInclude(x => x.Role)
             .SingleOrDefaultAsync(
                 x =>
                     x.Id == currentUserId &&
-                    x.IsActive,
+                    x.IsActive && !x.IsDeleted,
                 cancellationToken)
-            ?? throw new MaterialManagementException(
-                "Current user was not found or is inactive.");
+            ?? throw new UnauthorizedAccessException("Access denied.");
+        if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Procurement_Inventory_View", cancellationToken) ||
+            (write && !await new PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Procurement_Inventory_Adjust", cancellationToken)))
+            throw new UnauthorizedAccessException("Access denied.");
+        return actor;
     }
 
     private static void ValidateRequest(
@@ -276,7 +281,7 @@ public sealed class RebarSpecService : IRebarSpecService
     private static Guid GetActorCompanyId(
         User actor)
     {
-        if (!actor.CompanyId.HasValue)
+        if (!actor.CompanyId.HasValue || actor.CompanyId == Guid.Empty)
         {
             throw new MaterialManagementException(
                 "Current user is not assigned to a company.");

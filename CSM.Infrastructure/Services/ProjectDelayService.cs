@@ -63,7 +63,7 @@ public sealed class ProjectDelayService : IProjectDelayService
         var parent = await access.ProjectAsync(request.ProjectId, cancellationToken);
         var delay = new ProjectDelay
         {
-            CompanyId = currentUserId,
+            CompanyId = parent.CompanyId,
             ProjectId = request.ProjectId,
             DelayDate = request.DelayDate.ToDateTime(TimeOnly.MinValue),
             Category = request.Category.ToString(),
