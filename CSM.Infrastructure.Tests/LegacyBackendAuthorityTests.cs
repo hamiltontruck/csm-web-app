@@ -25,7 +25,7 @@ public sealed class LegacyBackendAuthorityTests
     [Theory]
     [InlineData(typeof(MilestonesController), "GetAll", GranularPermission.Projects_View)]
     [InlineData(typeof(MilestonesController), "Complete", GranularPermission.Projects_Manage)]
-    [InlineData(typeof(RebarSpecsController), "Create", GranularPermission.Inventory_Adjust)]
+    [InlineData(typeof(RebarSpecsController), "Create", GranularPermission.Procurement_Inventory_Adjust)]
     [InlineData(typeof(ProjectEquipmentController), "GetAll", GranularPermission.Projects_View)]
     [InlineData(typeof(ProjectEquipmentController), "Create", GranularPermission.Projects_Manage)]
     public async Task Legacy_endpoints_require_actual_granular_grants(Type controller, string method, GranularPermission missing)
