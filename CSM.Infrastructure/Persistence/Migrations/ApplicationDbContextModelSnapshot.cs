@@ -4270,6 +4270,9 @@ namespace CSM.Infrastructure.Persistence.Migrations
                     b.Property<string>("ServiceProvider")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("SiteId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("StartedAtUtc")
                         .HasColumnType("timestamp with time zone");
 

@@ -3,6 +3,7 @@ namespace CSM.Web.Models.Equipment;
 public sealed class CreateEquipmentMaintenanceRequest
 {
     public Guid EquipmentId { get; set; }
+    public Guid? SiteId { get; set; }
 
     public string MaintenanceType { get; set; } = string.Empty;
 

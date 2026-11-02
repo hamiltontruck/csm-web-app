@@ -11,4 +11,6 @@ public sealed record CreateEquipmentMaintenanceRequest(
     string? Description,
     string? PartsReplaced,
     DateTime? NextMaintenanceAtUtc,
-    decimal? NextMaintenanceMeterReading);
+    decimal? NextMaintenanceMeterReading,
+    Guid? SiteId = null);
+

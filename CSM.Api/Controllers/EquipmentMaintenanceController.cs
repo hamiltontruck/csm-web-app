@@ -126,7 +126,8 @@ public sealed class EquipmentMaintenanceController : ControllerBase
         var forbidden = exception.Message is
             "You are not authorized to access equipment maintenance records."
             or "Current user is not assigned to a company."
-            or "You cannot access records outside your company.";
+            or "You cannot access records outside your company." or
+                "You are not assigned to this maintenance site.";
         return forbidden
             ? StatusCode(StatusCodes.Status403Forbidden, new { message = exception.Message })
             : BadRequest(new { message = exception.Message });
@@ -149,3 +150,4 @@ public sealed class EquipmentMaintenanceController : ControllerBase
         return userId;
     }
 }
+

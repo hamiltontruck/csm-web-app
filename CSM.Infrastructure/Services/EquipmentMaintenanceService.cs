@@ -163,11 +163,30 @@ public sealed class EquipmentMaintenanceService :
                 "Next maintenance date cannot be earlier than the scheduled date.");
         }
 
+        if (request.SiteId is Guid siteId)
+        {
+            var validSite = await _dbContext.ConstructionSites.AnyAsync(
+                x => x.Id == siteId && x.CompanyId == companyId && x.IsActive && !x.IsDeleted,
+                cancellationToken);
+            if (!validSite)
+                throw new EquipmentMaintenanceManagementException(
+                    "Construction site was not found in the equipment company.");
+
+            if (!IsSuperAdmin(actor) && !HasRole(actor, AppRoles.CompanyAdmin) &&
+                !await _dbContext.UserSiteAccesses.AnyAsync(
+                    x => x.UserId == currentUserId && x.CompanyId == companyId &&
+                        x.SiteId == siteId && x.IsActive && !x.IsDeleted,
+                    cancellationToken))
+                throw new EquipmentMaintenanceManagementException(
+                    "You are not assigned to this maintenance site.");
+        }
+
         var maintenance = new EquipmentMaintenance
         {
             Id = Guid.NewGuid(),
             CompanyId = companyId,
             EquipmentId = equipment.Id,
+            SiteId = request.SiteId,
             MaintenanceType = request.MaintenanceType.Trim(),
             ScheduledAtUtc = EnsureUtc(request.ScheduledAtUtc),
             MeterReading = request.MeterReading,
@@ -546,6 +565,8 @@ public sealed class EquipmentMaintenanceService :
             maintenance.NextMaintenanceAtUtc,
             maintenance.NextMaintenanceMeterReading,
             maintenance.CreatedAtUtc,
-            maintenance.UpdatedAtUtc);
+            maintenance.UpdatedAtUtc,
+            maintenance.SiteId);
     }
 }
+
