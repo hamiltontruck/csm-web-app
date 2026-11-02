@@ -167,6 +167,15 @@
 
                 </div>
 
+                @if (!string.IsNullOrWhiteSpace(saveError))
+                {
+                    <div class="alert alert-danger mx-3" role="alert">@saveError</div>
+                    @if (saveSignInRequired)
+                    {
+                        <a class="btn btn-outline-primary mx-3 mb-2" href="@SignInUrl">Sign in</a>
+                    }
+                }
+
                 <div class="card-footer d-flex justify-content-end gap-2">
 
                     <button type="button"
@@ -176,8 +185,8 @@
                     </button>
 
                     <button type="submit"
-                            class="btn btn-primary">
-                        Create Downtime
+                            class="btn btn-primary" disabled="@(saving || saveBlocked)">
+                        @(saving ? "Saving..." : "Create Downtime")
                     </button>
 
                 </div>
@@ -196,7 +205,7 @@
 
     private CreateEquipmentDowntimeRequest model = new()
     {
-        StartedAtUtc = DateTime.Now
+        StartedAtUtc = DateTime.UtcNow
     };
 
     private List<EquipmentResponse> equipmentList = [];
@@ -207,6 +216,10 @@
 
     private string? errorMessage;
 
+    private bool saving;
+    private bool saveBlocked;
+    private string? saveError;
+    private bool saveSignInRequired;
     private bool canManage;
     private bool canRetry = true;
     private bool signInRequired;
@@ -269,24 +282,35 @@
 
     private async Task CreateDowntime()
     {
-        if (!canManage) return;
-
-        errorMessage = null;
-
+        if (!canManage || saving || saveBlocked) return;
+        saving = true;
+        saveError = null;
         try
         {
             model.ConstructionSiteId = SiteId;
-
             await EquipmentService.CreateDowntimeAsync(model);
-
-            Navigation.NavigateTo(
-                $"/equipment/downtime/site/{SiteId}");
+            Navigation.NavigateTo($"/equipment/downtime/site/{SiteId}");
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
-
-            await InvokeAsync(StateHasChanged);
+            saveSignInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            saveBlocked = ex.StatusCode is System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden;
+            saveError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create equipment downtime.",
+                System.Net.HttpStatusCode.BadRequest => "Unable to save downtime. Check the entry details and try again.",
+                _ => "Unable to save downtime. Check the downtime records before trying again."
+            };
+        }
+        catch (Exception)
+        {
+            saveError = "Unable to save downtime. Check the downtime records before trying again.";
+        }
+        finally
+        {
+            saving = false;
         }
     }
 
