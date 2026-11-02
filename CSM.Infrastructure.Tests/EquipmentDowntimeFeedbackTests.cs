@@ -180,9 +180,9 @@ public sealed class EquipmentDowntimeFeedbackTests
         using var context = Context(out var api);
         var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
-        Assert.True(page.FindAll("input[type=datetime-local]")[1].HasAttribute("disabled"));
+        Assert.True(page.Find("#downtime-ended-at").HasAttribute("disabled"));
         // A browser/autofill event must not silently change the requested open state.
-        page.FindAll("input[type=datetime-local]")[1].Change("2026-11-02T22:38");
+        page.Find("#downtime-ended-at").Change("2026-11-02T22:38");
         page.Find("form").Submit();
         page.WaitForAssertion(() => Assert.Equal(1, api.SaveCalls));
         Assert.Null(api.CapturedEnd);
@@ -195,7 +195,7 @@ public sealed class EquipmentDowntimeFeedbackTests
         var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
         page.Find("#downtime-record-end").Change(true);
-        page.FindAll("input[type=datetime-local]")[1].Change("2026-11-02T22:38");
+        page.Find("#downtime-ended-at").Change("2026-11-02T22:38");
         page.Find("form").Submit();
         page.WaitForAssertion(() => Assert.Equal(1, api.SaveCalls));
         Assert.Equal(new DateTime(2026, 11, 2, 22, 38, 0), api.CapturedEnd);
@@ -208,9 +208,9 @@ public sealed class EquipmentDowntimeFeedbackTests
         var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
         page.Find("#downtime-record-end").Change(true);
-        page.FindAll("input[type=datetime-local]")[1].Change("2026-11-02T22:38");
+        page.Find("#downtime-ended-at").Change("2026-11-02T22:38");
         page.Find("#downtime-record-end").Change(false);
-        Assert.True(page.FindAll("input[type=datetime-local]")[1].HasAttribute("disabled"));
+        Assert.True(page.Find("#downtime-ended-at").HasAttribute("disabled"));
         page.Find("form").Submit();
         page.WaitForAssertion(() => Assert.Equal(1, api.SaveCalls));
         Assert.Null(api.CapturedEnd);

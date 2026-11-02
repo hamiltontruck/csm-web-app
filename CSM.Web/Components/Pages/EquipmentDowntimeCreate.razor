@@ -129,23 +129,13 @@
                             End Date & Time
                         </label>
 
-                        <div class="form-check mb-2">
-                            <InputCheckbox id="downtime-record-end"
-                                           class="form-check-input"
-                                           @bind-Value="recordEndTime"
-                                           @bind-Value:after="EndTimeChoiceChanged" />
-                            <label class="form-check-label" for="downtime-record-end">
-                                Record end time (closed downtime)
-                            </label>
-                        </div>
-
                         <InputDate class="form-control"
                                    Type="InputDateType.DateTimeLocal"
                                    @bind-Value="model.EndedAtUtc"
-                                   disabled="@(!recordEndTime)" />
+                                   id="downtime-ended-at" />
 
                         <div class="form-text">
-                            Leave Record end time unchecked to keep the downtime open.
+                            Leave blank to keep the downtime open.
                         </div>
 
                     </div>
@@ -227,7 +217,6 @@
 
     private string? errorMessage;
 
-    private bool recordEndTime;
     private bool saving;
     private bool saveBlocked;
     private string? saveError;
@@ -292,22 +281,9 @@
         }
     }
 
-    private void EndTimeChoiceChanged()
-    {
-        if (!recordEndTime)
-            model.EndedAtUtc = null;
-    }
-
     private async Task CreateDowntime()
     {
         if (!canManage || saving || saveBlocked) return;
-        if (recordEndTime && !model.EndedAtUtc.HasValue)
-        {
-            saveError = "Enter an end date and time, or clear Record end time to keep the downtime open.";
-            return;
-        }
-        if (!recordEndTime)
-            model.EndedAtUtc = null;
         saving = true;
         saveError = null;
         try
