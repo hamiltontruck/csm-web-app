@@ -196,6 +196,38 @@ public class EquipmentService : IEquipmentService
                ?? [];
     }
 
+    private static string? ReadDowntimeValidationMessage(string body)
+    {
+        try
+        {
+            using var json = JsonDocument.Parse(body);
+            if (json.RootElement.ValueKind != JsonValueKind.Object ||
+                !json.RootElement.TryGetProperty("message", out var value) ||
+                value.ValueKind != JsonValueKind.String)
+                return null;
+
+            var message = value.GetString();
+            return message switch
+            {
+                "Downtime number is required."
+                or "Downtime number cannot exceed 30 characters."
+                or "Downtime reason is required."
+                or "Downtime reason cannot exceed 500 characters."
+                or "Downtime end time cannot be earlier than start time."
+                or "Downtime number already exists."
+                or "This equipment already has an open downtime record."
+                or "Equipment was not found."
+                or "Inactive equipment cannot have downtime recorded."
+                or "Construction site was not found in the equipment company." => message,
+                _ => null
+            };
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public async Task<Guid> CreateDowntimeAsync(
         CreateEquipmentDowntimeRequest request)
     {
@@ -206,6 +238,12 @@ public class EquipmentService : IEquipmentService
             request);
 
         var body = await response.Content.ReadAsStringAsync();
+
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest &&
+            ReadDowntimeValidationMessage(body) is { } validationMessage)
+        {
+            throw new EquipmentDowntimeValidationException(validationMessage);
+        }
 
         response.EnsureSuccessStatusCode();
 
@@ -573,5 +611,6 @@ public class EquipmentService : IEquipmentService
                 throw new Exception(body);
         }
 }
+
 
 

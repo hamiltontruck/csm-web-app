@@ -230,6 +230,66 @@ public sealed class EquipmentDowntimeFeedbackTests
         Assert.False(page.Find("button[type=submit]").HasAttribute("disabled"));
     }
 
+    [Fact]
+    public void Typing_and_submitting_without_blur_sends_the_latest_text_values()
+    {
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.FindComponent<Microsoft.AspNetCore.Components.Forms.InputText>().Find("input").Input("DT-SM-TEST-002");
+        page.Find("textarea").Input("SiteManager open downtime retest");
+        page.FindAll("textarea").Last().Input("Test resolution");
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(1, api.SaveCalls));
+        Assert.Equal("DT-SM-TEST-002", api.CapturedNumber);
+        Assert.Equal("SiteManager open downtime retest", api.CapturedReason);
+        Assert.Equal("Test resolution", api.CapturedResolution);
+        Assert.Null(api.CapturedEnd);
+    }
+
+    [Theory]
+    [InlineData("Downtime number is required.")]
+    [InlineData("Downtime reason is required.")]
+    [InlineData("Downtime number already exists.")]
+    [InlineData("This equipment already has an open downtime record.")]
+    public async Task Known_create_validation_is_preserved_as_safe_feedback(string message)
+    {
+        var body = System.Text.Json.JsonSerializer.Serialize(new { message });
+        using var http = new HttpClient(new Response(HttpStatusCode.BadRequest, body)) { BaseAddress = new Uri("https://api.test/api/") };
+        var service = new CSM.Web.Services.EquipmentService(new Factory(http), DispatchProxy.Create<IAuthService, Auth>());
+        var error = await Assert.ThrowsAnyAsync<HttpRequestException>(() => service.CreateDowntimeAsync(new()));
+        Assert.Equal(HttpStatusCode.BadRequest, error.StatusCode);
+        Assert.Equal(message, error.Message);
+    }
+
+    [Theory]
+    [InlineData(400, "{\"message\":\"private diagnostic\"}")]
+    [InlineData(400, "private diagnostic")]
+    [InlineData(500, "{\"message\":\"Downtime reason is required.\"}")]
+    public async Task Unknown_or_server_errors_do_not_become_validation_feedback(int status, string body)
+    {
+        using var http = new HttpClient(new Response((HttpStatusCode)status, body)) { BaseAddress = new Uri("https://api.test/api/") };
+        var service = new CSM.Web.Services.EquipmentService(new Factory(http), DispatchProxy.Create<IAuthService, Auth>());
+        var error = await Assert.ThrowsAnyAsync<HttpRequestException>(() => service.CreateDowntimeAsync(new()));
+        Assert.DoesNotContain("private diagnostic", error.Message);
+        Assert.NotEqual("Downtime reason is required.", error.Message);
+    }
+
+    [Fact]
+    public async Task Known_validation_feedback_is_shown_beside_the_retained_form()
+    {
+        using var http = new HttpClient(new Response(HttpStatusCode.BadRequest, "{\"message\":\"Downtime reason is required.\"}")) { BaseAddress = new Uri("https://api.test/api/") };
+        var service = new CSM.Web.Services.EquipmentService(new Factory(http), DispatchProxy.Create<IAuthService, Auth>());
+        var error = await Record.ExceptionAsync(() => service.CreateDowntimeAsync(new()));
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        api.SaveError = error;
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal("Downtime reason is required.", page.Find("[role=alert]").TextContent.Trim()));
+        Assert.Single(page.FindAll("form"));
+    }
+
     private static ApplicationDbContext Database(string role, out Guid userId)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -262,10 +322,16 @@ public sealed class EquipmentDowntimeFeedbackTests
         public Exception? SaveError { get; set; }
         public int SaveCalls { get; private set; }
         public DateTime? CapturedEnd { get; private set; }
+        public string? CapturedNumber { get; private set; }
+        public string? CapturedReason { get; private set; }
+        public string? CapturedResolution { get; private set; }
         private Task<Guid> SaveDowntime(CreateEquipmentDowntimeRequest request)
         {
             SaveCalls++;
             CapturedEnd = request.EndedAtUtc;
+            CapturedNumber = request.DowntimeNumber;
+            CapturedReason = request.Reason;
+            CapturedResolution = request.Resolution;
             return SaveError is null ? Task.FromResult(Guid.NewGuid()) : Task.FromException<Guid>(SaveError);
         }
         public HttpStatusCode? Status { get; set; }
@@ -294,12 +360,13 @@ public sealed class EquipmentDowntimeFeedbackTests
         protected override object? Invoke(MethodInfo? method, object?[]? args) => Task.CompletedTask;
     }
     private sealed class Factory(HttpClient http) : IHttpClientFactory { public HttpClient CreateClient(string name) => http; }
-    private sealed class Response(HttpStatusCode status) : HttpMessageHandler
+    private sealed class Response(HttpStatusCode status, string body = "private diagnostic") : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) =>
-            Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("private diagnostic") });
+            Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });
     }
 
 }
+
 
 
