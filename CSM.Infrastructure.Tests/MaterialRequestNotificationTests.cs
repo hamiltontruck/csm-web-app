@@ -138,7 +138,7 @@ public sealed class MaterialRequestNotificationTests
                 new() { Permission = GranularPermission.Procurement_MaterialRequest_View },
                 new() { Permission = GranularPermission.Procurement_MaterialRequest_Submit },
                 new() { Permission = GranularPermission.Procurement_MaterialRequest_Approve }] } }] };
-        public CreateMaterialRequestRequest Input() => new() { ConstructionSiteId = Site.Id,
+        public CSM.Application.Procurement.MaterialRequests.Dtos.CreateMaterialRequestRequest Input() => new() { ConstructionSiteId = Site.Id,
             RequestNumber = "MR-SM-TEST-001", RequestDate = new(2026,11,1), Purpose = "Permission test",
             Lines = [new() { MaterialId = Material.Id, RequestedQuantity = 1 }] };
         public MaterialRequest SeedRequest(MaterialRequestStatus status)
