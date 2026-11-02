@@ -84,6 +84,46 @@ public sealed class EquipmentHourMeterFeedbackTests
         Assert.Contains(create ? "Save Hour Entry" : "New Hour Entry", page.Markup);
     }
 
+    [Theory]
+    [InlineData(400)]
+    [InlineData(401)]
+    [InlineData(403)]
+    [InlineData(500)]
+    public async Task Hour_create_client_preserves_status_without_API_body(int status)
+    {
+        using var http = new HttpClient(new Response((HttpStatusCode)status)) { BaseAddress = new Uri("https://api.test/api/") };
+        var service = new EquipmentService(new Factory(http), DispatchProxy.Create<IAuthService, Auth>());
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() => service.CreateHourLogAsync(new()));
+        Assert.Equal((HttpStatusCode)status, error.StatusCode);
+        Assert.DoesNotContain("private diagnostic", error.Message);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(400)]
+    [InlineData(401)]
+    [InlineData(403)]
+    [InlineData(500)]
+    public void Save_errors_are_visible_safe_and_preserve_entered_remarks(int status)
+    {
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentHourMeterCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.Find("select").Change(Active.ToString());
+        page.Find("textarea").Change("SiteManager hour meter test");
+        api.SaveError = status == 0 ? new Exception("")
+            : new HttpRequestException("private diagnostic", null, (HttpStatusCode)status);
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.False(string.IsNullOrWhiteSpace(page.Find("[role=alert]").TextContent));
+        Assert.DoesNotContain("private diagnostic", page.Markup);
+        Assert.Contains("SiteManager hour meter test", page.Find("textarea").GetAttribute("value") ?? page.Find("textarea").TextContent);
+        var submit = page.Find("button[type=submit]");
+        Assert.DoesNotContain("Saving...", submit.TextContent);
+        Assert.Equal(status is 401 or 403, submit.HasAttribute("disabled"));
+        Assert.Equal(1, api.SaveCalls);
+    }
+
     private static TestContext Context(out Api api)
     {
         var context = new TestContext();
@@ -97,8 +137,16 @@ public sealed class EquipmentHourMeterFeedbackTests
 
     public class Api : DispatchProxy
     {
+        public Exception? SaveError { get; set; }
+        public int SaveCalls { get; private set; }
+        private Task<Guid> SaveHour()
+        {
+            SaveCalls++;
+            return SaveError is null ? Task.FromResult(Guid.NewGuid()) : Task.FromException<Guid>(SaveError);
+        }
         public HttpStatusCode? Status { get; set; }
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch {
+            nameof(IEquipmentService.CreateHourLogAsync) => SaveHour(),
             nameof(IEquipmentService.GetAssignmentsAsync) => Status.HasValue
                 ? Task.FromException<List<EquipmentAssignmentResponse>>(new HttpRequestException("private diagnostic", null, Status))
                 : Task.FromResult(new List<EquipmentAssignmentResponse> {
@@ -134,3 +182,4 @@ public sealed class EquipmentHourMeterFeedbackTests
             Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("private diagnostic") });
     }
 }
+
