@@ -24,6 +24,7 @@ namespace CSM.Infrastructure.Tests;
 public sealed class EquipmentMaintenanceFeedbackTests
 {
     private static readonly Guid SiteId = Guid.Parse("ae408187-2e4a-41b2-85d9-c4ae6f9e4f66");
+    private static readonly Guid OtherSiteId = Guid.NewGuid();
     private static readonly Guid ActiveEquipmentId = Guid.NewGuid();
     private static readonly Guid OtherEquipmentId = Guid.NewGuid();
     private static readonly Guid ReleasedEquipmentId = Guid.NewGuid();
@@ -137,6 +138,68 @@ public sealed class EquipmentMaintenanceFeedbackTests
         Assert.Empty(page.FindAll("[role=alert]"));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Maintenance_site_snapshot_survives_release_or_transfer(bool moved)
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        api.AllReleased = true;
+        api.MovedAway = moved;
+        var page = context.RenderComponent<EquipmentMaintenance>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Contains("Released maintenance history", page.Markup));
+        Assert.Contains("Excavator", page.Markup);
+        Assert.DoesNotContain("Other site same maintenance", page.Markup);
+        Assert.DoesNotContain("Unattributed maintenance", page.Markup);
+    }
+
+    [Fact]
+    public void Maintenance_uses_saved_site_rather_than_current_equipment_placement()
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        var page = context.RenderComponent<EquipmentMaintenance>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Contains("Excavator", page.Markup));
+        Assert.DoesNotContain("Other site same maintenance", page.Markup);
+    }
+
+    [Fact]
+    public void Maintenance_without_a_site_is_not_inferred_from_current_assignment()
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        var page = context.RenderComponent<EquipmentMaintenance>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Contains("Excavator", page.Markup));
+        Assert.DoesNotContain("Unattributed maintenance", page.Markup);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Unavailable_maintenance_site_hides_history_and_creation_form(bool create)
+    {
+        using var context = Context(out var api);
+        IRenderedFragment page = create
+            ? context.RenderComponent<EquipmentMaintenanceCreate>(p => p.Add(x => x.SiteId, OtherSiteId))
+            : context.RenderComponent<EquipmentMaintenance>(p => p.Add(x => x.SiteId, OtherSiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.DoesNotContain("Other site equipment", page.Markup);
+        if (!create) Assert.DoesNotContain("New Maintenance", page.Markup);
+        Assert.Empty(page.FindAll("form"));
+    }
+
+    [Fact]
+    public void Maintenance_create_sends_the_selected_authorized_site_snapshot()
+    {
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentMaintenanceCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(1, api.SaveCalls));
+        Assert.Equal(SiteId, api.CapturedSite);
+    }
+
     private static ApplicationDbContext Database(string role, out Guid userId)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -166,20 +229,53 @@ public sealed class EquipmentMaintenanceFeedbackTests
 
     public class Api : DispatchProxy
     {
+        public bool IncludeHistory { get; set; }
+        public bool AllReleased { get; set; }
+        public bool MovedAway { get; set; }
+        public int SaveCalls { get; private set; }
+        public Guid? CapturedSite { get; private set; }
+        private Task<Guid> SaveMaintenance(CSM.Web.Models.Equipment.CreateEquipmentMaintenanceRequest request)
+        {
+            SaveCalls++;
+            CapturedSite = request.GetType().GetProperty("SiteId")?.GetValue(request) is Guid id ? id : null;
+            return Task.FromResult(Guid.NewGuid());
+        }
+        private static EquipmentMaintenanceResponse Row(Guid equipment, Guid? site, string name) =>
+            System.Text.Json.JsonSerializer.Deserialize<EquipmentMaintenanceResponse>(
+                System.Text.Json.JsonSerializer.Serialize(new { EquipmentId = equipment, SiteId = site,
+                    EquipmentName = name, MaintenanceType = "Preventive", ScheduledAtUtc = DateTime.UtcNow }))!;
+        private List<EquipmentMaintenanceResponse> MaintenanceRows()
+        {
+            var rows = new List<EquipmentMaintenanceResponse> {
+                Row(ActiveEquipmentId, SiteId, "Excavator"),
+                Row(OtherEquipmentId, OtherSiteId, "Other site equipment"),
+                Row(ReleasedEquipmentId, null, "Released equipment")
+            };
+            if (IncludeHistory) rows.AddRange([
+                Row(ReleasedEquipmentId, SiteId, "Released maintenance history"),
+                Row(ActiveEquipmentId, OtherSiteId, "Other site same maintenance"),
+                Row(ActiveEquipmentId, null, "Unattributed maintenance")
+            ]);
+            return rows;
+        }
+        private List<EquipmentAssignmentResponse> Assignments()
+        {
+            var rows = new List<EquipmentAssignmentResponse> {
+                new() { EquipmentId = ActiveEquipmentId, ConstructionSiteId = SiteId },
+                new() { EquipmentId = OtherEquipmentId, ConstructionSiteId = OtherSiteId },
+                new() { EquipmentId = ReleasedEquipmentId, ConstructionSiteId = SiteId, ReleasedAtUtc = DateTime.UtcNow }
+            };
+            if (AllReleased) foreach (var row in rows) row.ReleasedAtUtc = DateTime.UtcNow;
+            if (MovedAway) rows.Add(new() { EquipmentId = ActiveEquipmentId, ConstructionSiteId = OtherSiteId });
+            return rows;
+        }
         public HttpStatusCode? Status { get; set; }
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch {
             nameof(IEquipmentService.GetMaintenanceAsync) => Status.HasValue
                 ? Task.FromException<List<EquipmentMaintenanceResponse>>(new HttpRequestException("private API diagnostic", null, Status))
-                : Task.FromResult(new List<EquipmentMaintenanceResponse> {
-                    new() { EquipmentId = ActiveEquipmentId, EquipmentName = "Excavator", MaintenanceType = "Preventive", ScheduledAtUtc = DateTime.UtcNow },
-                    new() { EquipmentId = OtherEquipmentId, EquipmentName = "Other site equipment", ScheduledAtUtc = DateTime.UtcNow },
-                    new() { EquipmentId = ReleasedEquipmentId, EquipmentName = "Released equipment", ScheduledAtUtc = DateTime.UtcNow }
-                }),
-            nameof(IEquipmentService.GetAssignmentsAsync) => Task.FromResult(new List<EquipmentAssignmentResponse> {
-                new() { EquipmentId = ActiveEquipmentId, ConstructionSiteId = SiteId },
-                new() { EquipmentId = OtherEquipmentId, ConstructionSiteId = Guid.NewGuid() },
-                new() { EquipmentId = ReleasedEquipmentId, ConstructionSiteId = SiteId, ReleasedAtUtc = DateTime.UtcNow }
-            }),
+                : Task.FromResult(MaintenanceRows()),
+            nameof(IEquipmentService.GetAssignmentsAsync) => Task.FromResult(Assignments()),
+            nameof(IEquipmentService.CreateMaintenanceAsync) => SaveMaintenance((CSM.Web.Models.Equipment.CreateEquipmentMaintenanceRequest)args![0]!),
             nameof(IEquipmentService.GetEquipmentAsync) => Task.FromResult(new List<EquipmentResponse> {
                 new() { Id = ActiveEquipmentId, Name = "Excavator", Status = "Available" },
                 new() { Id = OtherEquipmentId, Name = "Other site equipment", Status = "Available" },
@@ -195,3 +291,4 @@ public sealed class EquipmentMaintenanceFeedbackTests
             Task.FromResult(new List<SiteResponse> { new() { Id = SiteId, Name = "Hamilton Test Site" } });
     }
 }
+
