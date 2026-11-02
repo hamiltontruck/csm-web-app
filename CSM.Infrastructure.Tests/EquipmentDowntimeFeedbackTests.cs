@@ -144,7 +144,7 @@ public sealed class EquipmentDowntimeFeedbackTests
     public async Task Create_client_preserves_status_without_API_body(int status)
     {
         using var http = new HttpClient(new Response((HttpStatusCode)status)) { BaseAddress = new Uri("https://api.test/api/") };
-        var service = new EquipmentService(new Factory(http), DispatchProxy.Create<IAuthService, Auth>());
+        var service = new CSM.Web.Services.EquipmentService(new Factory(http), DispatchProxy.Create<IAuthService, Auth>());
         var error = await Assert.ThrowsAsync<HttpRequestException>(() => service.CreateDowntimeAsync(new()));
         Assert.Equal((HttpStatusCode)status, error.StatusCode);
         Assert.DoesNotContain("private diagnostic", error.Message);
