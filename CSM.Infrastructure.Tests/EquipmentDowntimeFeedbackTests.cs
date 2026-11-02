@@ -174,6 +174,61 @@ public sealed class EquipmentDowntimeFeedbackTests
         Assert.Equal(1, api.SaveCalls);
     }
 
+    [Fact]
+    public void Default_open_ignores_an_unrequested_end_value()
+    {
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        // A browser/autofill event must not silently change the requested open state.
+        page.FindAll("input[type=datetime-local]")[1].Change("2026-11-02T22:38");
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(1, api.SaveCalls));
+        Assert.Null(api.CapturedEnd);
+    }
+
+    [Fact]
+    public void Explicit_closed_choice_sends_the_selected_end_value()
+    {
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.Find("#downtime-record-end").Change(true);
+        page.FindAll("input[type=datetime-local]")[1].Change("2026-11-02T22:38");
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(1, api.SaveCalls));
+        Assert.Equal(new DateTime(2026, 11, 2, 22, 38, 0), api.CapturedEnd);
+    }
+
+    [Fact]
+    public void Returning_to_open_clears_the_end_value()
+    {
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.Find("#downtime-record-end").Change(true);
+        page.FindAll("input[type=datetime-local]")[1].Change("2026-11-02T22:38");
+        page.Find("#downtime-record-end").Change(false);
+        Assert.True(page.FindAll("input[type=datetime-local]")[1].HasAttribute("disabled"));
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(1, api.SaveCalls));
+        Assert.Null(api.CapturedEnd);
+    }
+
+    [Fact]
+    public void Closed_choice_without_an_end_shows_validation_and_does_not_submit()
+    {
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.Find("#downtime-record-end").Change(true);
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.Contains("end date and time", page.Find("[role=alert]").TextContent);
+        Assert.Equal(0, api.SaveCalls);
+        Assert.False(page.Find("button[type=submit]").HasAttribute("disabled"));
+    }
+
     private static ApplicationDbContext Database(string role, out Guid userId)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -205,14 +260,16 @@ public sealed class EquipmentDowntimeFeedbackTests
     {
         public Exception? SaveError { get; set; }
         public int SaveCalls { get; private set; }
-        private Task<Guid> SaveDowntime()
+        public DateTime? CapturedEnd { get; private set; }
+        private Task<Guid> SaveDowntime(CreateEquipmentDowntimeRequest request)
         {
             SaveCalls++;
+            CapturedEnd = request.EndedAtUtc;
             return SaveError is null ? Task.FromResult(Guid.NewGuid()) : Task.FromException<Guid>(SaveError);
         }
         public HttpStatusCode? Status { get; set; }
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch {
-            nameof(IEquipmentService.CreateDowntimeAsync) => SaveDowntime(),
+            nameof(IEquipmentService.CreateDowntimeAsync) => SaveDowntime((CreateEquipmentDowntimeRequest)args![0]!),
             nameof(IEquipmentService.GetDowntimeAsync) => Status.HasValue
                 ? Task.FromException<List<EquipmentDowntimeResponse>>(new HttpRequestException("private API diagnostic", null, Status))
                 : Task.FromResult(new List<EquipmentDowntimeResponse> {
@@ -243,4 +300,5 @@ public sealed class EquipmentDowntimeFeedbackTests
     }
 
 }
+
 
