@@ -103,7 +103,8 @@
                         </label>
 
                         <InputText class="form-control"
-                                   @bind-Value="model.DowntimeNumber" />
+                                   @bind-Value="model.DowntimeNumber"
+                                   @oninput="UpdateNumberFromInput" />
 
                         <ValidationMessage For="@(() => model.DowntimeNumber)" />
 
@@ -159,7 +160,8 @@
 
                         <InputTextArea class="form-control"
                                        rows="4"
-                                       @bind-Value="model.Reason" />
+                                       @bind-Value="model.Reason"
+                                   @oninput="UpdateReasonFromInput" />
 
                         <ValidationMessage For="@(() => model.Reason)" />
 
@@ -173,7 +175,8 @@
 
                         <InputTextArea class="form-control"
                                        rows="4"
-                                       @bind-Value="model.Resolution" />
+                                       @bind-Value="model.Resolution"
+                                   @oninput="UpdateResolutionFromInput" />
 
                     </div>
 
@@ -293,6 +296,15 @@
         }
     }
 
+    private void UpdateNumberFromInput(ChangeEventArgs args) =>
+        model.DowntimeNumber = args.Value?.ToString() ?? string.Empty;
+
+    private void UpdateReasonFromInput(ChangeEventArgs args) =>
+        model.Reason = args.Value?.ToString() ?? string.Empty;
+
+    private void UpdateResolutionFromInput(ChangeEventArgs args) =>
+        model.Resolution = args.Value?.ToString();
+
     private void EndTimeChoiceChanged()
     {
         if (!recordEndTime)
@@ -316,6 +328,10 @@
             model.ConstructionSiteId = SiteId;
             await EquipmentService.CreateDowntimeAsync(model);
             Navigation.NavigateTo($"/equipment/downtime/site/{SiteId}");
+        }
+        catch (EquipmentDowntimeValidationException ex)
+        {
+            saveError = ex.Message;
         }
         catch (HttpRequestException ex)
         {
@@ -346,4 +362,5 @@
             $"/equipment/downtime/site/{SiteId}");
     }
 }
+
 
