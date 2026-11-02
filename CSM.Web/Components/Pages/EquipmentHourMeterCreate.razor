@@ -46,10 +46,6 @@
     }
     else
     {
-        @if (!string.IsNullOrWhiteSpace(errorMessage))
-        {
-            <div class="alert alert-danger" role="alert">@errorMessage</div>
-        }
     <EditForm Model="request" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
 
@@ -131,6 +127,15 @@
 
                 <hr />
 
+                @if (!string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">@errorMessage</div>
+                    @if (saveSignInRequired)
+                    {
+                        <a class="btn btn-outline-primary mb-2" href="@($"/login?returnUrl={Uri.EscapeDataString($"/equipment/hourmeter/create/{SiteId}")}")">Sign in</a>
+                    }
+                }
+
                 <div class="d-flex justify-content-end gap-2">
 
                     <button type="button"
@@ -141,7 +146,7 @@
 
                     <button class="btn btn-primary"
                             type="submit"
-                            disabled="@saving">
+                            disabled="@(saving || saveBlocked)">
 
                         @(saving ? "Saving..." : "Save Hour Entry")
 
@@ -166,6 +171,8 @@
     private string siteName = "";
 
     private bool saving;
+    private bool saveBlocked;
+    private bool saveSignInRequired;
     private bool loading = true;
     private bool canManage;
     private string? loadError;
@@ -173,7 +180,7 @@
 
     private string? errorMessage;
 
-    private DateTime logDate = DateTime.Today;
+    private DateTime logDate = DateTime.UtcNow.Date;
 
     private List<EquipmentResponse> equipment = [];
 
@@ -250,22 +257,35 @@
 
     private async Task SaveAsync()
     {
-        if (saving || !canManage) return;
+        if (saving || saveBlocked || !canManage) return;
         saving = true;
         errorMessage = null;
 
         try
         {
-            request.LogDateUtc = logDate;
+            request.LogDateUtc = DateTime.SpecifyKind(logDate.Date, DateTimeKind.Utc);
 
             await EquipmentService.CreateHourLogAsync(request);
 
             Navigation.NavigateTo(
                 $"/equipment/hourmeter/site/{SiteId}");
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            saveSignInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            saveBlocked = ex.StatusCode is System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden;
+            errorMessage = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create hour meter entries.",
+                System.Net.HttpStatusCode.BadRequest => "Unable to save hour entry. Check the entry details and try again.",
+                _ => "Unable to save hour entry. Check the hour meter records before trying again."
+            };
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to save hour entry. Check the hour meter records before trying again.";
         }
         finally
         {

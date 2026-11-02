@@ -489,8 +489,7 @@ public class EquipmentService : IEquipmentService
 
             var body = await response.Content.ReadAsStringAsync();
 
-            if (!response.IsSuccessStatusCode)
-                throw new Exception(body);
+            response.EnsureSuccessStatusCode();
 
             var created =
                 System.Text.Json.JsonSerializer.Deserialize<EquipmentHourLogResponse>(
@@ -587,3 +586,4 @@ public class EquipmentService : IEquipmentService
                 throw new Exception(body);
         }
 }
+
