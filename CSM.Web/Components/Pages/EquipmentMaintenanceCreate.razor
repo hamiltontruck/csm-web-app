@@ -209,7 +209,11 @@
             // Verify maintenance access before loading creation options or displaying fields.
             _ = await EquipmentService.GetMaintenanceAsync();
             var sites = await ProjectService.GetSitesAsync();
-            siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? string.Empty;
+            var site = sites.FirstOrDefault(x => x.Id == SiteId);
+            if (site is null)
+                throw new HttpRequestException("Site is unavailable.", null, System.Net.HttpStatusCode.Forbidden);
+            siteName = site.Name;
+            request.SiteId = SiteId;
             var assignments = await EquipmentService.GetAssignmentsAsync();
             var ids = assignments.Where(x => x.ConstructionSiteId == SiteId)
                 .Select(x => x.EquipmentId).Distinct().ToHashSet();
@@ -249,6 +253,7 @@
 
         try
         {
+            request.SiteId = SiteId;
             request.ScheduledAtUtc = scheduledDate;
             request.NextMaintenanceAtUtc = nextDate;
 

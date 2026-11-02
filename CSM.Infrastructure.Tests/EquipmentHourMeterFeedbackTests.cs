@@ -13,6 +13,7 @@ namespace CSM.Infrastructure.Tests;
 public sealed class EquipmentHourMeterFeedbackTests
 {
     private static readonly Guid SiteId = Guid.Parse("ae408187-2e4a-41b2-85d9-c4ae6f9e4f66");
+    private static readonly Guid OtherSiteId = Guid.NewGuid();
     private static readonly Guid Active = Guid.NewGuid();
     private static readonly Guid Other = Guid.NewGuid();
     private static readonly Guid Released = Guid.NewGuid();
@@ -124,6 +125,41 @@ public sealed class EquipmentHourMeterFeedbackTests
         Assert.Equal(1, api.SaveCalls);
     }
 
+    [Fact]
+    public void Released_equipment_hour_history_keeps_its_recorded_site()
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        api.AllReleased = true;
+        var page = context.RenderComponent<EquipmentHourMeter>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Contains("Released hour history", page.Markup));
+        Assert.Contains("Excavator", page.Markup);
+        Assert.DoesNotContain("Other site same hour meter", page.Markup);
+        Assert.DoesNotContain("Unattributed hour history", page.Markup);
+    }
+
+    [Fact]
+    public void Hour_history_does_not_follow_current_equipment_to_another_site()
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        var page = context.RenderComponent<EquipmentHourMeter>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Contains("Excavator", page.Markup));
+        Assert.DoesNotContain("Other site same hour meter", page.Markup);
+        Assert.DoesNotContain("Unattributed hour history", page.Markup);
+    }
+
+    [Fact]
+    public void Unavailable_hour_site_does_not_display_history_or_create_controls()
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        var page = context.RenderComponent<EquipmentHourMeter>(p => p.Add(x => x.SiteId, OtherSiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.DoesNotContain("New Hour Entry", page.Markup);
+        Assert.DoesNotContain("Other site equipment", page.Markup);
+    }
+
     private static TestContext Context(out Api api)
     {
         var context = new TestContext();
@@ -137,6 +173,32 @@ public sealed class EquipmentHourMeterFeedbackTests
 
     public class Api : DispatchProxy
     {
+        public bool IncludeHistory { get; set; }
+        public bool AllReleased { get; set; }
+        private List<EquipmentAssignmentResponse> Assignments()
+        {
+            var rows = new List<EquipmentAssignmentResponse> {
+                new() { EquipmentId = Active, ConstructionSiteId = SiteId },
+                new() { EquipmentId = Other, ConstructionSiteId = OtherSiteId },
+                new() { EquipmentId = Released, ConstructionSiteId = SiteId, ReleasedAtUtc = DateTime.UtcNow }
+            };
+            if (AllReleased) foreach (var row in rows) row.ReleasedAtUtc = DateTime.UtcNow;
+            return rows;
+        }
+        private List<EquipmentHourLogResponse> HourRows()
+        {
+            var rows = new List<EquipmentHourLogResponse> {
+                new() { EquipmentId = Active, ProjectId = SiteId, EquipmentName = "Excavator" },
+                new() { EquipmentId = Other, ProjectId = OtherSiteId, EquipmentName = "Other site equipment" },
+                new() { EquipmentId = Released, EquipmentName = "Released equipment" }
+            };
+            if (IncludeHistory) rows.AddRange([
+                new() { EquipmentId = Released, ProjectId = SiteId, EquipmentName = "Released hour history", HoursWorked = 2 },
+                new() { EquipmentId = Active, ProjectId = OtherSiteId, EquipmentName = "Other site same hour meter", HoursWorked = 7 },
+                new() { EquipmentId = Active, EquipmentName = "Unattributed hour history" }
+            ]);
+            return rows;
+        }
         public Exception? SaveError { get; set; }
         public int SaveCalls { get; private set; }
         private Task<Guid> SaveHour()
@@ -149,16 +211,8 @@ public sealed class EquipmentHourMeterFeedbackTests
             nameof(IEquipmentService.CreateHourLogAsync) => SaveHour(),
             nameof(IEquipmentService.GetAssignmentsAsync) => Status.HasValue
                 ? Task.FromException<List<EquipmentAssignmentResponse>>(new HttpRequestException("private diagnostic", null, Status))
-                : Task.FromResult(new List<EquipmentAssignmentResponse> {
-                    new() { EquipmentId = Active, ConstructionSiteId = SiteId },
-                    new() { EquipmentId = Other, ConstructionSiteId = Guid.NewGuid() },
-                    new() { EquipmentId = Released, ConstructionSiteId = SiteId, ReleasedAtUtc = DateTime.UtcNow }
-                }),
-            nameof(IEquipmentService.GetHourLogsAsync) => Task.FromResult(new List<EquipmentHourLogResponse> {
-                new() { EquipmentId = Active, EquipmentName = "Excavator" },
-                new() { EquipmentId = Other, EquipmentName = "Other site equipment" },
-                new() { EquipmentId = Released, EquipmentName = "Released equipment" }
-            }),
+                : Task.FromResult(Assignments()),
+            nameof(IEquipmentService.GetHourLogsAsync) => Task.FromResult(HourRows()),
             nameof(IEquipmentService.GetEquipmentAsync) => Task.FromResult(new List<EquipmentResponse> {
                 new() { Id = Active, Name = "Excavator" }, new() { Id = Other, Name = "Other site equipment" },
                 new() { Id = Released, Name = "Released equipment" }
@@ -182,4 +236,5 @@ public sealed class EquipmentHourMeterFeedbackTests
             Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("private diagnostic") });
     }
 }
+
 

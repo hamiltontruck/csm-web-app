@@ -5,6 +5,7 @@ public sealed class EquipmentMaintenanceResponse
     public Guid Id { get; set; }
     public Guid CompanyId { get; set; }
     public Guid EquipmentId { get; set; }
+    public Guid? SiteId { get; set; }
 
     public string EquipmentCode { get; set; } = string.Empty;
     public string EquipmentName { get; set; } = string.Empty;

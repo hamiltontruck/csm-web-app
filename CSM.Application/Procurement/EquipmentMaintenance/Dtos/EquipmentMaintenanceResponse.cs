@@ -19,4 +19,6 @@ public sealed record EquipmentMaintenanceResponse(
     DateTime? NextMaintenanceAtUtc,
     decimal? NextMaintenanceMeterReading,
     DateTime CreatedAtUtc,
-    DateTime? UpdatedAtUtc);
+    DateTime? UpdatedAtUtc,
+    Guid? SiteId = null);
+

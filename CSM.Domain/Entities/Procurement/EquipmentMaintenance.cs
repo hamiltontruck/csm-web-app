@@ -6,6 +6,8 @@ public class EquipmentMaintenance : TenantEntity
 {
     public Guid EquipmentId { get; set; }
 
+    public Guid? SiteId { get; set; }
+
     public string MaintenanceType { get; set; } = string.Empty;
 
     public DateTime ScheduledAtUtc { get; set; }
