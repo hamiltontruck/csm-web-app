@@ -13,6 +13,7 @@ namespace CSM.Infrastructure.Tests;
 public sealed class EquipmentTimesheetFeedbackTests
 {
     private static readonly Guid SiteId = Guid.Parse("ae408187-2e4a-41b2-85d9-c4ae6f9e4f66");
+    private static readonly Guid OtherSiteId = Guid.NewGuid();
     private static readonly Guid Active = Guid.NewGuid();
     private static readonly Guid Other = Guid.NewGuid();
     private static readonly Guid Released = Guid.NewGuid();
@@ -145,6 +146,65 @@ public sealed class EquipmentTimesheetFeedbackTests
         Assert.DoesNotContain("private diagnostic", error.Message);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Historical_timesheets_remain_visible_after_release_or_transfer(bool transferred)
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        api.AllAssignmentsReleased = true;
+        api.MovedAway = transferred;
+        var page = context.RenderComponent<EquipmentTimesheets>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Contains("Released mixer history", page.Markup));
+        Assert.Contains("Excavator", page.Markup);
+        Assert.DoesNotContain("No daily timesheets", page.Markup);
+        Assert.DoesNotContain("Other site same mixer", page.Markup);
+        Assert.DoesNotContain("Unattributed old entry", page.Markup);
+    }
+
+    [Fact]
+    public void List_uses_the_record_site_when_equipment_has_worked_at_multiple_sites()
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        var page = context.RenderComponent<EquipmentTimesheets>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Contains("Excavator", page.Markup));
+        Assert.DoesNotContain("Other site same mixer", page.Markup);
+        Assert.DoesNotContain("Unattributed old entry", page.Markup);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Unavailable_site_does_not_show_history_actions_or_totals(bool report)
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        IRenderedFragment page = report
+            ? context.RenderComponent<EquipmentTimesheetReport>(p => p.Add(x => x.SiteId, OtherSiteId))
+            : context.RenderComponent<EquipmentTimesheets>(p => p.Add(x => x.SiteId, OtherSiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.DoesNotContain("Excavator", page.Markup);
+        Assert.DoesNotContain("Other site same mixer", page.Markup);
+        Assert.DoesNotContain("New Timesheet", page.Markup);
+        Assert.DoesNotContain("Daily Report", page.Markup);
+        Assert.DoesNotContain("Site Total Hours", page.Markup);
+    }
+
+    [Fact]
+    public void Daily_report_keeps_released_history_and_excludes_the_other_site()
+    {
+        using var context = Context(out var api);
+        api.IncludeHistory = true;
+        api.AllAssignmentsReleased = true;
+        var page = context.RenderComponent<EquipmentTimesheetReport>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Contains("Released mixer history", page.Markup));
+        Assert.Contains("4.00 hrs", page.Find(".alert-dark").TextContent);
+        Assert.DoesNotContain("Other site same mixer", page.Markup);
+        Assert.DoesNotContain("Unattributed old entry", page.Markup);
+    }
+
     private static TestContext Context(out Api api)
     {
         var context = new TestContext();
@@ -158,25 +218,48 @@ public sealed class EquipmentTimesheetFeedbackTests
 
     public class Api : DispatchProxy
     {
+        public bool IncludeHistory { get; set; }
+        public bool AllAssignmentsReleased { get; set; }
+        public bool MovedAway { get; set; }
+        private List<EquipmentAssignmentResponse> Assignments()
+        {
+            var rows = new List<EquipmentAssignmentResponse> {
+                new() { EquipmentId = Active, ConstructionSiteId = SiteId },
+                new() { EquipmentId = Other, ConstructionSiteId = OtherSiteId },
+                new() { EquipmentId = Released, ConstructionSiteId = SiteId, ReleasedAtUtc = DateTime.UtcNow }
+            };
+            if (AllAssignmentsReleased)
+                foreach (var row in rows) row.ReleasedAtUtc = DateTime.UtcNow;
+            if (MovedAway)
+                rows.Add(new() { EquipmentId = Active, ConstructionSiteId = OtherSiteId });
+            return rows;
+        }
+        private List<EquipmentTimesheetResponse> Timesheets()
+        {
+            var rows = new List<EquipmentTimesheetResponse> {
+                new() { Id = Active, EquipmentId = Active, SiteId = SiteId, WorkDate = DateTime.Today, EquipmentName = "Excavator", WorkedHours = 2m },
+                new() { EquipmentId = Other, EquipmentName = "Other site equipment" },
+                new() { EquipmentId = Released, EquipmentName = "Released equipment" }
+            };
+            if (IncludeHistory)
+                rows.AddRange([
+                    new() { EquipmentId = Released, SiteId = SiteId, WorkDate = DateTime.Today, EquipmentName = "Released mixer history", WorkedHours = 2m },
+                    new() { EquipmentId = Active, SiteId = OtherSiteId, WorkDate = DateTime.Today, EquipmentName = "Other site same mixer", WorkedHours = 7m },
+                    new() { EquipmentId = Active, WorkDate = DateTime.Today, EquipmentName = "Unattributed old entry", WorkedHours = 5m }
+                ]);
+            return rows;
+        }
         public HttpStatusCode? Status { get; set; }
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch {
             nameof(IEquipmentService.GetAssignmentsAsync) => Status.HasValue
                 ? Task.FromException<List<EquipmentAssignmentResponse>>(new HttpRequestException("private diagnostic", null, Status))
-                : Task.FromResult(new List<EquipmentAssignmentResponse> {
-                    new() { EquipmentId = Active, ConstructionSiteId = SiteId },
-                    new() { EquipmentId = Other, ConstructionSiteId = Guid.NewGuid() },
-                    new() { EquipmentId = Released, ConstructionSiteId = SiteId, ReleasedAtUtc = DateTime.UtcNow }
-                }),
+                : Task.FromResult(Assignments()),
             nameof(IEquipmentService.GetTimesheetByIdAsync) => Status.HasValue
                 ? Task.FromException<EquipmentTimesheetResponse>(new HttpRequestException("private diagnostic", null, Status))
                 : Task.FromResult(new EquipmentTimesheetResponse { Id = Active, EquipmentId = Active, SiteId = SiteId, WorkDate = DateTime.Today }),
             nameof(IEquipmentService.GetTimesheetsAsync) => Status.HasValue
                 ? Task.FromException<List<EquipmentTimesheetResponse>>(new HttpRequestException("private diagnostic", null, Status))
-                : Task.FromResult(new List<EquipmentTimesheetResponse> {
-                new() { Id = Active, EquipmentId = Active, SiteId = SiteId, WorkDate = DateTime.Today, EquipmentName = "Excavator", WorkedHours = 2m },
-                new() { EquipmentId = Other, EquipmentName = "Other site equipment" },
-                new() { EquipmentId = Released, EquipmentName = "Released equipment" }
-            }),
+                : Task.FromResult(Timesheets()),
             nameof(IEquipmentService.GetEquipmentAsync) => Task.FromResult(new List<EquipmentResponse> {
                 new() { Id = Active, Name = "Excavator" }, new() { Id = Other, Name = "Other site equipment" },
                 new() { Id = Released, Name = "Released equipment" }
@@ -200,3 +283,4 @@ public sealed class EquipmentTimesheetFeedbackTests
             Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("private diagnostic") });
     }
 }
+
