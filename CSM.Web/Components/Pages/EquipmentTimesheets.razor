@@ -202,23 +202,21 @@
 
             var site = sites.FirstOrDefault(x => x.Id == SiteId);
 
-            if (site != null)
-                siteName = site.Name;
+            siteName = site?.Name ?? string.Empty;
+            if (site is null)
+            {
+                accessStatus = System.Net.HttpStatusCode.Forbidden;
+                errorMessage = "Construction site was not found or is not available to your account.";
+                return;
+            }
 
-            var assignments = await EquipmentService.GetAssignmentsAsync();
-
-            var equipmentIds = assignments
-                .Where(x =>
-                    x.ConstructionSiteId == SiteId &&
-                    x.ReleasedAtUtc == null)
-                .Select(x => x.EquipmentId)
-                .Distinct()
-                .ToHashSet();
+            // Preserve the existing assignment access check, independent of active equipment.
+            _ = await EquipmentService.GetAssignmentsAsync();
 
             var all = await EquipmentService.GetTimesheetsAsync();
 
             timesheets = all
-                .Where(x => equipmentIds.Contains(x.EquipmentId))
+                .Where(x => x.SiteId == SiteId)
                 .OrderByDescending(x => x.WorkDate)
                 .ToList();
             canManage = true;

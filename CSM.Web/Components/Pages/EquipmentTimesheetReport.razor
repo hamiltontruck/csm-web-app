@@ -173,6 +173,12 @@ else
         {
             var site = (await ProjectService.GetSitesAsync()).FirstOrDefault(x => x.Id == SiteId);
             siteName = site?.Name ?? "";
+            if (site is null)
+            {
+                accessStatus = System.Net.HttpStatusCode.Forbidden;
+                errorMessage = "Construction site was not found or is not available to your account.";
+                return;
+            }
             var data = await EquipmentService.GetTimesheetsAsync();
             groups = data
                 .Where(x => x.SiteId == SiteId &&
