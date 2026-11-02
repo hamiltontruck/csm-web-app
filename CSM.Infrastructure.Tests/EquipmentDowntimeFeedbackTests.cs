@@ -136,6 +136,44 @@ public sealed class EquipmentDowntimeFeedbackTests
         Assert.Empty(page.FindAll("[role=alert]"));
     }
 
+    [Theory]
+    [InlineData(400)]
+    [InlineData(401)]
+    [InlineData(403)]
+    [InlineData(500)]
+    public async Task Create_client_preserves_status_without_API_body(int status)
+    {
+        using var http = new HttpClient(new Response((HttpStatusCode)status)) { BaseAddress = new Uri("https://api.test/api/") };
+        var service = new CSM.Web.Services.EquipmentService(new Factory(http), DispatchProxy.Create<IAuthService, Auth>());
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() => service.CreateDowntimeAsync(new()));
+        Assert.Equal((HttpStatusCode)status, error.StatusCode);
+        Assert.DoesNotContain("private diagnostic", error.Message);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(400)]
+    [InlineData(401)]
+    [InlineData(403)]
+    [InlineData(500)]
+    public void Save_failure_preserves_form_and_shows_safe_error(int status)
+    {
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.Find("textarea").Change("SiteManager equipment downtime test");
+        api.SaveError = status == 0 ? new Exception("")
+            : new HttpRequestException("private diagnostic", null, (HttpStatusCode)status);
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.False(string.IsNullOrWhiteSpace(page.Find("[role=alert]").TextContent));
+        Assert.DoesNotContain("private diagnostic", page.Markup);
+        Assert.Single(page.FindAll("form"));
+        Assert.Contains("SiteManager equipment downtime test", page.Find("textarea").GetAttribute("value") ?? page.Find("textarea").TextContent);
+        Assert.Equal(status is 401 or 403, page.Find("button[type=submit]").HasAttribute("disabled"));
+        Assert.Equal(1, api.SaveCalls);
+    }
+
     private static ApplicationDbContext Database(string role, out Guid userId)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -165,8 +203,16 @@ public sealed class EquipmentDowntimeFeedbackTests
 
     public class Api : DispatchProxy
     {
+        public Exception? SaveError { get; set; }
+        public int SaveCalls { get; private set; }
+        private Task<Guid> SaveDowntime()
+        {
+            SaveCalls++;
+            return SaveError is null ? Task.FromResult(Guid.NewGuid()) : Task.FromException<Guid>(SaveError);
+        }
         public HttpStatusCode? Status { get; set; }
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch {
+            nameof(IEquipmentService.CreateDowntimeAsync) => SaveDowntime(),
             nameof(IEquipmentService.GetDowntimeAsync) => Status.HasValue
                 ? Task.FromException<List<EquipmentDowntimeResponse>>(new HttpRequestException("private API diagnostic", null, Status))
                 : Task.FromResult(new List<EquipmentDowntimeResponse> {
@@ -185,5 +231,16 @@ public sealed class EquipmentDowntimeFeedbackTests
     {
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
             Task.FromResult(new List<SiteResponse> { new() { Id = SiteId, Name = "Hamilton Test Site" } });
+    }    public class Auth : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args) => Task.CompletedTask;
     }
+    private sealed class Factory(HttpClient http) : IHttpClientFactory { public HttpClient CreateClient(string name) => http; }
+    private sealed class Response(HttpStatusCode status) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) =>
+            Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent("private diagnostic") });
+    }
+
 }
+

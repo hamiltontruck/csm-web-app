@@ -201,26 +201,13 @@ public class EquipmentService : IEquipmentService
     {
         var client = await GetClientAsync();
 
-        Console.WriteLine("===== CREATE EQUIPMENT DOWNTIME REQUEST =====");
-        Console.WriteLine(
-            System.Text.Json.JsonSerializer.Serialize(
-                request,
-                new System.Text.Json.JsonSerializerOptions
-                {
-                    WriteIndented = true
-                }));
-
         var response = await client.PostAsJsonAsync(
             "equipmentdowntime",
             request);
 
         var body = await response.Content.ReadAsStringAsync();
 
-        Console.WriteLine("===== CREATE EQUIPMENT DOWNTIME RESPONSE =====");
-        Console.WriteLine(body);
-
-        if (!response.IsSuccessStatusCode)
-            throw new Exception(body);
+        response.EnsureSuccessStatusCode();
 
         var created =
             System.Text.Json.JsonSerializer.Deserialize<EquipmentDowntimeResponse>(
@@ -586,4 +573,5 @@ public class EquipmentService : IEquipmentService
                 throw new Exception(body);
         }
 }
+
 

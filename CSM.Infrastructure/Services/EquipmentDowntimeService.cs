@@ -109,6 +109,12 @@ public sealed class EquipmentDowntimeService
 
         EnsureCanManage(actor);
 
+        request = request with
+        {
+            StartedAtUtc = EnsureUtc(request.StartedAtUtc),
+            EndedAtUtc = request.EndedAtUtc.HasValue ? EnsureUtc(request.EndedAtUtc.Value) : null
+        };
+
         ValidateRequest(
             request.DowntimeNumber,
             request.Reason,
@@ -209,6 +215,12 @@ public sealed class EquipmentDowntimeService
 
         EnsureCanManage(actor);
 
+        request = request with
+        {
+            StartedAtUtc = EnsureUtc(request.StartedAtUtc),
+            EndedAtUtc = request.EndedAtUtc.HasValue ? EnsureUtc(request.EndedAtUtc.Value) : null
+        };
+
         ValidateRequest(
             "VALID",
             request.Reason,
@@ -286,6 +298,8 @@ public sealed class EquipmentDowntimeService
             throw new EquipmentDowntimeManagementException(
                 "This downtime record is already closed.");
         }
+
+        endedAtUtc = EnsureUtc(endedAtUtc);
 
         if (endedAtUtc < downtime.StartedAtUtc)
         {
@@ -453,6 +467,13 @@ public sealed class EquipmentDowntimeService
                     StringComparison.OrdinalIgnoreCase));
     }
 
+    private static DateTime EnsureUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
     private static string? Clean(string? value)
     {
         return string.IsNullOrWhiteSpace(value)
@@ -492,3 +513,4 @@ public sealed class EquipmentDowntimeService
             downtime.UpdatedAtUtc);
     }
 }
+
