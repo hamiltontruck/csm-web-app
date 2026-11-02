@@ -131,7 +131,8 @@
                             </label>
 
                             <InputText class="form-control"
-                                       @bind-Value="_request.IncidentNumber" />
+                                       @bind-Value="_request.IncidentNumber"
+                                       @oninput="e => _request.IncidentNumber = e.Value?.ToString() ?? string.Empty" />
                         </div>
 
                         <div class="col-md-6">
@@ -210,7 +211,8 @@
                             </label>
 
                             <InputText class="form-control"
-                                       @bind-Value="_request.LocationDescription" />
+                                       @bind-Value="_request.LocationDescription"
+                                       @oninput="e => _request.LocationDescription = e.Value?.ToString() ?? string.Empty" />
                         </div>
 
                         <div class="col-12">
@@ -220,7 +222,8 @@
 
                             <InputTextArea class="form-control"
                                            rows="4"
-                                           @bind-Value="_request.Description" />
+                                           @bind-Value="_request.Description"
+                                       @oninput="e => _request.Description = e.Value?.ToString() ?? string.Empty" />
                         </div>
 
                     </div>
@@ -316,7 +319,8 @@
 
                             <InputTextArea class="form-control"
                                            rows="3"
-                                           @bind-Value="_request.ImmediateActionTaken" />
+                                           @bind-Value="_request.ImmediateActionTaken"
+                                       @oninput="e => _request.ImmediateActionTaken = e.Value?.ToString()" />
                         </div>
 
                         <div class="col-12">
@@ -326,7 +330,8 @@
 
                             <InputTextArea class="form-control"
                                            rows="3"
-                                           @bind-Value="_request.RootCause" />
+                                           @bind-Value="_request.RootCause"
+                                       @oninput="e => _request.RootCause = e.Value?.ToString()" />
                         </div>
 
                         <div class="col-12">
@@ -336,7 +341,8 @@
 
                             <InputTextArea class="form-control"
                                            rows="3"
-                                           @bind-Value="_request.CorrectiveAction" />
+                                           @bind-Value="_request.CorrectiveAction"
+                                       @oninput="e => _request.CorrectiveAction = e.Value?.ToString()" />
                         </div>
 
                         <div class="col-md-6">

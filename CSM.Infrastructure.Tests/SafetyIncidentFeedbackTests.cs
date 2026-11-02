@@ -171,6 +171,43 @@ public sealed class SafetyIncidentFeedbackTests
         Assert.Equal(0, state.SaveCalls);
     }
 
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Submit_uses_current_input_text_without_waiting_for_blur(bool allFieldsUseInput)
+    {
+        using var context = Context(out var state);
+        state.OptionsDenied = true;
+        var page = context.RenderComponent<SafetyIncidentCreate>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.Find("select").Change("22222222-2222-2222-2222-222222222222");
+        if (allFieldsUseInput)
+        {
+            page.FindAll("input").First(x => x.GetAttribute("type") is null or "text").Input("INC-SM-TEST-INPUT");
+            page.FindAll("input").Last(x => x.GetAttribute("type") is null or "text").Input("Test work area");
+        }
+        else
+        {
+            page.FindAll("input").First(x => x.GetAttribute("type") is null or "text").Change("INC-SM-TEST-INPUT");
+            page.FindAll("input").Last(x => x.GetAttribute("type") is null or "text").Change("Test work area");
+        }
+        page.FindAll("select").First(x => x.QuerySelector("option[value='6']") is not null).Change("1");
+        page.FindAll("textarea").First().Input("SiteManager safety incident test. No actual incident or injury occurred.");
+        page.FindAll("textarea").ElementAt(1).Input("Test immediate action");
+        page.FindAll("textarea").ElementAt(2).Input("Test root cause");
+        page.FindAll("textarea").ElementAt(3).Input("Test corrective action");
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(1, state.SaveCalls));
+        Assert.Equal("INC-SM-TEST-INPUT", state.Saved!.IncidentNumber);
+        Assert.Equal("Test work area", state.Saved.LocationDescription);
+        Assert.Equal("SiteManager safety incident test. No actual incident or injury occurred.", state.Saved.Description);
+        Assert.Equal("Test immediate action", state.Saved.ImmediateActionTaken);
+        Assert.Equal("Test root cause", state.Saved.RootCause);
+        Assert.Equal("Test corrective action", state.Saved.CorrectiveAction);
+        Assert.DoesNotContain("Description is required.", page.Markup);
+    }
+
     private static IRenderedFragment Render(TestContext context, string route) => route switch {
         "list" => context.RenderComponent<SafetyIncidents>(),
         "create" => context.RenderComponent<SafetyIncidentCreate>(),
