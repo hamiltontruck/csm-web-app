@@ -180,6 +180,7 @@ public sealed class EquipmentDowntimeFeedbackTests
         using var context = Context(out var api);
         var page = context.RenderComponent<EquipmentDowntimeCreate>(p => p.Add(x => x.SiteId, SiteId));
         page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        Assert.True(page.FindAll("input[type=datetime-local]")[1].HasAttribute("disabled"));
         // A browser/autofill event must not silently change the requested open state.
         page.FindAll("input[type=datetime-local]")[1].Change("2026-11-02T22:38");
         page.Find("form").Submit();
