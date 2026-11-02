@@ -100,7 +100,7 @@ public class EquipmentHourLogService
 
             ProjectId = site.Id,
             ProjectName = site.Name,
-            LoggedAtUtc = request.LogDateUtc,
+            LoggedAtUtc = EnsureUtc(request.LogDateUtc),
 
             OperatorName = request.OperatorName,
             Activity = request.Activity,
@@ -123,6 +123,13 @@ public class EquipmentHourLogService
 
         return Map(entity);
     }
+
+    private static DateTime EnsureUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
 
     private static EquipmentHourLogResponse Map(EquipmentHourLog log)
     {
