@@ -87,7 +87,7 @@ public sealed class SafetyIncidentFeedbackTests
     }
 
     [Theory]
-    [InlineData("create")] [InlineData("edit")]
+    [InlineData("edit")]
     public void Denied_employee_options_never_leave_a_partial_form(string route)
     {
         using var context = Context(out var state);
@@ -109,6 +109,69 @@ public sealed class SafetyIncidentFeedbackTests
         Assert.Empty(page.FindAll("form, input, select, textarea, #retry-safety-" + route));
     }
 
+
+    [Fact]
+    public void Optional_employee_denial_keeps_creation_available_with_disabled_choices()
+    {
+        using var context = Context(out var state);
+        state.OptionsDenied = true;
+        var page = context.RenderComponent<SafetyIncidentCreate>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        Assert.Contains("Employee choices are unavailable", page.Markup);
+        Assert.True(page.Find("#safety-employee").HasAttribute("disabled"));
+        Assert.True(page.Find("#safety-investigator").HasAttribute("disabled"));
+        Assert.False(page.Find("button[type=submit]").HasAttribute("disabled"));
+        Assert.DoesNotContain("private diagnostic", page.Markup);
+    }
+
+    [Fact]
+    public void Creation_without_optional_employee_choices_submits_the_incident()
+    {
+        using var context = Context(out var state);
+        state.OptionsDenied = true;
+        var page = context.RenderComponent<SafetyIncidentCreate>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.Find("select").Change("22222222-2222-2222-2222-222222222222");
+        var textInputs = page.FindAll("input").Where(x => x.GetAttribute("type") is null or "text").ToArray();
+        textInputs.First().Change("INC-SM-TEST-001");
+        textInputs.Last().Change("Test site work area");
+        page.FindAll("select").First(x => x.QuerySelector("option[value='6']") is not null).Change("1");
+        page.FindAll("textarea").First().Change("SiteManager safety incident test, no actual injury.");
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(1, state.SaveCalls));
+        Assert.Equal(Guid.Parse("22222222-2222-2222-2222-222222222222"), state.Saved!.ConstructionSiteId);
+        Assert.Equal("INC-SM-TEST-001", state.Saved.IncidentNumber);
+        Assert.Null(state.Saved.EmployeeId);
+        Assert.Null(state.Saved.InvestigatedBy);
+        Assert.EndsWith("/compliance/safety-incidents",
+            context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+    }
+
+    [Theory]
+    [InlineData(401)] [InlineData(500)]
+    public void Employee_session_or_service_failure_still_blocks_creation(int status)
+    {
+        using var context = Context(out var state);
+        state.OptionsStatus = (HttpStatusCode)status;
+        var page = context.RenderComponent<SafetyIncidentCreate>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.Empty(page.FindAll("form"));
+        Assert.Equal(status == 401, page.FindAll("#safety-create-sign-in").Count == 1);
+        Assert.DoesNotContain("private diagnostic", page.Markup);
+        Assert.Equal(0, state.SaveCalls);
+    }
+
+    [Fact]
+    public void Required_site_denial_still_blocks_creation()
+    {
+        using var context = Context(out var state);
+        state.SitesDenied = true;
+        var page = context.RenderComponent<SafetyIncidentCreate>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.Empty(page.FindAll("form"));
+        Assert.Equal(0, state.SaveCalls);
+    }
+
     private static IRenderedFragment Render(TestContext context, string route) => route switch {
         "list" => context.RenderComponent<SafetyIncidents>(),
         "create" => context.RenderComponent<SafetyIncidentCreate>(),
@@ -121,10 +184,11 @@ public sealed class SafetyIncidentFeedbackTests
         var api = DispatchProxy.Create<IComplianceService, Api>(); ((Api)(object)api).State = state;
         var employee = DispatchProxy.Create<IEmployeeService, EmployeeApi>(); ((EmployeeApi)(object)employee).State = state;
         context.Services.AddSingleton(api); context.Services.AddSingleton(employee);
-        context.Services.AddSingleton(DispatchProxy.Create<IProjectService, ProjectApi>());
+        var project = DispatchProxy.Create<IProjectService, ProjectApi>(); ((ProjectApi)(object)project).State = state;
+        context.Services.AddSingleton(project);
         return context;
     }
-    public sealed class State { public HttpStatusCode? Status; public bool OptionsDenied; public bool Missing; }
+    public sealed class State { public HttpStatusCode? Status; public bool OptionsDenied; public bool Missing; public HttpStatusCode? OptionsStatus; public bool SitesDenied; public int SaveCalls; public CreateSafetyIncidentRequest? Saved; }
     public class Api : DispatchProxy
     {
         public State State = null!;
@@ -138,20 +202,27 @@ public sealed class SafetyIncidentFeedbackTests
             if (method.Name == nameof(IComplianceService.GetSafetyIncidentAsync))
                 return State.Status.HasValue ? Task.FromException<SafetyIncidentResponse?>(Error(State.Status.Value))
                     : Task.FromResult<SafetyIncidentResponse?>(State.Missing ? null : row);
+            if (method.Name == nameof(IComplianceService.CreateSafetyIncidentAsync))
+            {
+                State.SaveCalls++;
+                State.Saved = (CreateSafetyIncidentRequest)args![0]!;
+                return Task.FromResult(row);
+            }
             throw new InvalidOperationException("Unexpected incident mutation.");
         }
     }
     public class EmployeeApi : DispatchProxy
     {
         public State State = null!;
-        protected override object? Invoke(MethodInfo? method, object?[]? args) => State.OptionsDenied
-            ? Task.FromException<IReadOnlyList<EmployeeResponse>>(Error(HttpStatusCode.Forbidden))
+        protected override object? Invoke(MethodInfo? method, object?[]? args) => (State.OptionsDenied || State.OptionsStatus.HasValue)
+            ? Task.FromException<IReadOnlyList<EmployeeResponse>>(Error(State.OptionsStatus ?? HttpStatusCode.Forbidden))
             : Task.FromResult<IReadOnlyList<EmployeeResponse>>(Array.Empty<EmployeeResponse>());
     }
     public class ProjectApi : DispatchProxy
     {
+        public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name == nameof(IProjectService.GetSitesAsync)
-            ? Task.FromResult(new List<SiteResponse> { new SiteResponse { Name = "Test Site" } })
+            ? (State.SitesDenied ? Task.FromException<List<SiteResponse>>(Error(HttpStatusCode.Forbidden)) : Task.FromResult(new List<SiteResponse> { new SiteResponse { Id = Guid.Parse("22222222-2222-2222-2222-222222222222"), Name = "Test Site" } }))
             : Task.FromResult(new List<ProjectResponse>());
     }
     public class DomainApi : DispatchProxy
