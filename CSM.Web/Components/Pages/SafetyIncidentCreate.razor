@@ -66,6 +66,13 @@
             </div>
         }
 
+        @if (_employeeChoicesUnavailable)
+        {
+            <div id="safety-employee-options-notice" class="alert alert-info" role="status">
+                Employee choices are unavailable with your current permissions. You can record an incident without an employee or investigator.
+            </div>
+        }
+
         <EditForm Model="_request" OnValidSubmit="Save">
             <DataAnnotationsValidator />
 
@@ -179,7 +186,8 @@
                                 Employee Involved
                             </label>
 
-                            <select class="form-select"
+                            <select id="safety-employee" class="form-select"
+                                    disabled="@_employeeChoicesUnavailable"
                                     @bind="_request.EmployeeId">
                                 <option value="">
                                     -- No Employee --
@@ -274,7 +282,8 @@
                                 Investigated By
                             </label>
 
-                            <select class="form-select"
+                            <select id="safety-investigator" class="form-select"
+                                    disabled="@_employeeChoicesUnavailable"
                                     @bind="_request.InvestigatedBy">
                                 <option value="">
                                     -- Not Assigned --
@@ -386,6 +395,7 @@
     private bool _loading = true;
     private bool _saving;
     private bool _formReady;
+    private bool _employeeChoicesUnavailable;
     private string? _loadError;
     private HttpStatusCode? _accessStatus;
 
@@ -400,6 +410,7 @@
     private async Task LoadAsync()
     {
         _formReady = false;
+        _employeeChoicesUnavailable = false;
         _loadError = null;
         _accessStatus = null;
         _errorMessage = null;
@@ -413,8 +424,16 @@
             await ComplianceService.GetSafetyIncidentsAsync();
             _sites = await ProjectService.GetSitesAsync();
 
-            _employees =
-                await EmployeeService.GetEmployeesAsync();
+            try
+            {
+                _employees = await EmployeeService.GetEmployeesAsync();
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _employeeChoicesUnavailable = true;
+                _request.EmployeeId = null;
+                _request.InvestigatedBy = null;
+            }
 
             if (_request.ConstructionSiteId != Guid.Empty)
             {
