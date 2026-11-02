@@ -132,9 +132,8 @@ public sealed class SafetyIncidentFeedbackTests
         var page = context.RenderComponent<SafetyIncidentCreate>();
         page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
         page.Find("select").Change("22222222-2222-2222-2222-222222222222");
-        var textInputs = page.FindAll("input").Where(x => x.GetAttribute("type") is null or "text").ToArray();
-        textInputs.First().Change("INC-SM-TEST-001");
-        textInputs.Last().Change("Test site work area");
+        page.FindAll("input").First(x => x.GetAttribute("type") is null or "text").Change("INC-SM-TEST-001");
+        page.FindAll("input").Last(x => x.GetAttribute("type") is null or "text").Change("Test site work area");
         page.FindAll("select").First(x => x.QuerySelector("option[value='6']") is not null).Change("1");
         page.FindAll("textarea").First().Change("SiteManager safety incident test, no actual injury.");
         page.Find("form").Submit();
