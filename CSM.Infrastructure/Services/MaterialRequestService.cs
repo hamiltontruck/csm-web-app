@@ -4,6 +4,7 @@ using CSM.Application.Procurement.MaterialRequests.Dtos;
 using CSM.Domain.Constants;
 using CSM.Domain.Entities.Identity;
 using CSM.Domain.Entities.Procurement;
+using CSM.Domain.Entities.Notifications;
 using CSM.Domain.Enums;
 using CSM.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -13,14 +14,11 @@ namespace CSM.Infrastructure.Services;
 public sealed class MaterialRequestService : IMaterialRequestService
 {
     private readonly ApplicationDbContext _dbContext;
-    private readonly NotificationHelper _notificationHelper;
 
     public MaterialRequestService(
-        ApplicationDbContext dbContext,
-        NotificationHelper notificationHelper)
+        ApplicationDbContext dbContext)
     {
         _dbContext = dbContext;
-        _notificationHelper = notificationHelper;
     }
 
 
@@ -191,19 +189,11 @@ public sealed class MaterialRequestService : IMaterialRequestService
 
         _dbContext.MaterialRequests.Add(record);
 
-        await _dbContext.SaveChangesAsync(
+        await QueueWorkflowNotificationAsync(
+            record, currentUserId, "Material Request Created",
+            $"Material Request {record.RequestNumber} has been created successfully.",
             cancellationToken);
-
-        await _notificationHelper.SendAsync(
-            senderUserId: currentUserId,
-            recipientUserId: currentUserId,
-            title: "Material Request Created",
-            message:
-                $"Material Request {record.RequestNumber} has been created successfully.",
-            severity: NotificationSeverity.Info,
-            sourceEntityType: "MaterialRequest",
-            sourceEntityId: record.Id,
-            ct: cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return await GetResponseAsync(
             record.Id,
@@ -477,8 +467,6 @@ public sealed class MaterialRequestService : IMaterialRequestService
 
         record.Status = MaterialRequestStatus.Submitted;
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
         // Notify all Company Admins in the same company
         var companyAdmins = await _dbContext.Users
             .Include(x => x.UserRoles)
@@ -494,17 +482,12 @@ public sealed class MaterialRequestService : IMaterialRequestService
 
         foreach (var admin in companyAdmins)
         {
-            await _notificationHelper.SendAsync(
-                senderUserId: currentUserId,
-                recipientUserId: admin.Id,
-                title: "Material Request Submitted",
-                message:
-                    $"Material Request {record.RequestNumber} is awaiting approval.",
-                severity: NotificationSeverity.Info,
-                sourceEntityType: "MaterialRequest",
-                sourceEntityId: record.Id,
-                ct: cancellationToken);
+            await QueueWorkflowNotificationAsync(
+                record, admin.Id, "Material Request Submitted",
+                $"Material Request {record.RequestNumber} is awaiting approval.",
+                cancellationToken);
         }
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return Map(record);
     }
@@ -602,19 +585,11 @@ public sealed class MaterialRequestService : IMaterialRequestService
         record.ApprovalRemarks =
             Clean(request.Remarks);
 
-        await _dbContext.SaveChangesAsync(
+        await QueueWorkflowNotificationAsync(
+            record, record.RequestedBy, "Material Request Approved",
+            $"Your Material Request {record.RequestNumber} has been approved.",
             cancellationToken);
-
-        await _notificationHelper.SendAsync(
-            senderUserId: currentUserId,
-            recipientUserId: record.RequestedBy,
-            title: "Material Request Approved",
-            message:
-                $"Your Material Request {record.RequestNumber} has been approved.",
-            severity: NotificationSeverity.Info,
-            sourceEntityType: "MaterialRequest",
-            sourceEntityId: record.Id,
-            ct: cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return Map(record);
     }
@@ -730,6 +705,33 @@ public sealed class MaterialRequestService : IMaterialRequestService
         return Map(record);
     }
 
+    // Only authorized material-request operations call this private workflow path.
+    // The public notification creation API still requires notification management permission.
+    private async Task QueueWorkflowNotificationAsync(
+        MaterialRequest record,
+        Guid recipientUserId,
+        string title,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var eligibleRecipient = await _dbContext.Users.AsNoTracking().AnyAsync(
+            x => x.Id == recipientUserId && x.CompanyId == record.CompanyId && x.IsActive && !x.IsDeleted,
+            cancellationToken);
+        if (!eligibleRecipient) return;
+
+        _dbContext.Notifications.Add(new Notification
+        {
+            CompanyId = record.CompanyId,
+            RecipientUserId = recipientUserId,
+            Title = title,
+            Message = message,
+            Severity = NotificationSeverity.Info,
+            SourceEntityType = "MaterialRequest",
+            SourceEntityId = record.Id,
+            IsRead = false
+        });
+    }
+
     private async Task<User> GetActorAsync(
         Guid currentUserId,
         CancellationToken cancellationToken)
@@ -738,7 +740,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
             .Include(x => x.UserRoles)
                 .ThenInclude(x => x.Role)
             .SingleOrDefaultAsync(
-                x => x.Id == currentUserId,
+                x => x.Id == currentUserId && x.IsActive && !x.IsDeleted,
                 cancellationToken)
             ?? throw new MaterialRequestManagementException(
                 "Current user was not found.");
@@ -1034,4 +1036,6 @@ public sealed class MaterialRequestService : IMaterialRequestService
        };
    }
 }
+
+
 
