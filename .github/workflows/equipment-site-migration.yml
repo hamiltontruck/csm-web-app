@@ -16,6 +16,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet tool install --global dotnet-ef --version 10.0.10
+      - run: dotnet restore CSM.Api/CSM.Api.csproj
       - name: Generate reviewed migration SQL without a database connection
         run: |
           dotnet ef migrations script 20261031213000_AddUserAuditCompanySnapshot 20261102212000_AddEquipmentMaintenanceSiteSnapshot --project CSM.Infrastructure/CSM.Infrastructure.csproj --startup-project CSM.Api/CSM.Api.csproj --output site-migration.sql
