@@ -44,6 +44,14 @@
 
         <DataAnnotationsValidator />
         <ValidationSummary />
+        @if (!string.IsNullOrWhiteSpace(saveError))
+        {
+            <div class="alert alert-danger" role="alert">@saveError</div>
+            @if (signInRequired)
+            {
+                <a class="btn btn-outline-primary" href="@SignInUrl">Sign in</a>
+            }
+        }
 
         <div class="card shadow-sm">
             <div class="card-body">
@@ -104,8 +112,8 @@
         </div>
 
         <div class="mt-3">
-            <button class="btn btn-primary">
-                Save Assignment
+            <button type="submit" class="btn btn-primary" disabled="@(saving || saveBlocked)">
+                @(saving ? "Saving..." : "Save Assignment")
             </button>
         </div>
 
@@ -120,12 +128,15 @@
     public Guid SiteId { get; set; }
     private CreateEquipmentAssignmentRequest model = new()
     {
-        AssignedAtUtc = DateTime.Today
+        AssignedAtUtc = DateTime.UtcNow.Date
     };
 
     private List<EquipmentResponse> equipment = [];
     private List<SiteResponse> sites = [];
 
+    private bool saving;
+    private bool saveBlocked;
+    private string? saveError;
     private bool loading = true;
     private bool canManage;
     private bool canRetry = true;
@@ -182,11 +193,35 @@
 
     private async Task Save()
     {
-        if (!canManage) return;
-
-        await EquipmentService.CreateAssignmentAsync(model);
-
-        Navigation.NavigateTo($"/equipment/assignments/site/{SiteId}");
+        if (!canManage || saving || saveBlocked) return;
+        saving = true;
+        saveError = null;
+        try
+        {
+            await EquipmentService.CreateAssignmentAsync(model);
+            Navigation.NavigateTo($"/equipment/assignments/site/{SiteId}");
+        }
+        catch (HttpRequestException ex)
+        {
+            signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            saveBlocked = ex.StatusCode is System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden;
+            saveError = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create equipment assignments.",
+                System.Net.HttpStatusCode.BadRequest => "Unable to save assignment. Check the assignment details and try again.",
+                _ => "Unable to save assignment. Check the assignments list before trying again."
+            };
+        }
+        catch (Exception)
+        {
+            saveError = "Unable to save assignment. Check the assignments list before trying again.";
+        }
+        finally
+        {
+            saving = false;
+        }
     }
 
     private void GoBack()
@@ -195,3 +230,4 @@
     }
 
 }
+
