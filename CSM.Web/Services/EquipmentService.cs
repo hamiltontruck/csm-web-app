@@ -127,25 +127,13 @@ public class EquipmentService : IEquipmentService
     {
         var client = await GetClientAsync();
 
-        Console.WriteLine("===== CREATE ASSIGNMENT REQUEST =====");
-        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(
-            request,
-            new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true
-            }));
-
         var response = await client.PostAsJsonAsync(
             "equipmentassignments",
             request);
 
         var body = await response.Content.ReadAsStringAsync();
 
-        Console.WriteLine("===== CREATE ASSIGNMENT RESPONSE =====");
-        Console.WriteLine(body);
-
-        if (!response.IsSuccessStatusCode)
-            throw new Exception(body);
+        response.EnsureSuccessStatusCode();
 
         var created =
             System.Text.Json.JsonSerializer.Deserialize<EquipmentAssignmentResponse>(

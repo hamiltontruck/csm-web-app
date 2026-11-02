@@ -128,15 +128,7 @@ public sealed class EquipmentAssignmentService :
 
         var companyId = GetActorCompanyId(actor);
 
-        if (request.AssignedAtUtc.Kind == DateTimeKind.Unspecified)
-        {
-            request = request with
-            {
-                AssignedAtUtc = DateTime.SpecifyKind(
-                    request.AssignedAtUtc,
-                    DateTimeKind.Utc)
-            };
-        }
+        request = request with { AssignedAtUtc = EnsureUtc(request.AssignedAtUtc) };
 
         if (request.AssignedAtUtc == default)
         {
@@ -289,6 +281,13 @@ public sealed class EquipmentAssignmentService :
             actor,
             assignment.CompanyId);
 
+        request = request with
+        {
+            AssignedAtUtc = EnsureUtc(request.AssignedAtUtc),
+            ReleasedAtUtc = request.ReleasedAtUtc.HasValue
+                ? EnsureUtc(request.ReleasedAtUtc.Value) : null
+        };
+
         if (request.AssignedAtUtc == default)
         {
             throw new EquipmentAssignmentManagementException(
@@ -393,12 +392,7 @@ public sealed class EquipmentAssignmentService :
             actor,
             assignment.CompanyId);
 
-        if (releasedAtUtc.Kind == DateTimeKind.Unspecified)
-        {
-            releasedAtUtc = DateTime.SpecifyKind(
-                releasedAtUtc,
-                DateTimeKind.Utc);
-        }
+        releasedAtUtc = EnsureUtc(releasedAtUtc);
 
         if (releasedAtUtc < assignment.AssignedAtUtc)
         {
@@ -588,6 +582,13 @@ public sealed class EquipmentAssignmentService :
         }
     }
 
+    private static DateTime EnsureUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
     private static string? Clean(
         string? value)
     {
@@ -619,3 +620,4 @@ public sealed class EquipmentAssignmentService :
             assignment.UpdatedAtUtc);
     }
 }
+

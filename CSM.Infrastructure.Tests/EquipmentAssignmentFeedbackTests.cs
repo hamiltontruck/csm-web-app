@@ -135,6 +135,29 @@ public sealed class EquipmentAssignmentFeedbackTests
         Assert.Empty(page.FindAll("[role=alert]"));
     }
 
+    [Theory]
+    [InlineData(401)]
+    [InlineData(403)]
+    [InlineData(400)]
+    [InlineData(500)]
+    [InlineData(0)]
+    public void Save_failure_keeps_form_and_entered_values_without_crashing(int status)
+    {
+        using var context = Context(out var api);
+        var page = context.RenderComponent<EquipmentAssignmentCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.Find("select").Change(api.EquipmentId.ToString());
+        page.Find("textarea").Change("assignment test remarks");
+        api.SaveError = status == 0 ? new Exception("private API diagnostic")
+            : new HttpRequestException("private API diagnostic", null, (HttpStatusCode)status);
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("[role=alert]")));
+        Assert.Contains("assignment test remarks", page.Find("textarea").GetAttribute("value") ?? page.Find("textarea").TextContent);
+        Assert.DoesNotContain("private API diagnostic", page.Markup);
+        Assert.Single(page.FindAll("form"));
+        Assert.Equal(1, api.SaveCalls);
+    }
+
     private static ApplicationDbContext Database(string role, out Guid userId)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -164,8 +187,17 @@ public sealed class EquipmentAssignmentFeedbackTests
 
     public class Api : DispatchProxy
     {
+        public Guid EquipmentId { get; } = Guid.NewGuid();
+        public Exception? SaveError { get; set; }
+        public int SaveCalls { get; private set; }
+        private Task<Guid> SaveAssignment()
+        {
+            SaveCalls++;
+            return SaveError is null ? Task.FromResult(Guid.NewGuid()) : Task.FromException<Guid>(SaveError);
+        }
         public HttpStatusCode? Status { get; set; }
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch {
+            nameof(IEquipmentService.CreateAssignmentAsync) => SaveAssignment(),
             nameof(IEquipmentService.GetAssignmentsAsync) => Status.HasValue
                 ? Task.FromException<List<EquipmentAssignmentResponse>>(new HttpRequestException("private API diagnostic", null, Status))
                 : Task.FromResult(new List<EquipmentAssignmentResponse> {
@@ -174,7 +206,7 @@ public sealed class EquipmentAssignmentFeedbackTests
                     new() { Id = Guid.NewGuid(), ConstructionSiteId = Guid.NewGuid(), EquipmentName = "Other site equipment" }
                 }),
             nameof(IEquipmentService.GetEquipmentAsync) => Task.FromResult(new List<EquipmentResponse> {
-                new() { Id = Guid.NewGuid(), Name = "Excavator", Status = "Available" }
+                new() { Id = EquipmentId, Name = "Excavator", Status = "Available" }
             }),
             _ => throw new InvalidOperationException("Unexpected equipment mutation.")
         };
@@ -186,3 +218,4 @@ public sealed class EquipmentAssignmentFeedbackTests
             Task.FromResult(new List<SiteResponse> { new() { Id = SiteId, Name = "Hamilton Test Site" } });
     }
 }
+
