@@ -50,6 +50,13 @@
     }
     else
     {
+        @if (_employeeChoicesUnavailable)
+        {
+            <div id="safety-edit-employee-options-notice" class="alert alert-info" role="status">
+                Employee choices are unavailable with your current permissions. Existing employee and investigator selections will be kept.
+            </div>
+        }
+
         <EditForm Model="_request" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
 
@@ -121,7 +128,8 @@
                             </label>
 
                             <InputText class="form-control"
-                                       @bind-Value="_request.IncidentNumber" />
+                                       @bind-Value="_request.IncidentNumber"
+                                       @oninput="e => _request.IncidentNumber = e.Value?.ToString() ?? string.Empty" />
 
                             <ValidationMessage For="@(() => _request.IncidentNumber)" />
                         </div>
@@ -174,10 +182,16 @@
                                 Employee Involved
                             </label>
 
-                            <select class="form-select"
+                            <select id="safety-edit-employee" class="form-select"
+                                    disabled="@_employeeChoicesUnavailable"
                                     @bind="_request.EmployeeId">
 
                                 <option value="">-- None --</option>
+
+                                @if (_employeeChoicesUnavailable && _request.EmployeeId.HasValue)
+                                {
+                                    <option value="@_request.EmployeeId">Current employee (unchanged)</option>
+                                }
 
                                 @foreach (var employee in _employees)
                                 {
@@ -195,7 +209,8 @@
                             </label>
 
                             <InputText class="form-control"
-                                       @bind-Value="_request.LocationDescription" />
+                                       @bind-Value="_request.LocationDescription"
+                                       @oninput="e => _request.LocationDescription = e.Value?.ToString() ?? string.Empty" />
 
                             <ValidationMessage For="@(() => _request.LocationDescription)" />
                         </div>
@@ -207,7 +222,8 @@
 
                             <InputTextArea class="form-control"
                                             rows="4"
-                                            @bind-Value="_request.Description" />
+                                            @bind-Value="_request.Description"
+                                       @oninput="e => _request.Description = e.Value?.ToString() ?? string.Empty" />
 
                             <ValidationMessage For="@(() => _request.Description)" />
                         </div>
@@ -271,10 +287,16 @@
                                 Investigated By
                             </label>
 
-                            <select class="form-select"
+                            <select id="safety-edit-investigator" class="form-select"
+                                    disabled="@_employeeChoicesUnavailable"
                                     @bind="_request.InvestigatedBy">
 
                                 <option value="">-- None --</option>
+
+                                @if (_employeeChoicesUnavailable && _request.InvestigatedBy.HasValue)
+                                {
+                                    <option value="@_request.InvestigatedBy">Current investigator (unchanged)</option>
+                                }
 
                                 @foreach (var employee in _employees)
                                 {
@@ -303,7 +325,8 @@
 
                             <InputTextArea class="form-control"
                                             rows="3"
-                                            @bind-Value="_request.ImmediateActionTaken" />
+                                            @bind-Value="_request.ImmediateActionTaken"
+                                       @oninput="e => _request.ImmediateActionTaken = e.Value?.ToString()" />
                         </div>
 
                         <div class="col-12">
@@ -313,7 +336,8 @@
 
                             <InputTextArea class="form-control"
                                             rows="3"
-                                            @bind-Value="_request.RootCause" />
+                                            @bind-Value="_request.RootCause"
+                                       @oninput="e => _request.RootCause = e.Value?.ToString()" />
                         </div>
 
                         <div class="col-12">
@@ -323,7 +347,8 @@
 
                             <InputTextArea class="form-control"
                                             rows="3"
-                                            @bind-Value="_request.CorrectiveAction" />
+                                            @bind-Value="_request.CorrectiveAction"
+                                       @oninput="e => _request.CorrectiveAction = e.Value?.ToString()" />
                         </div>
 
                         <div class="col-md-6">
@@ -385,6 +410,7 @@
     private bool _loading = true;
     private bool _saving;
     private bool _formReady;
+    private bool _employeeChoicesUnavailable;
     private string? _loadError;
     private HttpStatusCode? _accessStatus;
     private string SignInUrl => "/login?returnUrl=" + Uri.EscapeDataString($"/compliance/safety-incidents/{Id:D}/edit");
@@ -402,6 +428,7 @@
         _loading = true;
         _errorMessage = null;
         _formReady = false;
+        _employeeChoicesUnavailable = false;
         _loadError = null;
         _accessStatus = null;
         _request = new();
@@ -424,8 +451,14 @@
             _sites =
                 await ProjectService.GetSitesAsync();
 
-            _employees =
-                await EmployeeService.GetEmployeesAsync();
+            try
+            {
+                _employees = await EmployeeService.GetEmployeesAsync();
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Forbidden)
+            {
+                _employeeChoicesUnavailable = true;
+            }
 
             _projects =
                 await ProjectService.GetProjectsBySiteAsync(
