@@ -1,0 +1,10 @@
+@inherits Microsoft.AspNetCore.Components.Forms.InputNumber<decimal>
+
+<input @attributes="AdditionalAttributes"
+       type="number"
+       step="any"
+       name="@NameAttributeValue"
+       class="@CssClass"
+       @bind="CurrentValueAsString"
+       @bind:event="oninput"
+       @onchange="@(e => CurrentValueAsString = e.Value?.ToString())" />
