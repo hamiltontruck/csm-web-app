@@ -162,7 +162,7 @@ public sealed class SiteManagerFinanceScopeTests
         db.UserSiteAccesses.Add(new UserSiteAccess { Id = Guid.NewGuid(), UserId = Actor, CompanyId = Company, SiteId = Allowed, IsActive = true });
         foreach (var (number, site, company) in new (string, Guid?, Guid)[] { ("allowed", Allowed, Company), ("unassigned", Unassigned, Company), ("company", null, Company), ("foreign", Foreign, OtherCompany) })
         {
-            db.Budgets.Add(new Budget { Id = Guid.NewGuid(), CompanyId = company, ConstructionSiteId = site, BudgetNumber = number, Name = number, CurrencyCode = "ETB" });
+            db.Budgets.Add(new Budget { Id = Guid.NewGuid(), CompanyId = company, ConstructionSiteId = site, BudgetNumber = number, Name = number, CurrencyCode = "ETB", EffectiveFrom = new DateOnly(2026, 11, 3) });
             db.Payments.Add(new Payment { Id = Guid.NewGuid(), CompanyId = company, ConstructionSiteId = site, PaymentNumber = number, CurrencyCode = "ETB" });
         }
         db.PettyCashAccounts.Add(new PettyCashAccount { Id = CashAccount, CompanyId = Company, ConstructionSiteId = Allowed, AccountCode = "TEST", AccountName = "Test" });
