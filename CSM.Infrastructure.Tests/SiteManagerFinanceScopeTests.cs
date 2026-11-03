@@ -179,6 +179,13 @@ public sealed class SiteManagerFinanceScopeTests
     private static ApplicationDbContext Database(string role)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        Seed(db, role);
+        db.SaveChanges(true);
+        return db;
+    }
+    private static void Seed(ApplicationDbContext db, string role)
+    {
+        db.Companies.AddRange(new Company { Id = Company, Code = "OWN", Name = "Own" }, new Company { Id = OtherCompany, Code = "OTHER", Name = "Other" });
         db.Users.Add(new User { Id = Actor, CompanyId = Company, IsActive = true, UserRoles = [new UserRole { Id = Guid.NewGuid(), Role = new Role { Id = Guid.NewGuid(), Name = role } }] });
         db.ConstructionSites.AddRange(new ConstructionSite { Id = Allowed, CompanyId = Company, SiteCode = "ALLOWED", Name = "Allowed" },
             new ConstructionSite { Id = Unassigned, CompanyId = Company, SiteCode = "OTHER", Name = "Unassigned" },
@@ -190,9 +197,42 @@ public sealed class SiteManagerFinanceScopeTests
             db.Payments.Add(new Payment { Id = Guid.NewGuid(), CompanyId = company, ConstructionSiteId = site, PaymentNumber = number, CurrencyCode = "ETB" });
         }
         db.PettyCashAccounts.Add(new PettyCashAccount { Id = CashAccount, CompanyId = Company, ConstructionSiteId = Allowed, AccountCode = "TEST", AccountName = "Test" });
-        db.SaveChanges(true);
-        return db;
     }
+
+    [Fact]
+    public async Task PostgreSQL_translates_finance_lists_and_live_site_guards()
+    {
+        var connection = new Npgsql.NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("CSM_TEST_POSTGRES") ?? "Host=localhost;Username=postgres;Password=postgres") { Database = "finance_scope_" + Guid.NewGuid().ToString("N") };
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection.ConnectionString).Options);
+        try
+        {
+            await db.Database.MigrateAsync();
+            Seed(db, "SiteManager");
+            db.RoleGranularPermissions.Add(new RoleGranularPermission { Id = Guid.NewGuid(), RoleId = db.Roles.Local.Single().Id, Permission = CSM.Domain.Enums.GranularPermission.Finance_Budget_View });
+            await db.SaveChangesAsync();
+            var budgets = new BudgetService(db, new Permissions());
+            var payments = new PaymentService(db);
+            Assert.Equal(Allowed, Assert.Single(await budgets.GetAllAsync(Actor)).ConstructionSiteId);
+            Assert.Equal(Allowed, Assert.Single(await payments.GetAllAsync(Actor)).ConstructionSiteId);
+            var companyBudgetId = await db.Budgets.Where(x => x.BudgetNumber == "company").Select(x => x.Id).SingleAsync();
+            await Assert.ThrowsAsync<BudgetManagementException>(() => budgets.GetByIdAsync(Actor, companyBudgetId));
+            var publisher = new NotificationPublisher(db);
+            await publisher.StageForPermissionHoldersAsync(Company, Allowed, CSM.Domain.Enums.GranularPermission.Finance_Budget_View,
+                null, "Budget warning", "Site figures", CSM.Domain.Enums.NotificationSeverity.Warning, "Budget", companyBudgetId);
+            Assert.Single(db.Notifications.Local);
+            db.Notifications.RemoveRange(db.Notifications.Local.ToArray());
+            db.UserSiteAccesses.Single().IsActive = false;
+            await db.SaveChangesAsync();
+            Assert.Empty(await budgets.GetAllAsync(Actor));
+            Assert.Empty(await payments.GetAllAsync(Actor));
+            await Assert.ThrowsAsync<BudgetManagementException>(() => budgets.GetBySiteAsync(Actor, Allowed));
+            await publisher.StageForPermissionHoldersAsync(Company, Allowed, CSM.Domain.Enums.GranularPermission.Finance_Budget_View,
+                null, "Budget warning", "Site figures", CSM.Domain.Enums.NotificationSeverity.Warning, "Budget", companyBudgetId);
+            Assert.Empty(db.Notifications.Local);
+        }
+        finally { await db.Database.EnsureDeletedAsync(); }
+    }
+
     private sealed class Permissions : IPermissionEvaluator
     {
         public Task<bool> HasPermissionAsync(Guid id, string permission, CancellationToken token = default) => Task.FromResult(true);
