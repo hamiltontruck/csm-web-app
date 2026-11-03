@@ -62,6 +62,7 @@
                     <input class="form-control"
                            maxlength="50"
                            @bind="_request.DocumentNumber"
+                           @oninput="e => _request.DocumentNumber = e.Value?.ToString() ?? string.Empty"
                            placeholder="e.g. DOC-001" />
                 </div>
 
@@ -70,6 +71,7 @@
                     <input class="form-control"
                            maxlength="250"
                            @bind="_request.Name"
+                           @oninput="e => _request.Name = e.Value?.ToString() ?? string.Empty"
                            placeholder="Document name" />
                 </div>
 
@@ -101,6 +103,7 @@
                     <input class="form-control"
                            maxlength="255"
                            @bind="_request.FileName"
+                           @oninput="e => _request.FileName = e.Value?.ToString() ?? string.Empty"
                            placeholder="e.g. safety-plan.pdf" />
                 </div>
 
@@ -110,6 +113,7 @@
                     <label class="form-label">Content Type</label>
                     <input class="form-control"
                            @bind="_request.ContentType"
+                           @oninput="e => _request.ContentType = e.Value?.ToString()"
                            placeholder="e.g. application/pdf" />
                 </div>
 
@@ -124,19 +128,22 @@
                 <div class="col-md-4">
                     <label class="form-label">Drawing Number</label>
                     <input class="form-control"
-                           @bind="_request.DrawingNumber" />
+                           @bind="_request.DrawingNumber"
+                           @oninput="e => _request.DrawingNumber = e.Value?.ToString()" />
                 </div>
 
                 <div class="col-md-4">
                     <label class="form-label">Sheet Number</label>
                     <input class="form-control"
-                           @bind="_request.SheetNumber" />
+                           @bind="_request.SheetNumber"
+                           @oninput="e => _request.SheetNumber = e.Value?.ToString()" />
                 </div>
 
                 <div class="col-md-4">
                     <label class="form-label">Discipline</label>
                     <input class="form-control"
                            @bind="_request.Discipline"
+                           @oninput="e => _request.Discipline = e.Value?.ToString()"
                            placeholder="e.g. Architectural" />
                 </div>
 
@@ -144,6 +151,7 @@
                     <label class="form-label">Drawing Status</label>
                     <input class="form-control"
                            @bind="_request.DrawingStatus"
+                           @oninput="e => _request.DrawingStatus = e.Value?.ToString()"
                            placeholder="e.g. For Construction" />
                 </div>
 
@@ -151,6 +159,7 @@
                     <label class="form-label">Current Revision</label>
                     <input class="form-control"
                            @bind="_request.CurrentRevision"
+                           @oninput="e => _request.CurrentRevision = e.Value?.ToString()"
                            placeholder="e.g. Rev 01" />
                 </div>
 
@@ -172,6 +181,7 @@
                     <label class="form-label">Related Entity Type</label>
                     <input class="form-control"
                            @bind="_request.RelatedEntityType"
+                           @oninput="e => _request.RelatedEntityType = e.Value?.ToString()"
                            placeholder="Optional related entity type" />
                 </div>
 
@@ -179,7 +189,8 @@
                     <label class="form-label">Description</label>
                     <textarea class="form-control"
                               rows="4"
-                              @bind="_request.Description"></textarea>
+                              @bind="_request.Description"
+                           @oninput="e => _request.Description = e.Value?.ToString()"></textarea>
                 </div>
 
                 <div class="col-12">
