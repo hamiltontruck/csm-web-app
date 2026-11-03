@@ -91,6 +91,20 @@ public sealed class NotificationPublisher : INotificationPublisher
             return;
         }
 
+        // Finance alerts contain record amounts. A SiteManager must have a
+        // current live site grant even when no other assignments remain.
+        if (siteId.HasValue && permission.ToString().StartsWith("Finance_", StringComparison.Ordinal))
+        {
+            var allowed = await _dbContext.UserSiteAccesses.AsNoTracking()
+                .Where(a => a.CompanyId == companyId && a.SiteId == siteId.Value && a.IsActive && !a.IsDeleted &&
+                    _dbContext.ConstructionSites.Any(s => s.Id == a.SiteId && s.CompanyId == companyId && !s.IsDeleted))
+                .Select(a => a.UserId).ToListAsync(cancellationToken);
+            holders = holders.Where(h =>
+                !h.Roles.Contains(AppRoles.SiteManager, StringComparer.OrdinalIgnoreCase) ||
+                h.Roles.Any(r => new[] { AppRoles.SuperAdmin, AppRoles.CompanyAdmin, AppRoles.Accountant }.Contains(r, StringComparer.OrdinalIgnoreCase)) ||
+                allowed.Contains(h.Id)).ToList();
+        }
+
         List<Guid> recipients;
 
         if (siteId is null)
@@ -169,3 +183,4 @@ public sealed class NotificationPublisher : INotificationPublisher
             .ToListAsync(cancellationToken);
     }
 }
+

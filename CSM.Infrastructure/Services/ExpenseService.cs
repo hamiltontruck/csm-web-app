@@ -29,6 +29,8 @@ public sealed class ExpenseService : IExpenseService
 
         EnsureCanRead(actor);
 
+        await EnsureSiteAccess(actor, null, cancellationToken);
+
         IQueryable<Expense> query =
             _dbContext.Expenses.AsNoTracking();
 
@@ -420,11 +422,18 @@ public sealed class ExpenseService : IExpenseService
         Guid? siteId,
         CancellationToken cancellationToken)
     {
+        if (SiteFinanceScope.IsSiteLimited(actor))
+        {
+            if (!await SiteFinanceScope.HasSiteAsync(_dbContext, actor, siteId, cancellationToken))
+                throw new ExpenseManagementException("You are not authorized to access this expense scope.");
+            return;
+        }
+
         // Company-level expense
         // SiteManager cannot access company-level expenses.
         if (!siteId.HasValue)
         {
-            if (HasRole(actor, AppRoles.SiteManager))
+            if (SiteFinanceScope.IsSiteLimited(actor))
             {
                 throw new ExpenseManagementException(
                     "You are not authorized to access this expense.");
@@ -760,3 +769,4 @@ public sealed class ExpenseService : IExpenseService
             expense.UpdatedAtUtc);
     }
 }
+

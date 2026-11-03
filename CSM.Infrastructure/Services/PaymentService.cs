@@ -40,6 +40,9 @@ public sealed class PaymentService : IPaymentService
                 x => x.CompanyId == companyId);
         }
 
+        if (SiteFinanceScope.IsSiteLimited(actor))
+            query = new FinancialReadScope(_dbContext, actor, GetActorCompanyId(actor)).Finance(query);
+
         var payments = await query
             .OrderByDescending(x => x.PaymentDate)
             .ThenBy(x => x.PaymentNumber)
@@ -483,6 +486,8 @@ public sealed class PaymentService : IPaymentService
         CancellationToken cancellationToken = default)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanRead(actor);
+        await EnsureSiteAccess(actor, null, cancellationToken);
         var companyId = GetActorCompanyId(actor);
 
         var payments = await _dbContext.Payments
@@ -550,11 +555,18 @@ public sealed class PaymentService : IPaymentService
         Guid? siteId,
         CancellationToken cancellationToken)
     {
+        if (SiteFinanceScope.IsSiteLimited(actor))
+        {
+            if (!await SiteFinanceScope.HasSiteAsync(_dbContext, actor, siteId, cancellationToken))
+                throw new PaymentManagementException("You are not authorized to access this payment scope.");
+            return;
+        }
+
         // Company-level payment
         // SiteManager cannot access company-level payments.
         if (!siteId.HasValue)
         {
-            if (HasRole(actor, AppRoles.SiteManager))
+            if (SiteFinanceScope.IsSiteLimited(actor))
             {
                 throw new PaymentManagementException(
                     "You are not authorized to access this payment.");
@@ -1005,3 +1017,4 @@ public sealed class PaymentService : IPaymentService
             payment.UpdatedAtUtc);
     }
 }
+

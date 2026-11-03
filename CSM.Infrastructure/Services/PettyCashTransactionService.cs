@@ -35,7 +35,7 @@ public sealed class PettyCashTransactionService
 
         EnsureCompanyAccess(actor, account.CompanyId);
 
-        if (HasRole(actor, AppRoles.SiteManager))
+        if (SiteFinanceScope.IsSiteLimited(actor))
         {
             if (!account.ConstructionSiteId.HasValue)
             {
@@ -49,7 +49,8 @@ public sealed class PettyCashTransactionService
                         x.UserId == actor.Id &&
                         x.SiteId == account.ConstructionSiteId.Value &&
                         x.CompanyId == actor.CompanyId &&
-                        x.IsActive,
+                        x.IsActive && !x.IsDeleted &&
+                        _dbContext.ConstructionSites.Any(s => s.Id == x.SiteId && s.CompanyId == x.CompanyId && !s.IsDeleted),
                     cancellationToken);
 
             if (!hasSiteAccess)
@@ -86,7 +87,7 @@ public sealed class PettyCashTransactionService
 
         EnsureCompanyAccess(actor, account.CompanyId);
 
-        if (HasRole(actor, AppRoles.SiteManager))
+        if (SiteFinanceScope.IsSiteLimited(actor))
         {
             if (!account.ConstructionSiteId.HasValue)
             {
@@ -100,7 +101,8 @@ public sealed class PettyCashTransactionService
                         x.UserId == actor.Id &&
                         x.SiteId == account.ConstructionSiteId.Value &&
                         x.CompanyId == actor.CompanyId &&
-                        x.IsActive,
+                        x.IsActive && !x.IsDeleted &&
+                        _dbContext.ConstructionSites.Any(s => s.Id == x.SiteId && s.CompanyId == x.CompanyId && !s.IsDeleted),
                     cancellationToken);
 
             if (!hasSiteAccess)

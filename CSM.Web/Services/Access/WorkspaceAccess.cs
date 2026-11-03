@@ -113,6 +113,8 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
             Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") && (!write || CanVisit("/materials"));
         if (root == "finance")
         {
+            var siteOnly = IsIn("SiteManager") && !IsIn(FinanceManagers);
+            if (siteOnly && ((parts.Length > 1 && parts[1] == "company") || path == "/finance/petty-cash")) return false;
             if (parts.Contains("summary")) return Has("Reports_FinancialSummary_View");
             if (parts.Contains("cost-codes")) return IsIn(FinanceManagers) && Has(write ? "Finance_CostCode_Manage" : "Finance_CostCode_View");
             if (parts.Contains("budgets")) return Has(write ? "Finance_Budget_Manage" : "Finance_Budget_View");
@@ -133,5 +135,6 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
     public static readonly string[] EquipmentLinks = ["/equipment/list", "/equipment/sites", "/equipment/downtime-sites", "/equipment/maintenance-sites", "/equipment/fuel-sites", "/equipment/hourmeter-sites", "/equipment/utilization-sites", "/equipment/timesheet-sites"];
     public static readonly string[] ProcurementLinks = ["/materials", "/vendors", "/material-requests", "/purchase-orders", "/goods-receipts"];
     public static readonly string[] InventoryLinks = ["/stock-balance", "/stock-movements", "/stock-issues", "/daily-material-usage", "/material-return-audit", "/stock-returns", "/stock-transfers", "/stock-adjustments"];
-    public static readonly string[] FinanceLinks = ["/finance/company/cost-codes", "/finance/company/budgets", "/finance/company/invoices", "/finance/company/payments", "/finance/company/expenses", "/finance/petty-cash", "/finance/summary"];
+    public static readonly string[] FinanceLinks = ["/finance/sites/{siteId}/budgets", "/finance/sites/{siteId}/payments", "/finance/sites/{siteId}/expenses", "/finance/petty-cash/site/{siteId}", "/finance/company/cost-codes", "/finance/company/budgets", "/finance/company/invoices", "/finance/company/payments", "/finance/company/expenses", "/finance/petty-cash", "/finance/summary"];
 }
+

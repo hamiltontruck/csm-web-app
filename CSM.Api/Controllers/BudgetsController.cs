@@ -81,7 +81,7 @@ public sealed class BudgetsController : ControllerBase
         }
         catch (BudgetManagementException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
     }
 
@@ -174,3 +174,4 @@ public sealed class BudgetsController : ControllerBase
         return userId;
     }
 }
+
