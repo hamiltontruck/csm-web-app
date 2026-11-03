@@ -53,11 +53,10 @@ public sealed class NotificationBadgeTests
         var page = context.RenderComponent<NotificationPage>();
         page.WaitForAssertion(() => Assert.Single(page.FindAll("button")));
         page.Find("button").Click();
+        var renders = menu.RenderCount;
         api.InitialCount.SetResult(1);
-        menu.WaitForAssertion(() => Assert.Empty(menu.FindAll("a[href='/notifications'] .badge")));
-        // Flush queued renders after completing the delayed initial request.
-        menu.InvokeAsync(() => { }).GetAwaiter().GetResult();
-        menu.WaitForAssertion(() => Assert.Empty(menu.FindAll("a[href='/notifications'] .badge")));
+        menu.WaitForAssertion(() => Assert.True(menu.RenderCount > renders));
+        Assert.Empty(menu.FindAll("a[href='/notifications'] .badge"));
     }
 
     internal static void RegisterRefreshState(IServiceCollection services)
