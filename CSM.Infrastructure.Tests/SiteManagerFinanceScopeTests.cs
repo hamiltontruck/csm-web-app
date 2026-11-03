@@ -141,7 +141,7 @@ public sealed class SiteManagerFinanceScopeTests
     public async Task Explicit_corporate_role_preserves_company_scope_for_mixed_role_user()
     {
         using var db = Database("SiteManager");
-        db.Users.Single().UserRoles.Add(new UserRole { Id = Guid.NewGuid(), Role = new Role { Id = Guid.NewGuid(), Name = "CompanyAdmin" } });
+        db.UserRoles.Add(new UserRole { Id = Guid.NewGuid(), UserId = Actor, Role = new Role { Id = Guid.NewGuid(), Name = "CompanyAdmin" } });
         db.SaveChanges(true);
         Assert.Equal(3, (await new BudgetService(db, new Permissions()).GetAllAsync(Actor)).Count);
         var id = db.Budgets.Single(x => x.BudgetNumber == "company").Id;

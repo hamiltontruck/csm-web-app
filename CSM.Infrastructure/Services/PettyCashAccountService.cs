@@ -29,7 +29,7 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
             currentUserId,
             cancellationToken);
 
-        if (HasRole(actor, AppRoles.SiteManager))
+        if (SiteFinanceScope.IsSiteLimited(actor))
         {
             throw new PettyCashManagementException(
                 "Site Managers must access petty cash through their assigned site.");
@@ -93,7 +93,7 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
                     "You are not authorized to access this petty cash account.");
             }
 
-            if (HasRole(actor, AppRoles.SiteManager))
+            if (SiteFinanceScope.IsSiteLimited(actor))
             {
                 var hasSiteAccess = await _dbContext.UserSiteAccesses
                     .AnyAsync(
@@ -101,7 +101,8 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
                             x.UserId == actor.Id &&
                             x.SiteId == siteId &&
                             x.CompanyId == actor.CompanyId &&
-                            x.IsActive,
+                            x.IsActive && !x.IsDeleted &&
+                        _dbContext.ConstructionSites.Any(s => s.Id == x.SiteId && s.CompanyId == x.CompanyId && !s.IsDeleted),
                         cancellationToken);
 
                 if (!hasSiteAccess)
@@ -157,7 +158,7 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
                 "You are not authorized to access this petty cash account.");
         }
 
-        if (HasRole(actor, AppRoles.SiteManager))
+        if (SiteFinanceScope.IsSiteLimited(actor))
         {
             if (!account.ConstructionSiteId.HasValue)
             {
@@ -171,7 +172,8 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
                         x.UserId == actor.Id &&
                         x.SiteId == account.ConstructionSiteId.Value &&
                         x.CompanyId == actor.CompanyId &&
-                        x.IsActive,
+                        x.IsActive && !x.IsDeleted &&
+                        _dbContext.ConstructionSites.Any(s => s.Id == x.SiteId && s.CompanyId == x.CompanyId && !s.IsDeleted),
                     cancellationToken);
 
             if (!hasSiteAccess)
@@ -221,7 +223,7 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
                         "You are not authorized to access this petty cash account.");
                 }
 
-                if (HasRole(actor, AppRoles.SiteManager))
+                if (SiteFinanceScope.IsSiteLimited(actor))
                 {
                     var hasSiteAccess = await _dbContext.UserSiteAccesses
                         .AnyAsync(
@@ -229,7 +231,8 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
                                 x.UserId == actor.Id &&
                                 x.SiteId == site.Id &&
                                 x.CompanyId == actor.CompanyId &&
-                                x.IsActive,
+                                x.IsActive && !x.IsDeleted &&
+                        _dbContext.ConstructionSites.Any(s => s.Id == x.SiteId && s.CompanyId == x.CompanyId && !s.IsDeleted),
                             cancellationToken);
 
                     if (!hasSiteAccess)
@@ -248,7 +251,7 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
                     "The current user is not associated with a company.");
             }
 
-            if (HasRole(actor, AppRoles.SiteManager))
+            if (SiteFinanceScope.IsSiteLimited(actor))
             {
                 throw new PettyCashManagementException(
                     "Site Managers cannot create company-level petty cash accounts.");
@@ -322,7 +325,7 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
                     "You are not authorized to access this petty cash account.");
             }
 
-            if (HasRole(actor, AppRoles.SiteManager))
+            if (SiteFinanceScope.IsSiteLimited(actor))
             {
                 if (!account.ConstructionSiteId.HasValue)
                 {
@@ -336,7 +339,8 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
                             x.UserId == actor.Id &&
                             x.SiteId == account.ConstructionSiteId.Value &&
                             x.CompanyId == actor.CompanyId &&
-                            x.IsActive,
+                            x.IsActive && !x.IsDeleted &&
+                        _dbContext.ConstructionSites.Any(s => s.Id == x.SiteId && s.CompanyId == x.CompanyId && !s.IsDeleted),
                         cancellationToken);
 
                 if (!hasSiteAccess)

@@ -45,6 +45,9 @@ public sealed class BudgetService : IBudgetService
                 x => x.CompanyId == GetActorCompanyId(actor));
         }
 
+        if (SiteFinanceScope.IsSiteLimited(actor))
+            query = new FinancialReadScope(_dbContext, actor, GetActorCompanyId(actor)).Finance(query);
+
         var budgets = await query
             .OrderBy(x => x.BudgetNumber)
             .ToListAsync(cancellationToken);
@@ -106,6 +109,8 @@ public sealed class BudgetService : IBudgetService
         EnsureCompanyAccess(
             actor,
             budget.CompanyId);
+
+        await EnsureSiteAccess(actor, budget.ConstructionSiteId, cancellationToken);
 
         return Map(budget);
     }
@@ -466,6 +471,13 @@ public sealed class BudgetService : IBudgetService
         Guid? siteId,
         CancellationToken cancellationToken)
     {
+        if (SiteFinanceScope.IsSiteLimited(actor))
+        {
+            if (!await SiteFinanceScope.HasSiteAsync(_dbContext, actor, siteId, cancellationToken))
+                throw new BudgetManagementException("You are not authorized to access this budget scope.");
+            return;
+        }
+
         if (!siteId.HasValue)
         {
             return;
@@ -693,4 +705,5 @@ public sealed class BudgetService : IBudgetService
         };
     }
 }
+
 
