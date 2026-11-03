@@ -186,6 +186,7 @@ public sealed class DocumentFeedbackTests
         using var context = Context(out var state);
         var page = Render(context, edit ? "edit" : "create");
         page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("input")));
+        if (!edit) page.Find("select").Change("1");
         var values = edit
             ? new[] { "DOC-SM-INPUT", "Updated test document", "DRAW-TEST", "SHEET-TEST", "Test discipline", "Test drawing status", "Rev Test", "Test related entity" }
             : new[] { "DOC-SM-INPUT", "Updated test document", "sm-test-document.txt", "text/plain", "DRAW-TEST", "SHEET-TEST", "Test discipline", "Test drawing status", "Rev Test", "Test related entity" };
@@ -225,6 +226,7 @@ public sealed class DocumentFeedbackTests
         using var context = Context(out var state);
         var page = Render(context, "create");
         page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("input")));
+        page.Find("select").Change("1");
         page.Find("input[placeholder='e.g. DOC-001']").Change("DOC-SM-FILE-INPUT");
         page.Find("input[placeholder='Document name']").Change("Test document");
         page.Find("input[placeholder='e.g. safety-plan.pdf']").Input("sm-test-document.txt");
