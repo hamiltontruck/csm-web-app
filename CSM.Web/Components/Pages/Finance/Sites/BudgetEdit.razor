@@ -1,5 +1,6 @@
 @page "/finance/sites/{SiteId:guid}/budgets/{Id:guid}/edit"
-@rendermode InteractiveServer
+@page "/finance/company/budgets/{Id:guid}/edit"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @using CSM.Web.Models.Finance
 @using CSM.Web.Services
@@ -65,13 +66,13 @@ else
         </div>
 
         <div class="mt-4 d-flex gap-2">
-            <button class="btn btn-primary" type="submit">
+            <button class="btn btn-primary" type="submit" disabled="@_saving">
                 Save Changes
             </button>
 
             <button class="btn btn-outline-secondary"
                     type="button"
-                    @onclick="Back">
+                    @onclick="Back" disabled="@_saving">
                 Cancel
             </button>
         </div>
@@ -84,48 +85,91 @@ else
 
     private readonly UpdateBudgetModel _model = new();
 
+    private Guid? _budgetSiteId;
+    private string DetailsPath => _budgetSiteId.HasValue
+        ? $"/finance/sites/{_budgetSiteId.Value}/budgets/{Id}"
+        : $"/finance/company/budgets/{Id}";
+
+    private Guid? _requestedBudgetId;
+    private Guid? _loadedBudgetId;
+    private long _loadVersion;
+    private bool _saving;
     private bool _loading = true;
     private string? _error;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnParametersSet()
     {
+        if (_requestedBudgetId != Id)
+        {
+            _loading = true;
+            _loadedBudgetId = null;
+            _error = null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_requestedBudgetId == Id) return;
+        var requestedId = Id;
+        _requestedBudgetId = requestedId;
+        var version = ++_loadVersion;
         try
         {
-            var budget = await FinanceService.GetBudgetAsync(Id);
-
+            var budget = await FinanceService.GetBudgetAsync(requestedId);
+            if (version != _loadVersion || Id != requestedId) return;
+            _budgetSiteId = budget.ConstructionSiteId;
             _model.Name = budget.Name;
             _model.Description = budget.Description;
             _model.TotalAmount = budget.TotalAmount;
             _model.CurrencyCode = budget.CurrencyCode;
             _model.EffectiveFrom = budget.EffectiveFrom;
             _model.EffectiveTo = budget.EffectiveTo;
+            _loadedBudgetId = requestedId;
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            if (version == _loadVersion && Id == requestedId) _error = ex.Message;
         }
         finally
         {
-            _loading = false;
+            if (version == _loadVersion && Id == requestedId)
+            {
+                _loading = false;
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 
     private async Task Save()
     {
+        if (_saving || _loading || _loadedBudgetId != Id) return;
+        _saving = true;
+        var savedId = Id;
+        var returnPath = DetailsPath;
+        var version = _loadVersion;
+        var request = new UpdateBudgetModel
+        {
+            Name = _model.Name,
+            Description = _model.Description,
+            TotalAmount = _model.TotalAmount,
+            CurrencyCode = _model.CurrencyCode,
+            EffectiveFrom = _model.EffectiveFrom,
+            EffectiveTo = _model.EffectiveTo
+        };
         try
         {
-            await FinanceService.UpdateBudgetAsync(Id, _model);
-
-            Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets/{Id}");
+            await FinanceService.UpdateBudgetAsync(savedId, request);
+            if (version == _loadVersion && Id == savedId) Navigation.NavigateTo(returnPath);
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            if (version == _loadVersion && Id == savedId) _error = ex.Message;
         }
+        finally { _saving = false; }
     }
 
     private void Back()
     {
-        Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets/{Id}");
+        Navigation.NavigateTo(DetailsPath);
     }
 }
