@@ -1,5 +1,6 @@
 @page "/finance/sites/{SiteId:guid}/budgets/{Id:guid}/edit"
-@rendermode InteractiveServer
+@page "/finance/company/budgets/{Id:guid}/edit"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @using CSM.Web.Models.Finance
 @using CSM.Web.Services
@@ -84,14 +85,21 @@ else
 
     private readonly UpdateBudgetModel _model = new();
 
+    private Guid? _budgetSiteId;
+    private string DetailsPath => _budgetSiteId.HasValue
+        ? $"/finance/sites/{_budgetSiteId.Value}/budgets/{Id}"
+        : $"/finance/company/budgets/{Id}";
+
     private bool _loading = true;
     private string? _error;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender) return;
         try
         {
             var budget = await FinanceService.GetBudgetAsync(Id);
+            _budgetSiteId = budget.ConstructionSiteId;
 
             _model.Name = budget.Name;
             _model.Description = budget.Description;
@@ -107,6 +115,7 @@ else
         finally
         {
             _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -116,7 +125,7 @@ else
         {
             await FinanceService.UpdateBudgetAsync(Id, _model);
 
-            Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets/{Id}");
+            Navigation.NavigateTo(DetailsPath);
         }
         catch (Exception ex)
         {
@@ -126,6 +135,6 @@ else
 
     private void Back()
     {
-        Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets/{Id}");
+        Navigation.NavigateTo(DetailsPath);
     }
 }
