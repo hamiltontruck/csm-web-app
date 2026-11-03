@@ -67,6 +67,25 @@ public sealed class EmployeeInputTests
         Assert.Equal(900.50m, payload.GetProperty("BaseWage").GetDecimal());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Wage_keeps_typed_text_while_deleting_trailing_zeros_then_accepts_replacement(bool edit)
+    {
+        using var context = Context(out var state);
+        var page = Render(context, edit);
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        foreach (var text in new[] { "0.0000", "0.000", "0.00", "0.0", "0", "", "1", "10", "100", "1000" })
+        {
+            Field(page, "Base Wage *").Input(text);
+            Assert.Equal(text, Field(page, "Base Wage *").GetAttribute("value"));
+        }
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(1, state.SaveCalls));
+        var payload = JsonSerializer.SerializeToElement(state.Saved, state.Saved!.GetType());
+        Assert.Equal(1000m, payload.GetProperty("BaseWage").GetDecimal());
+    }
+
     private static IElement Field(IRenderedFragment page, string label) => page.FindAll(".col-md-4")
         .Single(x => x.QuerySelector("label")?.TextContent.Trim() == label).QuerySelector("input")!;
 
