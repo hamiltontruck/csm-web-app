@@ -105,6 +105,32 @@ public sealed class CompanyBudgetEditNavigationTests
         Assert.Equal($"http://localhost/finance/sites/{SiteId}/budgets/{SecondBudgetId}", context.Services.GetRequiredService<NavigationManager>().Uri);
     }
 
+    [Fact]
+    public async Task Pending_save_keeps_its_payload_and_does_not_redirect_a_new_editor()
+    {
+        using var context = Context(out var state);
+        state.PendingUpdate = new TaskCompletionSource<bool>();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo($"/finance/company/budgets/{BudgetId}/edit");
+        var page = context.RenderComponent<Editor>(p => p.Add(x => x.Id, BudgetId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        var save = page.Find("form").SubmitAsync();
+        try
+        {
+            var next = $"http://localhost/finance/sites/{SiteId}/budgets/{SecondBudgetId}/edit";
+            navigation.NavigateTo(next);
+            page.SetParametersAndRender(p => p.Add(x => x.Id, SecondBudgetId).Add(x => x.SiteId, SiteId));
+            page.WaitForAssertion(() => Assert.Equal("Second Site Budget", page.Find(".col-md-8 input").GetAttribute("value")));
+            Assert.Equal(BudgetId, state.SavedId);
+            Assert.Equal("Accountant Test Budget", state.Saved!.Name);
+            Assert.Equal(5000m, state.Saved.TotalAmount);
+            state.PendingUpdate.SetResult(true);
+            await save;
+            Assert.Equal(next, navigation.Uri);
+        }
+        finally { state.PendingUpdate.TrySetResult(true); await save; }
+    }
+
     private static string DetailsPath(bool company) => company
         ? $"/finance/company/budgets/{BudgetId}" : $"/finance/sites/{SiteId}/budgets/{BudgetId}";
     private static TestContext Context(out State state)
@@ -117,7 +143,7 @@ public sealed class CompanyBudgetEditNavigationTests
         context.Services.AddSingleton(api);
         return context;
     }
-    public sealed class State { public bool Company = true; public bool Denied; public int SaveCalls; public Guid SavedId; public UpdateBudgetModel? Saved; public TaskCompletionSource<BudgetResponse>? DelayedFirst; }
+    public sealed class State { public bool Company = true; public bool Denied; public int SaveCalls; public Guid SavedId; public UpdateBudgetModel? Saved; public TaskCompletionSource<BudgetResponse>? DelayedFirst; public TaskCompletionSource<bool>? PendingUpdate; }
     public class Api : DispatchProxy
     {
         public State State = null!;
@@ -140,7 +166,7 @@ public sealed class CompanyBudgetEditNavigationTests
                 State.SaveCalls++;
                 State.SavedId = (Guid)args![0]!;
                 State.Saved = (UpdateBudgetModel)args[1]!;
-                return Task.CompletedTask;
+                return State.PendingUpdate?.Task ?? Task.CompletedTask;
             }
             throw new InvalidOperationException("Unexpected finance operation: " + method.Name);
         }
