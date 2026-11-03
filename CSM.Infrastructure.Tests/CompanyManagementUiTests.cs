@@ -130,6 +130,7 @@ public sealed class CompanyManagementUiTests
     private static TestContext Context(Api api)
     {
         var context = new TestContext();
+        NotificationBadgeTests.RegisterRefreshState(context.Services);
         var auth = DispatchProxy.Create<IAuthService, Auth>();
         var type = typeof(UserWebService).Assembly.GetType("CSM.Web.Services.CompanyWebService");
         Assert.NotNull(type);
