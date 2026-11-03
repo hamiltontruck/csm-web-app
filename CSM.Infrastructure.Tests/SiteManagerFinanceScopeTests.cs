@@ -108,6 +108,48 @@ public sealed class SiteManagerFinanceScopeTests
         await new PettyCashAccountService(db).GetAllAsync(Actor);
     }
 
+    [Theory]
+    [InlineData("budget")]
+    [InlineData("expenses")]
+    [InlineData("payments")]
+    public async Task Company_read_controllers_return_forbidden_for_site_manager(string kind)
+    {
+        using var db = Database("SiteManager");
+        var identity = new System.Security.Claims.ClaimsIdentity([new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, Actor.ToString())], "test");
+        var controllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = new System.Security.Claims.ClaimsPrincipal(identity) } };
+        Microsoft.AspNetCore.Mvc.IActionResult? result;
+        if (kind == "budget")
+        {
+            var controller = new CSM.Api.Controllers.BudgetsController(new BudgetService(db, new Permissions())) { ControllerContext = controllerContext };
+            result = (await controller.GetById(db.Budgets.Single(x => x.BudgetNumber == "company").Id, default)).Result;
+        }
+        else if (kind == "expenses")
+        {
+            var controller = new CSM.Api.Controllers.ExpensesController(new ExpenseService(db)) { ControllerContext = controllerContext };
+            result = (await controller.GetAll(default)).Result;
+        }
+        else
+        {
+            var service = new PaymentService(db);
+            var controller = new CSM.Api.Controllers.PaymentsController(service, new PaymentReceiptPdfService(service)) { ControllerContext = controllerContext };
+            result = (await controller.GetCompany(default)).Result;
+        }
+        Assert.Equal(403, Assert.IsAssignableFrom<Microsoft.AspNetCore.Mvc.ObjectResult>(result).StatusCode);
+    }
+
+    [Fact]
+    public async Task Explicit_corporate_role_preserves_company_scope_for_mixed_role_user()
+    {
+        using var db = Database("SiteManager");
+        db.Users.Single().UserRoles.Add(new UserRole { Id = Guid.NewGuid(), Role = new Role { Id = Guid.NewGuid(), Name = "CompanyAdmin" } });
+        db.SaveChanges(true);
+        Assert.Equal(3, (await new BudgetService(db, new Permissions()).GetAllAsync(Actor)).Count);
+        var id = db.Budgets.Single(x => x.BudgetNumber == "company").Id;
+        Assert.Null((await new BudgetService(db, new Permissions()).GetByIdAsync(Actor, id)).ConstructionSiteId);
+        await new ExpenseService(db).GetAllAsync(Actor);
+        await new PettyCashAccountService(db).GetAllAsync(Actor);
+    }
+
     private static readonly Guid Actor = Guid.NewGuid(), Company = Guid.NewGuid(), OtherCompany = Guid.NewGuid();
     private static readonly Guid Allowed = Guid.NewGuid(), Unassigned = Guid.NewGuid(), Foreign = Guid.NewGuid(), CashAccount = Guid.NewGuid();
     private static ApplicationDbContext Database(string role)
