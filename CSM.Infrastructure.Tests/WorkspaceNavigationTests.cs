@@ -63,6 +63,7 @@ public sealed class WorkspaceNavigationTests
     private static TestContext Context()
     {
         var context = new TestContext();
+        NotificationBadgeTests.RegisterRefreshState(context.Services);
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.Services.AddSingleton(DispatchProxy.Create<IAuthService, AuthProxy>());
         context.Services.AddSingleton(DispatchProxy.Create<INotificationApiService, NotificationProxy>());
