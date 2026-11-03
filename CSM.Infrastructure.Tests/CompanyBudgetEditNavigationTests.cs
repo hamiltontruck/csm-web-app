@@ -14,6 +14,7 @@ namespace CSM.Infrastructure.Tests;
 public sealed class CompanyBudgetEditNavigationTests
 {
     private static readonly Guid BudgetId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid SecondBudgetId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid SiteId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     [Fact]
@@ -75,6 +76,35 @@ public sealed class CompanyBudgetEditNavigationTests
         Assert.Equal(0, state.SaveCalls);
     }
 
+    [Fact]
+    public void Changing_budget_route_reloads_the_form_before_saving_the_new_id()
+    {
+        using var context = Context(out var state);
+        var page = context.RenderComponent<Editor>(p => p.Add(x => x.Id, BudgetId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.SetParametersAndRender(p => p.Add(x => x.Id, SecondBudgetId).Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Equal("Second Site Budget", page.Find(".col-md-8 input").GetAttribute("value")));
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(SecondBudgetId, state.SavedId));
+        Assert.Equal("Second Site Budget", state.Saved!.Name);
+        Assert.Equal(6000m, state.Saved.TotalAmount);
+        Assert.Equal($"http://localhost/finance/sites/{SiteId}/budgets/{SecondBudgetId}", context.Services.GetRequiredService<NavigationManager>().Uri);
+    }
+
+    [Fact]
+    public async Task Late_previous_budget_load_cannot_replace_the_current_budget()
+    {
+        using var context = Context(out var state);
+        state.DelayedFirst = new TaskCompletionSource<BudgetResponse>();
+        var page = context.RenderComponent<Editor>(p => p.Add(x => x.Id, BudgetId));
+        page.SetParametersAndRender(p => p.Add(x => x.Id, SecondBudgetId).Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Equal("Second Site Budget", page.Find(".col-md-8 input").GetAttribute("value")));
+        await page.InvokeAsync(() => state.DelayedFirst.SetResult(new BudgetResponse { Id = BudgetId, Name = "Late company budget", TotalAmount = 5000m, CurrencyCode = "ETB", EffectiveFrom = new DateOnly(2026, 11, 4) }));
+        page.WaitForAssertion(() => Assert.Equal("Second Site Budget", page.Find(".col-md-8 input").GetAttribute("value")));
+        page.FindAll("button").Single(x => x.TextContent.Trim() == "Cancel").Click();
+        Assert.Equal($"http://localhost/finance/sites/{SiteId}/budgets/{SecondBudgetId}", context.Services.GetRequiredService<NavigationManager>().Uri);
+    }
+
     private static string DetailsPath(bool company) => company
         ? $"/finance/company/budgets/{BudgetId}" : $"/finance/sites/{SiteId}/budgets/{BudgetId}";
     private static TestContext Context(out State state)
@@ -87,7 +117,7 @@ public sealed class CompanyBudgetEditNavigationTests
         context.Services.AddSingleton(api);
         return context;
     }
-    public sealed class State { public bool Company = true; public bool Denied; public int SaveCalls; public Guid SavedId; public UpdateBudgetModel? Saved; }
+    public sealed class State { public bool Company = true; public bool Denied; public int SaveCalls; public Guid SavedId; public UpdateBudgetModel? Saved; public TaskCompletionSource<BudgetResponse>? DelayedFirst; }
     public class Api : DispatchProxy
     {
         public State State = null!;
@@ -95,7 +125,10 @@ public sealed class CompanyBudgetEditNavigationTests
         {
             if (method!.Name == nameof(IFinanceService.GetBudgetAsync))
             {
-                Assert.Equal(BudgetId, (Guid)args![0]!);
+                var id = (Guid)args![0]!;
+                if (id == BudgetId && State.DelayedFirst is not null) return State.DelayedFirst.Task;
+                if (id == SecondBudgetId) return Task.FromResult(new BudgetResponse { Id = id, Name = "Second Site Budget", ConstructionSiteId = SiteId, TotalAmount = 6000m, CurrencyCode = "ETB", EffectiveFrom = new DateOnly(2026, 11, 4) });
+                Assert.Equal(BudgetId, id);
                 return State.Denied ? Task.FromException<BudgetResponse>(new HttpRequestException("Forbidden", null, HttpStatusCode.Forbidden))
                     : Task.FromResult(new BudgetResponse { Id = BudgetId, BudgetNumber = "ACC-BUD-TEST-001", Name = "Accountant Test Budget",
                         ConstructionSiteId = State.Company ? null : SiteId, TotalAmount = 5000m, CurrencyCode = "ETB", Status = "Draft",
