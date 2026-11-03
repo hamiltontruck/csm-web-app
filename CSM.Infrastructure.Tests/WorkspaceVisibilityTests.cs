@@ -68,6 +68,7 @@ public sealed class WorkspaceVisibilityTests
     private static TestContext Context(string role, params string[] permissions)
     {
         var context = new TestContext();
+        NotificationBadgeTests.RegisterRefreshState(context.Services);
         var auth = DispatchProxy.Create<IAuthService, Auth>();
         ((Auth)(object)auth).Role = role;
         ((Auth)(object)auth).Permissions = permissions;

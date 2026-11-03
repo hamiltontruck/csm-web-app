@@ -123,6 +123,7 @@ public sealed class WorkspaceAccessTests
     {
         Probe.Starts = 0;
         using var context = new TestContext();
+        NotificationBadgeTests.RegisterRefreshState(context.Services);
         var auth = DispatchProxy.Create<IAuthService, WorkspaceVisibilityTests.Auth>();
         ((WorkspaceVisibilityTests.Auth)(object)auth).Role = "Supervisor";
         ((WorkspaceVisibilityTests.Auth)(object)auth).Permissions = [permission];
