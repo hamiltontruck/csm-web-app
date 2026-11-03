@@ -5,6 +5,36 @@
        step="any"
        name="@NameAttributeValue"
        class="@CssClass"
-       @bind="CurrentValueAsString"
+       @bind="WageText"
        @bind:event="oninput"
-       @onchange="@(e => CurrentValueAsString = e.Value?.ToString())" />
+       @onchange="@(e => WageText = e.Value?.ToString())" />
+
+@code {
+    private string? _text;
+    private decimal _lastValue;
+    private bool _initialized;
+
+    private string? WageText
+    {
+        get => _text;
+        set
+        {
+            _text = value;
+            CurrentValueAsString = value;
+            _lastValue = Value;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        // Decimal equality ignores scale. Keep typed text across renders so
+        // deleting a trailing zero does not restore the old decimal format.
+        if (!_initialized || Value != _lastValue)
+        {
+            _text = FormatValueAsString(Value);
+            _lastValue = Value;
+            _initialized = true;
+        }
+    }
+}
