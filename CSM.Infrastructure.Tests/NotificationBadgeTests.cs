@@ -81,7 +81,7 @@ public sealed class NotificationBadgeTests
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch
         {
             nameof(IAuthService.GetRolesAsync) => Task.FromResult<IReadOnlyCollection<string>>(new[] { "SiteManager" }),
-            nameof(IAuthService.GetPermissionsAsync) => Task.FromResult<IReadOnlyCollection<string>>(new[] { "Notifications.View" }),
+            nameof(IAuthService.GetPermissionsAsync) => Task.FromResult<IReadOnlyCollection<string>>(new[] { "Notifications_View" }),
             _ => throw new InvalidOperationException(method.Name)
         };
     }
