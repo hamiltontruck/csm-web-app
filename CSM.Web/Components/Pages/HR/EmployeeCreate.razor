@@ -49,6 +49,7 @@
         <div class="card-body">
             <EditForm Model="_model" OnValidSubmit="SaveAsync">
                 <DataAnnotationsValidator />
+                <ValidationSummary />
 
                 <div class="row g-3">
 
@@ -116,7 +117,8 @@
                     <div class="col-md-4">
                         <label class="form-label">Job Title</label>
                         <InputText class="form-control"
-                                   @bind-Value="_model.JobTitle" />
+                                   @bind-Value="_model.JobTitle"
+                                       @oninput="@(e => _model.JobTitle = e.Value?.ToString())" />
                     </div>
 
                     <div class="col-md-4">
@@ -160,7 +162,7 @@
 
                     <div class="col-md-4">
                         <label class="form-label">Base Wage *</label>
-                        <InputNumber class="form-control"
+                        <EmployeeWageInput class="form-control" DisplayName="Base Wage"
                                      @bind-Value="_model.BaseWage" />
                     </div>
 
