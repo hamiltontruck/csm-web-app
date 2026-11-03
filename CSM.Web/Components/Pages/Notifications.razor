@@ -1,3 +1,4 @@
+@inject CSM.Web.Services.NotificationReadState NotificationReadState
 @page "/notifications"
 @using CSM.Web.Models.Notifications
 @inject CSM.Web.Services.INotificationApiService NotificationService
@@ -98,6 +99,7 @@ else
         {
             await NotificationService.MarkReadAsync(notificationId);
             await LoadAsync();
+            await NotificationReadState.NotifyChangedAsync();
         }
         catch (Exception ex)
         {

@@ -56,6 +56,7 @@ builder.Services.AddScoped<IExecutiveDashboardService,
 
 builder.Services.AddScoped<IFinanceService, FinanceService>();
 builder.Services.AddScoped<INotificationApiService, NotificationApiService>();
+builder.Services.AddScoped<NotificationReadState>();
 
 builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 

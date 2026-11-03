@@ -1,3 +1,5 @@
+@implements IDisposable
+@inject CSM.Web.Services.NotificationReadState NotificationReadState
 @inject CSM.Web.Services.INotificationApiService NotificationService
 @inject CSM.Web.Services.IAuthService AuthService
 @inject NavigationManager Navigation
@@ -225,22 +227,48 @@
     }
 
     private int _unreadNotificationCount;
+    private int _unreadRefreshVersion;
+    private bool _disposed;
     private WorkspaceAccess _access = WorkspaceAccess.None;
 
 
     protected override async Task OnInitializedAsync()
     {
+        NotificationReadState.Changed += OnNotificationReadStateChangedAsync;
         try
         {
             _access = new(await AuthService.GetRolesAsync(), await AuthService.GetPermissionsAsync());
 
         }
         catch { _access = WorkspaceAccess.None; }
-        if (_access.CanVisit("/notifications"))
+        await RefreshUnreadCountAsync();
+    }
+
+    private Task OnNotificationReadStateChangedAsync() =>
+        _disposed ? Task.CompletedTask : InvokeAsync(RefreshUnreadCountAsync);
+
+    private async Task RefreshUnreadCountAsync()
+    {
+        if (_disposed || !_access.CanVisit("/notifications")) return;
+        var version = ++_unreadRefreshVersion;
+        try
         {
-            try { _unreadNotificationCount = await NotificationService.GetUnreadCountAsync(); }
-            catch { _unreadNotificationCount = 0; }
+            var count = await NotificationService.GetUnreadCountAsync();
+            if (_disposed || version != _unreadRefreshVersion) return;
+            _unreadNotificationCount = count;
+            StateHasChanged();
         }
+        catch
+        {
+            // Keep the last known count when the refresh is unavailable.
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _unreadRefreshVersion++;
+        NotificationReadState.Changed -= OnNotificationReadStateChangedAsync;
     }
 
     private async Task SignOutAsync()
