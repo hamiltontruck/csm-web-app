@@ -175,6 +175,65 @@ public sealed class DocumentFeedbackTests
         Assert.DoesNotContain("private diagnostic", error.Message);
     }
 
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Document_save_captures_current_editable_text(bool edit, bool inputOnly)
+    {
+        using var context = Context(out var state);
+        var page = Render(context, edit ? "edit" : "create");
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("input")));
+        var values = edit
+            ? new[] { "DOC-SM-INPUT", "Updated test document", "DRAW-TEST", "SHEET-TEST", "Test discipline", "Test drawing status", "Rev Test", "Test related entity" }
+            : new[] { "DOC-SM-INPUT", "Updated test document", "sm-test-document.txt", "text/plain", "DRAW-TEST", "SHEET-TEST", "Test discipline", "Test drawing status", "Rev Test", "Test related entity" };
+        for (var i = 0; i < values.Length; i++)
+        {
+            var element = page.FindAll("input").Where(x => !x.HasAttribute("disabled") && x.GetAttribute("type") is null or "text").ElementAt(i);
+            if (inputOnly) element.Input(values[i]); else element.Change(values[i]);
+        }
+        if (inputOnly) page.Find("textarea").Input("Updated test description");
+        else page.Find("textarea").Change("Updated test description");
+        if (edit) page.Find("form").Submit();
+        else page.FindAll("button").First(x => x.TextContent.Trim() == "Save").Click();
+        page.WaitForAssertion(() => Assert.Equal(1, state.SaveCalls));
+        var payload = System.Text.Json.JsonSerializer.SerializeToElement(state.Saved, state.Saved!.GetType());
+        Assert.Equal("DOC-SM-INPUT", payload.GetProperty("DocumentNumber").GetString());
+        Assert.Equal("Updated test document", payload.GetProperty("Name").GetString());
+        Assert.Equal(edit ? "test.pdf" : "sm-test-document.txt", payload.GetProperty("FileName").GetString());
+        Assert.Equal(edit ? "application/pdf" : "text/plain", payload.GetProperty("ContentType").GetString());
+        Assert.Equal("DRAW-TEST", payload.GetProperty("DrawingNumber").GetString());
+        Assert.Equal("SHEET-TEST", payload.GetProperty("SheetNumber").GetString());
+        Assert.Equal("Test discipline", payload.GetProperty("Discipline").GetString());
+        Assert.Equal("Test drawing status", payload.GetProperty("DrawingStatus").GetString());
+        Assert.Equal("Rev Test", payload.GetProperty("CurrentRevision").GetString());
+        Assert.Equal("Test related entity", payload.GetProperty("RelatedEntityType").GetString());
+        Assert.Equal("Updated test description", payload.GetProperty("Description").GetString());
+        if (edit)
+        {
+            Assert.Equal("/uploads/documents/test.pdf", payload.GetProperty("StoragePath").GetString());
+            Assert.Equal(3, payload.GetProperty("FileSizeBytes").GetInt64());
+            Assert.True(page.FindAll("input").Any(x => x.HasAttribute("disabled")));
+        }
+    }
+
+    [Fact]
+    public void Create_accepts_a_file_name_typed_without_blur()
+    {
+        using var context = Context(out var state);
+        var page = Render(context, "create");
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("input")));
+        page.Find("input[placeholder='e.g. DOC-001']").Change("DOC-SM-FILE-INPUT");
+        page.Find("input[placeholder='Document name']").Change("Test document");
+        page.Find("input[placeholder='e.g. safety-plan.pdf']").Input("sm-test-document.txt");
+        page.FindAll("button").First(x => x.TextContent.Trim() == "Save").Click();
+        page.WaitForAssertion(() => Assert.Equal(1, state.SaveCalls));
+        Assert.Equal("sm-test-document.txt", Assert.IsType<CreateDocumentRequest>(state.Saved).FileName);
+        Assert.DoesNotContain("File Name is required.", page.Markup);
+    }
+
     private sealed class Factory(HttpClient http) : IHttpClientFactory { public HttpClient CreateClient(string name) => http; }
     private sealed class Response(HttpStatusCode status) : HttpMessageHandler
     {
@@ -204,14 +263,14 @@ public sealed class DocumentFeedbackTests
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         return context;
     }
-    public sealed class State { public HttpStatusCode? Status; public bool Missing; public bool VersionsDenied; }
+    public sealed class State { public HttpStatusCode? Status; public bool Missing; public bool VersionsDenied; public int SaveCalls; public object? Saved; }
     public class Api : DispatchProxy
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
             var row = new DocumentResponse { Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                DocumentNumber = "DOC-TEST-1", Name = "Test Document", DocumentType = "General", FileName = "test.pdf", StoragePath = "/uploads/documents/test.pdf" };
+                DocumentNumber = "DOC-TEST-1", Name = "Test Document", DocumentType = "General", FileName = "test.pdf", StoragePath = "/uploads/documents/test.pdf", ContentType = "application/pdf", FileSizeBytes = 3 };
             if (method!.Name == nameof(IComplianceService.GetDocumentsAsync))
                 return State.Status.HasValue ? Task.FromException<IReadOnlyList<DocumentResponse>>(Error(State.Status.Value))
                     : Task.FromResult<IReadOnlyList<DocumentResponse>>(new[] { row });
@@ -221,6 +280,12 @@ public sealed class DocumentFeedbackTests
             if (method.Name == nameof(IComplianceService.GetDocumentAsync))
                 return State.Status.HasValue ? Task.FromException<DocumentResponse?>(Error(State.Status.Value))
                     : Task.FromResult<DocumentResponse?>(State.Missing ? null : row);
+            if (method.Name == nameof(IComplianceService.CreateDocumentAsync) || method.Name == nameof(IComplianceService.UpdateDocumentAsync))
+            {
+                State.SaveCalls++;
+                State.Saved = args![method.Name == nameof(IComplianceService.CreateDocumentAsync) ? 0 : 1];
+                return Task.FromResult(row);
+            }
             throw new InvalidOperationException("Unexpected document mutation.");
         }
     }
