@@ -150,6 +150,30 @@ public sealed class SiteManagerFinanceScopeTests
         await new PettyCashAccountService(db).GetAllAsync(Actor);
     }
 
+    [Theory]
+    [InlineData("active")]
+    [InlineData("inactive")]
+    [InlineData("deleted")]
+    [InlineData("wrong-company")]
+    [InlineData("deleted-site")]
+    [InlineData("missing")]
+    public async Task New_finance_notifications_require_current_site_access(string grantState)
+    {
+        using var db = Database("SiteManager");
+        var grant = db.UserSiteAccesses.Single();
+        if (grantState == "inactive") grant.IsActive = false;
+        if (grantState == "deleted") grant.IsDeleted = true;
+        if (grantState == "wrong-company") grant.CompanyId = OtherCompany;
+        if (grantState == "deleted-site") db.ConstructionSites.Single(x => x.Id == Allowed).IsDeleted = true;
+        if (grantState == "missing") db.UserSiteAccesses.Remove(grant);
+        db.RoleGranularPermissions.Add(new RoleGranularPermission { Id = Guid.NewGuid(), RoleId = db.Roles.Single().Id, Permission = CSM.Domain.Enums.GranularPermission.Finance_Budget_View });
+        db.SaveChanges(true);
+        await new NotificationPublisher(db).StageForPermissionHoldersAsync(Company, Allowed,
+            CSM.Domain.Enums.GranularPermission.Finance_Budget_View, null, "Budget warning", "Allowed-site figures",
+            CSM.Domain.Enums.NotificationSeverity.Warning, "Budget", Guid.NewGuid());
+        Assert.Equal(grantState == "active" ? 1 : 0, db.Notifications.Local.Count);
+    }
+
     private static readonly Guid Actor = Guid.NewGuid(), Company = Guid.NewGuid(), OtherCompany = Guid.NewGuid();
     private static readonly Guid Allowed = Guid.NewGuid(), Unassigned = Guid.NewGuid(), Foreign = Guid.NewGuid(), CashAccount = Guid.NewGuid();
     private static ApplicationDbContext Database(string role)
