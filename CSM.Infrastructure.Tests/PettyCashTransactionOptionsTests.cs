@@ -162,7 +162,11 @@ public sealed class PettyCashTransactionOptionsTests
         Assert.Equal("Remarks", tx.Remarks);
     }
 
-    private static Request Request(Guid? code) => new(AccountId, "CashOut", "ACC-PC-TXN-001", 300m, "Transaction", "Remarks", code);
+    private static Request Request(Guid? code) => new()
+    {
+        PettyCashAccountId = AccountId, TransactionType = "CashOut", ReferenceNumber = "ACC-PC-TXN-001",
+        Amount = 300m, Description = "Transaction", Remarks = "Remarks", CostCodeId = code
+    };
 
     private static async Task<JsonElement> Options(ApplicationDbContext db)
     {
