@@ -7,7 +7,6 @@
 @using CSM.Web.Services
 
 @inject IFinanceService FinanceService
-@inject IVendorService VendorService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
@@ -359,7 +358,7 @@ else
 
             if (_invoice?.VendorId != null)
             {
-                var vendors = await VendorService.GetVendorsAsync();
+                var vendors = await FinanceService.GetInvoiceVendorOptionsAsync(Id);
 
                 _vendorName = vendors
                     .FirstOrDefault(v => v.Id == _invoice.VendorId)?

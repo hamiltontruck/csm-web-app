@@ -11,7 +11,6 @@
 
 @inject IFinanceService FinanceService
 @inject IProjectService ProjectService
-@inject IVendorService VendorService
 @inject NavigationManager Navigation
 
 <PageTitle>Edit Invoice</PageTitle>
@@ -201,7 +200,7 @@ else
 
     private UpdateInvoiceRequest _invoice = new();
     private List<ProjectResponse> _projects = new();
-    private List<VendorResponse> _vendors = new();
+    private List<InvoiceVendorOption> _vendors = new();
     private bool _loading = true;
     private string? _error;
 
@@ -241,7 +240,7 @@ else
             if (SiteId.HasValue)
                 _projects = await ProjectService.GetProjectsBySiteAsync(SiteId.Value);
 
-            _vendors = await VendorService.GetVendorsAsync();
+            _vendors = (await FinanceService.GetInvoiceVendorOptionsAsync(Id)).ToList();
         }
         catch (Exception ex)
         {

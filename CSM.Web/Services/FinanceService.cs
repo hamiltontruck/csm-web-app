@@ -49,6 +49,15 @@ public class FinanceService : IFinanceService
             $"BudgetLines/budget/{budgetId}/cost-code-options") ?? [];
     }
 
+    public async Task<IReadOnlyList<InvoiceVendorOption>> GetInvoiceVendorOptionsAsync(Guid? invoiceId = null)
+    {
+        var client = await ClientAsync();
+        var path = invoiceId.HasValue
+            ? $"Invoices/vendor-options?invoiceId={invoiceId.Value}"
+            : "Invoices/vendor-options";
+        return await client.GetFromJsonAsync<List<InvoiceVendorOption>>(path) ?? [];
+    }
+
     public async Task<IReadOnlyList<CostCodeResponse>> GetActiveCostCodesAsync()
     {
         var client = await ClientAsync();

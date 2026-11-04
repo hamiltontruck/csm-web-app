@@ -7,6 +7,7 @@ public interface IFinanceService
     Task<IReadOnlyList<CostCodeResponse>> GetCostCodesAsync();
 
     Task<IReadOnlyList<CostCodeResponse>> GetActiveCostCodesAsync();
+    Task<IReadOnlyList<InvoiceVendorOption>> GetInvoiceVendorOptionsAsync(Guid? invoiceId = null);
     Task<IReadOnlyList<BudgetCostCodeOption>> GetBudgetCostCodeOptionsAsync(Guid budgetId);
 
     Task<CostCodeResponse?> GetCostCodeAsync(Guid id);
