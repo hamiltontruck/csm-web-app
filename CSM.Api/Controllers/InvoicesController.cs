@@ -25,6 +25,22 @@ public sealed class InvoicesController : ControllerBase
         _invoicePdfService = invoicePdfService;
     }
 
+    [HttpGet("vendor-options")]
+    public async Task<ActionResult<IReadOnlyCollection<InvoiceVendorOption>>> GetVendorOptions(
+        [FromQuery] Guid? invoiceId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _invoiceService.GetVendorOptionsAsync(
+                GetCurrentUserId(), invoiceId, cancellationToken));
+        }
+        catch (InvoiceManagementException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet]
     [Authorize(Policy = "Finance.Invoice.View")]
     public async Task<ActionResult<IReadOnlyCollection<InvoiceResponse>>> GetAll(

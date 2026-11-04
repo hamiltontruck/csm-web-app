@@ -21,6 +21,33 @@ public sealed class InvoiceService : IInvoiceService
         _dbContext = dbContext;
     }
 
+    public async Task<IReadOnlyCollection<InvoiceVendorOption>> GetVendorOptionsAsync(
+        Guid currentUserId,
+        Guid? invoiceId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanModify(actor);
+        Guid companyId;
+        if (invoiceId.HasValue)
+        {
+            var invoice = await GetInvoiceAsync(invoiceId.Value, cancellationToken);
+            EnsureCompanyAccess(actor, invoice.CompanyId);
+            companyId = invoice.CompanyId;
+        }
+        else
+        {
+            // Match company-invoice creation; never expose every company's vendors.
+            companyId = GetActorCompanyId(actor);
+        }
+
+        return await _dbContext.Vendors.AsNoTracking()
+            .Where(x => x.CompanyId == companyId && !x.IsDeleted)
+            .OrderBy(x => x.VendorCode)
+            .Select(x => new InvoiceVendorOption(x.Id, x.VendorCode, x.Name))
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<InvoiceResponse>> GetAllAsync(
         Guid currentUserId,
         Guid siteId,

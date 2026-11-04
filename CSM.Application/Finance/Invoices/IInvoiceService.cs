@@ -4,6 +4,9 @@ namespace CSM.Application.Finance.Invoices;
 
 public interface IInvoiceService
 {
+    Task<IReadOnlyCollection<InvoiceVendorOption>> GetVendorOptionsAsync(
+        Guid currentUserId, Guid? invoiceId = null, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<InvoiceResponse>> GetAllAsync(
         Guid currentUserId,
         Guid siteId,
