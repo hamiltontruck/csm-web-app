@@ -197,7 +197,8 @@ else
                             <label class="form-label">Notes</label>
                             <InputTextArea class="form-control"
                                            rows="3"
-                                           @bind-Value="_payment.Notes" />
+                                           @bind-Value="_payment.Notes"
+                                   @oninput="e => _payment.Notes = e.Value?.ToString() ?? string.Empty" />
                         </div>
 
                     </div>
