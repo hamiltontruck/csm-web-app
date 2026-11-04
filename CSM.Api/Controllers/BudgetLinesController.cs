@@ -21,6 +21,23 @@ public sealed class BudgetLinesController : ControllerBase
         _budgetLineService = budgetLineService;
     }
 
+    [HttpGet("budget/{budgetId:guid}/cost-code-options")]
+    [Authorize(Policy = "Finance.Budget.Manage")]
+    public async Task<ActionResult<IReadOnlyCollection<BudgetCostCodeOption>>> GetCostCodeOptions(
+        Guid budgetId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _budgetLineService.GetCostCodeOptionsAsync(
+                GetCurrentUserId(), budgetId, cancellationToken));
+        }
+        catch (BudgetLineManagementException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("budget/{budgetId:guid}")]
     [Authorize(Policy = "Finance.Budget.View")]
     public async Task<
