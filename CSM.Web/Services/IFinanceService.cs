@@ -5,6 +5,7 @@ namespace CSM.Web.Services;
 public interface IFinanceService
 {
     Task<IReadOnlyList<CostCodeResponse>> GetCostCodesAsync();
+    Task<IReadOnlyList<PettyCashCostCodeOption>> GetPettyCashCostCodeOptionsAsync(Guid accountId);
 
     Task<IReadOnlyList<CostCodeResponse>> GetActiveCostCodesAsync();
     Task<IReadOnlyList<InvoiceVendorOption>> GetInvoiceVendorOptionsAsync(Guid? invoiceId = null);

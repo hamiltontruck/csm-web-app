@@ -132,18 +132,28 @@ public sealed class PettyCashTransactionOptionsTests
     {
         using var db = Database("SiteManager");
         db.PettyCashAccounts.Single().ConstructionSiteId = SiteId;
+        db.CostCodes.Single(x => x.Id == OtherCodeId).CompanyId = CompanyId;
+        db.CostCodes.Single(x => x.Id == OtherCodeId).ConstructionSiteId = Guid.NewGuid();
         db.SaveChanges(true);
         Assert.Equal(CodeId, Assert.Single((await Options(db)).EnumerateArray()).GetProperty("Id").GetGuid());
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Transaction_rejects_foreign_or_deleted_cost_code_before_changing_balance(bool deleted)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Transaction_rejects_foreign_or_deleted_cost_code_before_changing_balance(bool deleted, bool foreignSite)
     {
-        using var db = Database("Accountant");
+        using var db = Database(foreignSite ? "SiteManager" : "Accountant");
         var id = deleted ? CodeId : OtherCodeId;
         if (deleted) { db.CostCodes.Single(x => x.Id == id).IsDeleted = true; db.SaveChanges(true); }
+        if (foreignSite)
+        {
+            db.PettyCashAccounts.Single().ConstructionSiteId = SiteId;
+            db.CostCodes.Single(x => x.Id == OtherCodeId).CompanyId = CompanyId;
+            db.CostCodes.Single(x => x.Id == OtherCodeId).ConstructionSiteId = Guid.NewGuid();
+            db.SaveChanges(true);
+        }
         await Assert.ThrowsAsync<PettyCashManagementException>(() => new PettyCashTransactionService(db).CreateAsync(ActorId, Request(id)));
         Assert.Equal(2000m, db.PettyCashAccounts.Single().CurrentBalance);
         Assert.Empty(db.PettyCashTransactions);

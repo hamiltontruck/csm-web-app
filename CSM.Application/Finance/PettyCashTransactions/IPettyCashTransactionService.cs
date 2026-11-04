@@ -4,6 +4,9 @@ namespace CSM.Application.Finance.PettyCashTransactions;
 
 public interface IPettyCashTransactionService
 {
+    Task<IReadOnlyCollection<PettyCashCostCodeOption>> GetCostCodeOptionsAsync(
+        Guid currentUserId, Guid pettyCashAccountId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<PettyCashTransactionResponse>> GetAllAsync(
         Guid currentUserId,
         Guid pettyCashAccountId,

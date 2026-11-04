@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.PettyCashTransactions;
 using CSM.Application.Finance.PettyCashTransactions.Dtos;
@@ -20,6 +21,26 @@ public sealed class PettyCashTransactionService
         _dbContext = dbContext;
     }
 
+    public async Task<IReadOnlyCollection<PettyCashCostCodeOption>> GetCostCodeOptionsAsync(
+        Guid currentUserId, Guid pettyCashAccountId, CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var permissions = new PermissionEvaluator(_dbContext);
+        if (!await permissions.HasPermissionAsync(currentUserId, "Finance_PettyCash_View", cancellationToken) ||
+            !await permissions.HasPermissionAsync(currentUserId, "Finance_PettyCash_Manage", cancellationToken))
+            throw new PettyCashManagementException("Petty cash transaction access is not permitted.");
+
+        var account = await GetAccountAsync(pettyCashAccountId, cancellationToken);
+        await EnsureAccountAccessAsync(actor, account, cancellationToken);
+        var codes = _dbContext.CostCodes.AsNoTracking()
+            .Where(x => x.CompanyId == account.CompanyId && x.IsActive && !x.IsDeleted);
+        if (SiteFinanceScope.IsSiteLimited(actor))
+            codes = codes.Where(x => x.ConstructionSiteId == null || x.ConstructionSiteId == account.ConstructionSiteId);
+        return await codes.OrderBy(x => x.Code)
+            .Select(x => new PettyCashCostCodeOption(x.Id, x.Code, x.Name))
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<PettyCashTransactionResponse>> GetAllAsync(
         Guid currentUserId,
         Guid pettyCashAccountId,
@@ -33,32 +54,7 @@ public sealed class PettyCashTransactionService
             pettyCashAccountId,
             cancellationToken);
 
-        EnsureCompanyAccess(actor, account.CompanyId);
-
-        if (SiteFinanceScope.IsSiteLimited(actor))
-        {
-            if (!account.ConstructionSiteId.HasValue)
-            {
-                throw new PettyCashManagementException(
-                    "You are not authorized to access this petty cash account.");
-            }
-
-            var hasSiteAccess = await _dbContext.UserSiteAccesses
-                .AnyAsync(
-                    x =>
-                        x.UserId == actor.Id &&
-                        x.SiteId == account.ConstructionSiteId.Value &&
-                        x.CompanyId == actor.CompanyId &&
-                        x.IsActive && !x.IsDeleted &&
-                        _dbContext.ConstructionSites.Any(s => s.Id == x.SiteId && s.CompanyId == x.CompanyId && !s.IsDeleted),
-                    cancellationToken);
-
-            if (!hasSiteAccess)
-            {
-                throw new PettyCashManagementException(
-                    "You are not assigned to this site's petty cash scope.");
-            }
-        }
+        await EnsureAccountAccessAsync(actor, account, cancellationToken);
 
         var records = await _dbContext.PettyCashTransactions
             .AsNoTracking()
@@ -85,31 +81,16 @@ public sealed class PettyCashTransactionService
             request.PettyCashAccountId,
             cancellationToken);
 
-        EnsureCompanyAccess(actor, account.CompanyId);
+        await EnsureAccountAccessAsync(actor, account, cancellationToken);
 
-        if (SiteFinanceScope.IsSiteLimited(actor))
+        var siteLimited = SiteFinanceScope.IsSiteLimited(actor);
+        if (request.CostCodeId is Guid costCodeId &&
+            !await _dbContext.CostCodes.AnyAsync(x =>
+                x.Id == costCodeId && x.CompanyId == account.CompanyId && !x.IsDeleted &&
+                (!siteLimited || x.ConstructionSiteId == null || x.ConstructionSiteId == account.ConstructionSiteId),
+                cancellationToken))
         {
-            if (!account.ConstructionSiteId.HasValue)
-            {
-                throw new PettyCashManagementException(
-                    "You are not authorized to access this petty cash account.");
-            }
-
-            var hasSiteAccess = await _dbContext.UserSiteAccesses
-                .AnyAsync(
-                    x =>
-                        x.UserId == actor.Id &&
-                        x.SiteId == account.ConstructionSiteId.Value &&
-                        x.CompanyId == actor.CompanyId &&
-                        x.IsActive && !x.IsDeleted &&
-                        _dbContext.ConstructionSites.Any(s => s.Id == x.SiteId && s.CompanyId == x.CompanyId && !s.IsDeleted),
-                    cancellationToken);
-
-            if (!hasSiteAccess)
-            {
-                throw new PettyCashManagementException(
-                    "You are not assigned to this site's petty cash scope.");
-            }
+            throw new PettyCashManagementException("Cost code does not belong to this petty cash account's permitted scope.");
         }
 
         if (request.Amount <= 0)
@@ -170,6 +151,37 @@ public sealed class PettyCashTransactionService
         return Map(transaction);
     }
 
+    private async Task EnsureAccountAccessAsync(
+        User actor, PettyCashAccount account, CancellationToken cancellationToken)
+    {
+        EnsureCompanyAccess(actor, account.CompanyId);
+
+        if (SiteFinanceScope.IsSiteLimited(actor))
+        {
+            if (!account.ConstructionSiteId.HasValue)
+            {
+                throw new PettyCashManagementException(
+                    "You are not authorized to access this petty cash account.");
+            }
+
+            var hasSiteAccess = await _dbContext.UserSiteAccesses
+                .AnyAsync(
+                    x =>
+                        x.UserId == actor.Id &&
+                        x.SiteId == account.ConstructionSiteId.Value &&
+                        x.CompanyId == actor.CompanyId &&
+                        x.IsActive && !x.IsDeleted &&
+                        _dbContext.ConstructionSites.Any(s => s.Id == x.SiteId && s.CompanyId == x.CompanyId && !s.IsDeleted),
+                    cancellationToken);
+
+            if (!hasSiteAccess)
+            {
+                throw new PettyCashManagementException(
+                    "You are not assigned to this site's petty cash scope.");
+            }
+        }
+    }
+
     private async Task<User> GetActorAsync(
         Guid currentUserId,
         CancellationToken cancellationToken)
@@ -177,7 +189,8 @@ public sealed class PettyCashTransactionService
         return await _dbContext.Users
             .Include(x => x.UserRoles)
                 .ThenInclude(x => x.Role)
-            .SingleAsync(x => x.Id == currentUserId, cancellationToken);
+            .SingleOrDefaultAsync(x => x.Id == currentUserId && x.IsActive && !x.IsDeleted, cancellationToken)
+            ?? throw new PettyCashManagementException("Authenticated user was not found.");
     }
 
     private async Task<PettyCashAccount> GetAccountAsync(
@@ -185,7 +198,8 @@ public sealed class PettyCashTransactionService
         CancellationToken cancellationToken)
     {
         return await _dbContext.PettyCashAccounts
-            .SingleAsync(x => x.Id == id, cancellationToken);
+            .SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted, cancellationToken)
+            ?? throw new PettyCashManagementException("Petty cash account was not found.");
     }
 
     private static void EnsureCompanyAccess(
