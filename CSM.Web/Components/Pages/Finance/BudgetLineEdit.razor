@@ -104,7 +104,7 @@ else
 
     private readonly UpdateBudgetLineRequest _model = new();
 
-    private List<CostCodeResponse> _costCodes = new();
+    private List<BudgetCostCodeOption> _costCodes = new();
 
     private bool _loading = true;
 
@@ -131,7 +131,7 @@ else
             _model.RevisedAmount = line.RevisedAmount;
 
             _costCodes =
-                (await FinanceService.GetActiveCostCodesAsync())
+                (await FinanceService.GetBudgetCostCodeOptionsAsync(BudgetId))
                 .ToList();
         }
         catch (Exception ex)

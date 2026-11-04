@@ -19,6 +19,27 @@ public sealed class BudgetLineService : IBudgetLineService
         _dbContext = dbContext;
     }
 
+    public async Task<IReadOnlyCollection<BudgetCostCodeOption>> GetCostCodeOptionsAsync(
+        Guid currentUserId,
+        Guid budgetId,
+        CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        if (!actor.IsActive || actor.IsDeleted)
+            throw new BudgetLineManagementException("Authenticated user is inactive.");
+        EnsureCanModify(actor);
+
+        var budget = await GetBudgetAsync(budgetId, cancellationToken);
+        EnsureCompanyAccess(actor, budget.CompanyId);
+
+        // Match the company boundary enforced when a budget line is saved.
+        return await _dbContext.CostCodes.AsNoTracking()
+            .Where(x => x.CompanyId == budget.CompanyId && x.IsActive && !x.IsDeleted)
+            .OrderBy(x => x.Code)
+            .Select(x => new BudgetCostCodeOption(x.Id, x.Code, x.Name))
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<BudgetLineResponse>> GetByBudgetAsync(
         Guid currentUserId,
         Guid budgetId,

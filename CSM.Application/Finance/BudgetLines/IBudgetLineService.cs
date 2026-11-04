@@ -4,6 +4,9 @@ namespace CSM.Application.Finance.BudgetLines;
 
 public interface IBudgetLineService
 {
+    Task<IReadOnlyCollection<BudgetCostCodeOption>> GetCostCodeOptionsAsync(
+        Guid currentUserId, Guid budgetId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<BudgetLineResponse>> GetByBudgetAsync(
         Guid currentUserId,
         Guid budgetId,

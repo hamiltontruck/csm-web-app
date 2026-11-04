@@ -42,6 +42,13 @@ public class FinanceService : IFinanceService
             ?? [];
     }
 
+    public async Task<IReadOnlyList<BudgetCostCodeOption>> GetBudgetCostCodeOptionsAsync(Guid budgetId)
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<List<BudgetCostCodeOption>>(
+            $"BudgetLines/budget/{budgetId}/cost-code-options") ?? [];
+    }
+
     public async Task<IReadOnlyList<CostCodeResponse>> GetActiveCostCodesAsync()
     {
         var client = await ClientAsync();
