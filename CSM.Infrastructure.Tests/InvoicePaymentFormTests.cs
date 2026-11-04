@@ -22,7 +22,7 @@ public sealed class InvoicePaymentFormTests
     {
         using var context = Context(out var state);
         state.Site = site; state.Client = client;
-        var page = context.RenderComponent<PaymentCreate>(p => p.Add(x => x.InvoiceId, InvoiceId));
+        var page = context.RenderComponent<PaymentCreate>();
         page.WaitForAssertion(() => Assert.Contains("ACC-INV-TEST-001", page.Markup));
         Assert.Empty(page.FindAll(".alert-danger"));
         if (!client) Assert.Contains(page.FindAll("input"), x => x.GetAttribute("value") == "Test Cement Supplier");
@@ -50,7 +50,7 @@ public sealed class InvoicePaymentFormTests
     {
         using var context = Context(out var state);
         state.Site = site;
-        var page = context.RenderComponent<PaymentCreate>(p => p.Add(x => x.InvoiceId, InvoiceId));
+        var page = context.RenderComponent<PaymentCreate>();
         page.WaitForAssertion(() => Assert.Contains("ACC-INV-TEST-001", page.Markup));
         page.FindAll("button").Single(x => x.TextContent.Trim() == "Cancel").Click();
         var path = site ? $"http://localhost/finance/sites/{SiteId}/invoices/{InvoiceId}" : $"http://localhost/finance/invoices/{InvoiceId}";
@@ -63,7 +63,7 @@ public sealed class InvoicePaymentFormTests
     {
         using var context = Context(out var state);
         state.FailLoad = true;
-        var page = context.RenderComponent<PaymentCreate>(p => p.Add(x => x.InvoiceId, InvoiceId));
+        var page = context.RenderComponent<PaymentCreate>();
         page.WaitForAssertion(() => Assert.Contains("Invoice load denied", page.Markup));
         Assert.True(page.Find("button[type=submit]").HasAttribute("disabled"));
         Assert.Null(state.Saved);
@@ -73,7 +73,7 @@ public sealed class InvoicePaymentFormTests
     public void Returning_from_payroll_to_invoice_restores_invoice_and_clears_payroll_link()
     {
         using var context = Context(out var state);
-        var page = context.RenderComponent<PaymentCreate>(p => p.Add(x => x.InvoiceId, InvoiceId));
+        var page = context.RenderComponent<PaymentCreate>();
         page.WaitForAssertion(() => Assert.Contains("ACC-INV-TEST-001", page.Markup));
         page.Find("select").Change("Payroll");
         page.WaitForAssertion(() => Assert.Contains("Payroll Employee", page.Markup));
@@ -98,6 +98,7 @@ public sealed class InvoicePaymentFormTests
         context.Services.AddSingleton(service);
         context.Services.AddSingleton(DispatchProxy.Create<IVendorService, DeniedVendorProxy>());
         context.Services.AddSingleton(DispatchProxy.Create<IPayrollService, PayrollProxy>());
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo($"/finance/payments/create?invoiceId={InvoiceId}");
         return context;
     }
 
