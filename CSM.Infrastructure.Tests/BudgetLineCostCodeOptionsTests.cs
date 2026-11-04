@@ -50,7 +50,7 @@ public sealed class BudgetLineCostCodeOptionsTests
         Assert.Equal(5000m, json.GetProperty("BudgetedAmount").GetDecimal());
         Assert.Equal(5000m, json.GetProperty("RevisedAmount").GetDecimal());
         if (!edit) Assert.Equal(BudgetId, json.GetProperty("BudgetId").GetGuid());
-        Assert.Equal($"http://localhost/finance/company/budgets/{BudgetId}", context.Services.GetRequiredService<NavigationManager>().Uri);
+        page.WaitForAssertion(() => Assert.Equal($"http://localhost/finance/company/budgets/{BudgetId}", context.Services.GetRequiredService<NavigationManager>().Uri));
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class BudgetLineCostCodeOptionsTests
                     var options = JsonSerializer.Deserialize($"[{{\"Id\":\"{CodeId}\",\"Code\":\"LAB\",\"Name\":\"Labour\"}}]", type);
                     return typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(type).Invoke(null, new[] { options });
                 case "GetBudgetLineAsync": return Task.FromResult(new BudgetLineResponse { Id = CodeId, BudgetId = BudgetId, CompanyId = Company, CostCodeId = CodeId, BudgetedAmount = 1000, RevisedAmount = 1000 });
-                case "CreateBudgetLineAsync": Saved = args![0]; return Task.CompletedTask;
+                case "CreateBudgetLineAsync": Saved = args![0]; return Task.FromResult(CodeId);
                 case "UpdateBudgetLineAsync": Saved = args![1]; return Task.CompletedTask;
                 default: throw new NotSupportedException(method.Name);
             }
