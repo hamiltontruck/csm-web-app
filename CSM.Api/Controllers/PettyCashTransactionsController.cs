@@ -21,6 +21,22 @@ public sealed class PettyCashTransactionsController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("account/{pettyCashAccountId:guid}/cost-code-options")]
+    [Authorize(Policy = "Finance.PettyCash.Manage")]
+    public async Task<ActionResult<IReadOnlyCollection<PettyCashCostCodeOption>>> GetCostCodeOptions(
+        Guid pettyCashAccountId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _service.GetCostCodeOptionsAsync(
+                GetCurrentUserId(), pettyCashAccountId, cancellationToken));
+        }
+        catch (PettyCashManagementException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+    }
+
     [HttpGet]
     public async Task<ActionResult<IReadOnlyCollection<PettyCashTransactionResponse>>> GetAll(
         [FromQuery] Guid pettyCashAccountId,

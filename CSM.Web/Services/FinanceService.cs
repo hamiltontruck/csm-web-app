@@ -34,6 +34,13 @@ public class FinanceService : IFinanceService
         return client;
     }
 
+    public async Task<IReadOnlyList<PettyCashCostCodeOption>> GetPettyCashCostCodeOptionsAsync(Guid accountId)
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<List<PettyCashCostCodeOption>>(
+            $"PettyCashTransactions/account/{accountId}/cost-code-options") ?? [];
+    }
+
     public async Task<IReadOnlyList<CostCodeResponse>> GetCostCodesAsync()
     {
         var client = await ClientAsync();

@@ -12,6 +12,7 @@
 <div class="container-fluid py-4">
 
     <button class="btn btn-outline-secondary mb-3"
+            disabled="@_saving"
             @onclick="Back">
         <i class="bi bi-arrow-left"></i> Back
     </button>
@@ -29,8 +30,8 @@
             }
             else if (_account is null)
             {
-                <div class="alert alert-danger">
-                    Petty cash account not found.
+                <div class="alert alert-danger" role="alert">
+                    @(_error ?? "Petty cash account not found.")
                 </div>
             }
             else
@@ -72,7 +73,8 @@
                             </label>
 
                             <InputText class="form-control"
-                                       @bind-Value="_form.ReferenceNumber" />
+                                       @bind-Value="_form.ReferenceNumber"
+                                       @oninput="e => _form.ReferenceNumber = e.Value?.ToString() ?? string.Empty" />
 
                             <ValidationMessage
                                 For="@(() => _form.ReferenceNumber)" />
@@ -117,7 +119,8 @@
                             </label>
 
                             <InputText class="form-control"
-                                       @bind-Value="_form.Description" />
+                                       @bind-Value="_form.Description"
+                                       @oninput="e => _form.Description = e.Value?.ToString() ?? string.Empty" />
 
                             <ValidationMessage
                                 For="@(() => _form.Description)" />
@@ -130,7 +133,8 @@
 
                             <InputTextArea class="form-control"
                                            rows="3"
-                                           @bind-Value="_form.Remarks" />
+                                           @bind-Value="_form.Remarks"
+                                       @oninput="e => _form.Remarks = e.Value?.ToString() ?? string.Empty" />
                         </div>
 
                     </div>
@@ -182,7 +186,7 @@
 
     private PettyCashAccountResponse? _account;
 
-    private IReadOnlyList<CostCodeResponse> _costCodes = Array.Empty<CostCodeResponse>();
+    private IReadOnlyList<PettyCashCostCodeOption> _costCodes = Array.Empty<PettyCashCostCodeOption>();
 
     private PettyCashTransactionForm _form = new();
 
@@ -190,21 +194,58 @@
     private bool _saving;
     private string? _error;
 
-    protected override async Task OnInitializedAsync()
+    private Guid? _requestedAccountId, _loadedAccountId;
+    private int _loadVersion;
+
+    protected override void OnParametersSet()
     {
-        _account = await FinanceService
-            .GetPettyCashAccountAsync(AccountId);
+        if (_requestedAccountId != AccountId)
+        {
+            _loading = true;
+            _account = null;
+            _loadedAccountId = null;
+            _error = null;
+            _saving = false;
+            _loadVersion++;
+        }
+    }
 
-        _costCodes = await FinanceService
-            .GetCostCodesAsync();
-
-        _form.PettyCashAccountId = AccountId;
-
-        _loading = false;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_requestedAccountId == AccountId) return;
+        var id = AccountId;
+        _requestedAccountId = id;
+        var version = ++_loadVersion;
+        try
+        {
+            var account = await FinanceService.GetPettyCashAccountAsync(id);
+            var codes = await FinanceService.GetPettyCashCostCodeOptionsAsync(id);
+            if (id != AccountId || version != _loadVersion) return;
+            if (account is null) throw new InvalidOperationException("Petty cash account not found.");
+            _account = account;
+            _costCodes = codes;
+            _form = new PettyCashTransactionForm { PettyCashAccountId = account.Id };
+            _loadedAccountId = id;
+        }
+        catch (Exception ex)
+        {
+            if (id == AccountId && version == _loadVersion) _error = ex.Message;
+        }
+        finally
+        {
+            if (id == AccountId && version == _loadVersion)
+            {
+                _loading = false;
+                StateHasChanged();
+            }
+        }
     }
 
     private async Task Submit()
     {
+        if (_loading || _loadedAccountId != AccountId || _account is null || _saving) return;
+        var id = AccountId;
+        var version = _loadVersion;
         _saving = true;
         _error = null;
 
@@ -222,16 +263,16 @@
             await FinanceService
                 .CreatePettyCashTransactionAsync(request);
 
-            Navigation.NavigateTo(
-                $"/finance/petty-cash/account/{AccountId}/transactions");
+            if (id == AccountId && version == _loadVersion)
+                Navigation.NavigateTo($"/finance/petty-cash/account/{request.PettyCashAccountId}/transactions");
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            if (id == AccountId && version == _loadVersion) _error = ex.Message;
         }
         finally
         {
-            _saving = false;
+            if (id == AccountId && version == _loadVersion) _saving = false;
         }
     }
 
