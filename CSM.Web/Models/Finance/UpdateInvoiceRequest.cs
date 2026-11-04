@@ -25,5 +25,9 @@ public class UpdateInvoiceRequest
 
     public decimal TaxAmount { get; set; }
 
+    public string? Description { get; set; }
+
+    public string? ExternalReference { get; set; }
+
     public decimal TotalAmount { get; set; }
 }

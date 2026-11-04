@@ -22,6 +22,12 @@
         <p class="mt-3">Loading invoice...</p>
     </div>
 }
+else if (_loadedInvoiceId != Id)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+    <button class="btn btn-outline-secondary" type="button" disabled="@_saving"
+                        @onclick="Back">Back</button>
+}
 else
 {
     <div class="container-fluid py-4">
@@ -177,7 +183,7 @@ else
 
             <div class="mt-4 d-flex gap-2">
 
-                <button class="btn btn-primary" type="submit">
+                <button class="btn btn-primary" type="submit" disabled="@_saving">
                     Save Changes
                 </button>
 
@@ -201,111 +207,125 @@ else
     private UpdateInvoiceRequest _invoice = new();
     private List<ProjectResponse> _projects = new();
     private List<InvoiceVendorOption> _vendors = new();
-    private bool _loading = true;
+    private bool _loading = true, _saving;
     private string? _error;
+    private Guid? _loadedInvoiceId;
+    private int _loadVersion;
 
     protected override async Task OnParametersSetAsync()
     {
+        var requestId = Id;
+        var version = ++_loadVersion;
         _loading = true;
+        _saving = false;
+        _loadedInvoiceId = null;
         _error = null;
 
         try
         {
-            var data = await FinanceService.GetInvoiceAsync(Id);
+            var data = await FinanceService.GetInvoiceAsync(requestId);
+            if (!IsCurrent(requestId, version)) return;
+            if (data is null) throw new InvalidOperationException("Invoice not found.");
 
-            if (data is null)
+            var vendors = (await FinanceService.GetInvoiceVendorOptionsAsync(requestId)).ToList();
+            var projects = data.ConstructionSiteId.HasValue
+                ? await ProjectService.GetProjectsBySiteAsync(data.ConstructionSiteId.Value)
+                : new List<ProjectResponse>();
+            if (!IsCurrent(requestId, version)) return;
+
+            _invoice = new UpdateInvoiceRequest
             {
-                _error = "Invoice not found.";
-                return;
-            }
-
-            _invoice.InvoiceNumber = data.InvoiceNumber;
-            _invoice.ConstructionSiteId = SiteId;
-            _invoice.ProjectId = data.ProjectId;
-            _invoice.VendorId = data.VendorId;
-
-            _invoice.InvoiceDate = DateOnly.FromDateTime(data.InvoiceDate);
-            _invoice.DueDate = data.DueDate is null
-                ? null
-                : DateOnly.FromDateTime(data.DueDate.Value);
-
-            _invoice.CurrencyCode = data.CurrencyCode;
-            _invoice.ExchangeRate = 1;
-            _invoice.Type = data.InvoiceType == "ClientInvoice" ? 1 : 2;
-
-            _invoice.Subtotal = data.TotalAmount;
-            _invoice.TaxAmount = 0;
-            _invoice.TotalAmount = data.TotalAmount;
-
-            if (SiteId.HasValue)
-                _projects = await ProjectService.GetProjectsBySiteAsync(SiteId.Value);
-
-            _vendors = (await FinanceService.GetInvoiceVendorOptionsAsync(Id)).ToList();
+                InvoiceNumber = data.InvoiceNumber,
+                ConstructionSiteId = data.ConstructionSiteId,
+                ProjectId = data.ProjectId,
+                VendorId = data.VendorId,
+                InvoiceDate = DateOnly.FromDateTime(data.InvoiceDate),
+                DueDate = data.DueDate is null ? null : DateOnly.FromDateTime(data.DueDate.Value),
+                CurrencyCode = data.CurrencyCode,
+                ExchangeRate = data.ExchangeRate,
+                Type = data.InvoiceType == "ClientInvoice" ? 1 : 2,
+                Subtotal = data.Subtotal,
+                TaxAmount = data.TaxAmount,
+                TotalAmount = data.TotalAmount,
+                Description = data.Description,
+                ExternalReference = data.ExternalReference
+            };
+            _vendors = vendors;
+            _projects = projects;
+            _loadedInvoiceId = requestId;
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            if (IsCurrent(requestId, version)) _error = ex.Message;
         }
         finally
         {
-            _loading = false;
+            if (IsCurrent(requestId, version)) _loading = false;
         }
     }
 
-    private void Recalculate()
-    {
+    private bool IsCurrent(Guid requestId, int version) =>
+        Id == requestId && _loadVersion == version;
+
+    private void Recalculate() =>
         _invoice.TotalAmount = _invoice.Subtotal + _invoice.TaxAmount;
-    }
+
+    private string DetailsPath => (_loadedInvoiceId == Id ? _invoice.ConstructionSiteId : SiteId) is Guid site
+        ? $"/finance/sites/{site}/invoices/{Id}"
+        : $"/finance/invoices/{Id}";
 
     private async Task Save()
     {
+        if (_loading || _loadedInvoiceId != Id || _saving) return;
+        if (_invoice.ConstructionSiteId.HasValue &&
+            (!_invoice.ProjectId.HasValue || _invoice.ProjectId == Guid.Empty))
+        {
+            _error = "Please select a project.";
+            return;
+        }
+        if (_invoice.Type == 2 && _invoice.VendorId is null)
+        {
+            _error = "Please select a vendor.";
+            return;
+        }
+
+        Recalculate();
+        var requestId = Id;
+        var version = _loadVersion;
+        var returnPath = DetailsPath;
+        var request = new UpdateInvoiceRequest
+        {
+            InvoiceNumber = _invoice.InvoiceNumber,
+            ConstructionSiteId = _invoice.ConstructionSiteId,
+            ProjectId = _invoice.ProjectId,
+            VendorId = _invoice.VendorId,
+            Type = _invoice.Type,
+            InvoiceDate = _invoice.InvoiceDate,
+            DueDate = _invoice.DueDate,
+            CurrencyCode = _invoice.CurrencyCode,
+            ExchangeRate = _invoice.ExchangeRate,
+            Subtotal = _invoice.Subtotal,
+            TaxAmount = _invoice.TaxAmount,
+            TotalAmount = _invoice.TotalAmount,
+            Description = _invoice.Description,
+            ExternalReference = _invoice.ExternalReference
+        };
+        _saving = true;
+        _error = null;
         try
         {
-            Recalculate();
-
-            _invoice.ConstructionSiteId = SiteId;
-
-            // Company invoice has no project
-            if (SiteId.HasValue)
-            {
-                if (_invoice.ProjectId == null)
-                {
-                    _error = "Please select a project.";
-                    return;
-                }
-            }
-            else
-            {
-                _invoice.ProjectId = null;
-            }
-
-            if (_invoice.ExchangeRate <= 0)
-                _invoice.ExchangeRate = 1;
-
-            if (_invoice.Type == 2 && _invoice.VendorId == null)
-            {
-                _error = "Please select a vendor.";
-                return;
-            }
-
-            await FinanceService.UpdateInvoiceAsync(Id, _invoice);
-
-            if (SiteId.HasValue)
-                Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/invoices/{Id}");
-            else
-                Navigation.NavigateTo($"/finance/invoices/{Id}");
+            await FinanceService.UpdateInvoiceAsync(requestId, request);
+            if (IsCurrent(requestId, version)) Navigation.NavigateTo(returnPath);
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            if (IsCurrent(requestId, version)) _error = ex.Message;
+        }
+        finally
+        {
+            if (IsCurrent(requestId, version)) _saving = false;
         }
     }
 
-    void Back()
-    {
-        if (SiteId.HasValue)
-            Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/invoices/{Id}");
-        else
-            Navigation.NavigateTo($"/finance/invoices/{Id}");
-    }
+    private void Back() => Navigation.NavigateTo(DetailsPath);
 }
