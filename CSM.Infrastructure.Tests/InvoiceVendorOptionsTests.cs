@@ -147,7 +147,7 @@ public sealed class InvoiceVendorOptionsTests
     {
         var method = typeof(InvoiceService).GetMethod("GetVendorOptionsAsync");
         Assert.NotNull(method);
-        var task = (Task)method.Invoke(new InvoiceService(db), new object?[] { db.Users.Single().Id, invoiceId, CancellationToken.None })!;
+        var task = (Task)method.Invoke(new InvoiceService(db), new object?[] { db.Users.IgnoreQueryFilters().Single().Id, invoiceId, CancellationToken.None })!;
         await task;
         return JsonSerializer.SerializeToElement(task.GetType().GetProperty("Result")!.GetValue(task));
     }
