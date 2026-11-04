@@ -19,6 +19,33 @@ namespace CSM.Infrastructure.Tests;
 public sealed class InvoiceVendorOptionsTests
 {
     private static readonly Guid CompanyId = Guid.NewGuid(), VendorId = Guid.NewGuid(), InvoiceId = Guid.NewGuid();
+    private static readonly Guid OtherCompanyId = Guid.NewGuid(), OtherVendorId = Guid.NewGuid(), OtherInvoiceId = Guid.NewGuid();
+
+    [Fact]
+    public void Invoice_details_show_vendor_without_catalog_permission()
+    {
+        using var context = Context(out _);
+        var page = context.RenderComponent<CSM.Web.Components.Pages.Finance.InvoiceDetails>(p => p.Add(x => x.Id, InvoiceId));
+        page.WaitForAssertion(() => Assert.Contains("Hamilton Vendor", page.Markup));
+        Assert.DoesNotContain("403", page.Markup);
+    }
+
+    [Fact]
+    public async Task Accountant_cannot_use_foreign_invoice_to_choose_another_companys_vendors()
+    {
+        using var db = Database("Accountant");
+        await Assert.ThrowsAsync<CSM.Application.Common.Exceptions.InvoiceManagementException>(() => Options(db, OtherInvoiceId));
+    }
+
+    [Fact]
+    public async Task Companyless_superadmin_retains_vendor_lookup_for_authorized_global_invoice_detail()
+    {
+        using var db = Database("SuperAdmin");
+        db.Users.Single().CompanyId = null;
+        db.SaveChanges(true);
+        var options = await Options(db, OtherInvoiceId);
+        Assert.Equal(OtherVendorId, Assert.Single(options.EnumerateArray()).GetProperty("Id").GetGuid());
+    }
 
     [Fact]
     public void Company_create_loads_invoice_vendor_options_without_catalog_access_and_saves_computed_total()
@@ -116,11 +143,11 @@ public sealed class InvoiceVendorOptionsTests
         await Assert.ThrowsAsync<CSM.Application.Common.Exceptions.InvoiceManagementException>(() => Options(db));
     }
 
-    private static async Task<JsonElement> Options(ApplicationDbContext db)
+    private static async Task<JsonElement> Options(ApplicationDbContext db, Guid? invoiceId = null)
     {
         var method = typeof(InvoiceService).GetMethod("GetVendorOptionsAsync");
         Assert.NotNull(method);
-        var task = (Task)method.Invoke(new InvoiceService(db), new object[] { db.Users.Single().Id, CancellationToken.None })!;
+        var task = (Task)method.Invoke(new InvoiceService(db), new object?[] { db.Users.Single().Id, invoiceId, CancellationToken.None })!;
         await task;
         return JsonSerializer.SerializeToElement(task.GetType().GetProperty("Result")!.GetValue(task));
     }
@@ -130,8 +157,9 @@ public sealed class InvoiceVendorOptionsTests
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         db.Users.Add(new User { CompanyId = CompanyId, IsActive = true, UserRoles = [new UserRole { Role = new Role { Name = role, GranularPermissions = [new() { Permission = GranularPermission.Finance_Invoice_View }] } }] });
         db.Vendors.AddRange(new Vendor { Id = VendorId, CompanyId = CompanyId, VendorCode = "HBG-VEN-001", Name = "Hamilton Vendor", BankAccountNumber = "private" },
-            new Vendor { CompanyId = Guid.NewGuid(), VendorCode = "OTHER", Name = "Other Company Vendor" },
+            new Vendor { Id = OtherVendorId, CompanyId = OtherCompanyId, VendorCode = "OTHER", Name = "Other Company Vendor" },
             new Vendor { CompanyId = CompanyId, VendorCode = "DELETED", Name = "Deleted Vendor", IsDeleted = true });
+        db.Invoices.Add(new Invoice { Id = OtherInvoiceId, CompanyId = OtherCompanyId, InvoiceNumber = "OTHER" });
         db.SaveChanges(true);
         return db;
     }
@@ -159,6 +187,8 @@ public sealed class InvoiceVendorOptionsTests
         public CreateInvoiceRequest? Saved;
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
+            if (method!.Name == "GetInvoiceAsync") return Task.FromResult<InvoiceResponse?>(new InvoiceResponse { Id = InvoiceId, VendorId = VendorId, InvoiceNumber = "ACC-INV-TEST-001", InvoiceType = "VendorBill", Status = "Draft", TotalAmount = 1150, InvoiceDate = new DateTime(2026, 11, 4) });
+            if (method.Name == "GetInvoiceLinesAsync") return Task.FromResult(new List<InvoiceLineResponse>());
             if (method!.Name == "GetInvoiceVendorOptionsAsync")
             {
                 var type = method.ReturnType.GenericTypeArguments.Single();
