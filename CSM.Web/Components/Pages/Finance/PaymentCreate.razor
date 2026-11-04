@@ -9,7 +9,6 @@
 @using Microsoft.AspNetCore.Components
 
 @inject IFinanceService FinanceService
-@inject IVendorService VendorService
 @inject IPayrollService PayrollService
 @inject NavigationManager Navigation
 
@@ -27,6 +26,7 @@ else
     <div class="container py-4">
 
         <button class="btn btn-outline-secondary mb-3"
+                disabled="@_saving"
                 @onclick="Back">
             ← Invoice Details
         </button>
@@ -36,7 +36,7 @@ else
 
         @if (!string.IsNullOrWhiteSpace(_error))
         {
-            <div class="alert alert-danger">@_error</div>
+            <div class="alert alert-danger" role="alert">@_error</div>
         }
 
         <EditForm Model="_payment" OnValidSubmit="Save">
@@ -54,6 +54,7 @@ else
                             <label class="form-label">Payment Source</label>
 
                             <InputSelect class="form-select"
+                                         disabled="@_saving"
                                          @bind-Value="_paymentSource"
                                          @bind-Value:after="PaymentSourceChanged">
                                 <option value="Invoice">Invoice</option>
@@ -204,13 +205,14 @@ else
             </div>
 
             <div class="d-flex gap-2">
-                <button class="btn btn-success" type="submit">
+                <button class="btn btn-success" type="submit" disabled="@(!_ready || _saving)">
                     Save Payment
                 </button>
 
                 <button class="btn btn-secondary"
                         type="button"
-                        @onclick="Back">
+                        disabled="@_saving"
+                @onclick="Back">
                     Cancel
                 </button>
             </div>
@@ -221,230 +223,213 @@ else
 }
 
 @code {
-    [Parameter]
-    public Guid? SiteId { get; set; }
-
-    // Company: /finance/payments/create?invoiceId=...
-    [Parameter]
-    [SupplyParameterFromQuery]
-    public Guid? InvoiceId { get; set; }
+    [Parameter] public Guid? SiteId { get; set; }
+    [Parameter, SupplyParameterFromQuery] public Guid? InvoiceId { get; set; }
 
     private CreatePaymentRequest _payment = new();
-
-    private string _invoiceNumber = "";
-    private string _vendorName = "";
-    private string _paymentNumber = "";
+    private InvoiceResponse? _invoice;
+    private string _invoiceNumber = "", _vendorName = "", _paymentNumber = "";
     private string _paymentSource = "Invoice";
-
     private IReadOnlyCollection<PayrollResponse> _approvedPayrolls = [];
-
     private Guid? _selectedPayrollId;
-
     private PayrollResponse? _selectedPayroll;
-
     private string? _error;
-    private bool _loading = true;
+    private bool _loading = true, _ready, _saving;
+    private int _contextVersion;
 
     protected override async Task OnParametersSetAsync()
     {
+        var version = ++_contextVersion;
         _loading = true;
+        _ready = _saving = false;
         _error = null;
+        _invoice = null;
+        _invoiceNumber = _vendorName = _paymentNumber = "";
+        _selectedPayrollId = null;
+        _selectedPayroll = null;
+        _approvedPayrolls = [];
+        _payment = NewPayment();
 
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("invoiceId", out var value) && Guid.TryParse(value.ToString(), out var id))
+            InvoiceId = id;
+
+        _paymentSource = InvoiceId.HasValue ? "Invoice" : "Payroll";
         try
         {
-            // Read invoiceId from query string
-            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
-            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
-
-            if (query.TryGetValue("invoiceId", out var value) &&
-                Guid.TryParse(value.ToString(), out var id))
-            {
-                InvoiceId = id;
-            }
-
-            if (!InvoiceId.HasValue)
-            {
-                _paymentSource = "Payroll";
-
-                await LoadApprovedPayrolls();
-
-                _payment.PaymentDate =
-                    DateOnly.FromDateTime(DateTime.Today);
-
-                _payment.ExchangeRate = 1;
-                _payment.Direction = 2;
-                _payment.ConstructionSiteId = SiteId;
-
-                return;
-            }
-
-            var invoice = await FinanceService.GetInvoiceAsync(InvoiceId.Value);
-
-            if (invoice is null)
-            {
-                _error = "Invoice not found.";
-                return;
-            }
-
-            _invoiceNumber = invoice.InvoiceNumber ?? "";
-
-            _payment.PaymentDate = DateOnly.FromDateTime(DateTime.Today);
-            _payment.ExchangeRate = 1;
-            _payment.Direction = 2;
-
-            _payment.InvoiceId = invoice.Id;
-            _payment.ProjectId = invoice.ProjectId;
-            _payment.VendorId = invoice.VendorId;
-            _payment.CurrencyCode = invoice.CurrencyCode;
-            _payment.Amount = invoice.TotalAmount - invoice.PaidAmount;
-            _payment.ConstructionSiteId = SiteId;
-
-            // Manual payment number
-            _paymentNumber = "";
-
-            if (invoice.VendorId.HasValue)
-            {
-                var vendors = await VendorService.GetVendorsAsync();
-                var vendor = vendors.FirstOrDefault(v => v.Id == invoice.VendorId.Value);
-                _vendorName = vendor?.Name ?? "";
-            }
+            if (InvoiceId.HasValue) await LoadInvoice(version);
+            else await LoadApprovedPayrolls(version);
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            if (version == _contextVersion) _error = ex.Message;
         }
         finally
         {
-            _loading = false;
+            if (version == _contextVersion) _loading = false;
         }
     }
 
-    private async Task LoadApprovedPayrolls()
+    private CreatePaymentRequest NewPayment() => new()
+    {
+        PaymentDate = DateOnly.FromDateTime(DateTime.Today),
+        ExchangeRate = 1,
+        Direction = 2,
+        ConstructionSiteId = SiteId,
+        PaymentMethod = "Cash"
+    };
+
+    private async Task LoadInvoice(int version)
+    {
+        if (!InvoiceId.HasValue) throw new InvalidOperationException("Open an invoice to record its payment.");
+        var invoiceId = InvoiceId.Value;
+        var invoice = await FinanceService.GetInvoiceAsync(invoiceId)
+            ?? throw new InvalidOperationException("Invoice not found.");
+        var vendorName = "";
+        if (invoice.VendorId.HasValue)
+        {
+            var vendors = await FinanceService.GetInvoiceVendorOptionsAsync(invoice.Id);
+            vendorName = vendors.FirstOrDefault(v => v.Id == invoice.VendorId)?.Name ?? "";
+        }
+        if (version != _contextVersion) return;
+
+        _invoice = invoice;
+        _invoiceNumber = invoice.InvoiceNumber;
+        _vendorName = vendorName;
+        _payment = NewPayment();
+        _payment.InvoiceId = invoice.Id;
+        _payment.ProjectId = invoice.ProjectId;
+        _payment.VendorId = invoice.VendorId;
+        _payment.CurrencyCode = invoice.CurrencyCode;
+        _payment.ExchangeRate = invoice.ExchangeRate;
+        _payment.Amount = invoice.TotalAmount - invoice.PaidAmount;
+        _payment.Direction = invoice.InvoiceType == "ClientInvoice" ? 1 : 2;
+        _payment.ConstructionSiteId = invoice.ConstructionSiteId;
+        _ready = true;
+    }
+
+    private async Task LoadApprovedPayrolls(int version)
     {
         var payrolls = await PayrollService.GetAllAsync();
-
+        if (version != _contextVersion) return;
         _approvedPayrolls = payrolls
-            .Where(x =>
-                string.Equals(
-                    x.Status,
-                    "Approved",
-                    StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.Equals(x.Status, "Approved", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => x.PeriodStart)
             .ThenBy(x => x.EmployeeNumber)
             .ToArray();
+        _ready = true;
     }
 
     private async Task PaymentSourceChanged()
     {
+        if (_saving) return;
+        var version = ++_contextVersion;
         _error = null;
-
-        if (_paymentSource == "Payroll")
+        _ready = false;
+        _selectedPayrollId = null;
+        _selectedPayroll = null;
+        _payment = NewPayment();
+        _vendorName = _invoiceNumber = "";
+        try
         {
-            await LoadApprovedPayrolls();
-
-            _payment.InvoiceId = null;
-            _payment.VendorId = null;
-            _payment.ProjectId = null;
-            _payment.ConstructionSiteId = SiteId;
-            _payment.Direction = 2;
-
-            _vendorName = string.Empty;
-            _invoiceNumber = string.Empty;
-
-            _selectedPayrollId = null;
-            _selectedPayroll = null;
+            if (_paymentSource == "Invoice") await LoadInvoice(version);
+            else await LoadApprovedPayrolls(version);
+        }
+        catch (Exception ex)
+        {
+            if (version == _contextVersion) _error = ex.Message;
         }
     }
 
     private Task PayrollChanged()
     {
-        _selectedPayroll =
-            _selectedPayrollId.HasValue
-                ? _approvedPayrolls.FirstOrDefault(
-                    x => x.Id == _selectedPayrollId.Value)
-                : null;
-
-        if (_selectedPayroll is null)
-            return Task.CompletedTask;
-
-        _payment.PayrollRecordId = _selectedPayroll.Id;
-
-        _payment.InvoiceId = null;
-        _payment.VendorId = null;
-        _payment.ProjectId = null;
+        _selectedPayroll = _selectedPayrollId.HasValue
+            ? _approvedPayrolls.FirstOrDefault(x => x.Id == _selectedPayrollId.Value)
+            : null;
+        _payment.PayrollRecordId = _selectedPayroll?.Id;
+        _payment.InvoiceId = _payment.VendorId = _payment.ProjectId = null;
         _payment.Direction = 2;
-
-        _payment.CurrencyCode =
-            _selectedPayroll.CurrencyCode;
-
-        _payment.Amount =
-            _selectedPayroll.NetPay;
-
+        _payment.Amount = _selectedPayroll?.NetPay ?? 0;
+        if (_selectedPayroll is not null) _payment.CurrencyCode = _selectedPayroll.CurrencyCode;
         return Task.CompletedTask;
     }
 
     private async Task Save()
     {
+        if (_loading || !_ready || _saving) return;
+        _error = null;
+        if (_paymentSource == "Payroll" && !_payment.PayrollRecordId.HasValue)
+        {
+            _error = "Approved payroll must be selected.";
+            return;
+        }
+        if (_paymentSource == "Invoice" &&
+            (!InvoiceId.HasValue || _payment.InvoiceId != InvoiceId || _invoice?.Id != InvoiceId))
+        {
+            _error = "Open an invoice to record its payment.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_paymentNumber))
+        {
+            _error = "Payment Number is required.";
+            return;
+        }
+        if (_payment.Amount <= 0)
+        {
+            _error = "Amount must be greater than zero.";
+            return;
+        }
+
+        var version = _contextVersion;
+        var request = new CreatePaymentRequest
+        {
+            ConstructionSiteId = _payment.ConstructionSiteId,
+            ProjectId = _payment.ProjectId,
+            InvoiceId = _payment.InvoiceId,
+            VendorId = _payment.VendorId,
+            PayrollRecordId = _payment.PayrollRecordId,
+            PaymentNumber = _paymentNumber.Trim(),
+            PaymentDate = _payment.PaymentDate,
+            Direction = _payment.Direction,
+            Amount = _payment.Amount,
+            CurrencyCode = _payment.CurrencyCode,
+            ExchangeRate = _payment.ExchangeRate,
+            PaymentMethod = _payment.PaymentMethod,
+            ReferenceNumber = _payment.ReferenceNumber,
+            Notes = _payment.Notes
+        };
+        _saving = true;
         try
         {
-            _error = null;
-
-            if (_paymentSource == "Payroll")
-            {
-                if (!_payment.PayrollRecordId.HasValue)
-                {
-                    _error = "Approved payroll must be selected.";
-                    return;
-                }
-
-                _payment.InvoiceId = null;
-                _payment.VendorId = null;
-                _payment.ProjectId = null;
-                _payment.Direction = 2;
-            }
-
-            if (string.IsNullOrWhiteSpace(_paymentNumber))
-            {
-                _error = "Payment Number is required.";
-                return;
-            }
-
-            if (_payment.Amount <= 0)
-            {
-                _error = "Amount must be greater than zero.";
-                return;
-            }
-
-            _payment.PaymentNumber = _paymentNumber.Trim();
-
-            var paymentId = await FinanceService.CreatePaymentAsync(_payment);
-
-            if (SiteId.HasValue)
-                Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/payments/{paymentId}");
-            else
-                Navigation.NavigateTo($"/finance/payments/{paymentId}");
+            var paymentId = await FinanceService.CreatePaymentAsync(request);
+            if (version != _contextVersion) return;
+            Navigation.NavigateTo(request.ConstructionSiteId is Guid site
+                ? $"/finance/sites/{site}/payments/{paymentId}"
+                : $"/finance/payments/{paymentId}");
         }
         catch (Exception ex)
         {
-            _error = ex.Message;
+            if (version == _contextVersion) _error = ex.Message;
+        }
+        finally
+        {
+            if (version == _contextVersion) _saving = false;
         }
     }
 
     private void Back()
     {
+        var siteId = _invoice is not null ? _invoice.ConstructionSiteId : SiteId;
         if (InvoiceId.HasValue)
         {
-            if (SiteId.HasValue)
-                Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/invoices/{InvoiceId.Value}");
-            else
-                Navigation.NavigateTo($"/finance/company/invoices/{InvoiceId.Value}");
-
+            Navigation.NavigateTo(siteId is Guid site
+                ? $"/finance/sites/{site}/invoices/{InvoiceId.Value}"
+                : $"/finance/invoices/{InvoiceId.Value}");
             return;
         }
-
-        if (SiteId.HasValue)
-            Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/payments");
-        else
-            Navigation.NavigateTo("/finance/company/payments");
+        Navigation.NavigateTo(siteId is Guid paymentSite
+            ? $"/finance/sites/{paymentSite}/payments"
+            : "/finance/company/payments");
     }
 }
