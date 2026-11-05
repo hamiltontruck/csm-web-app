@@ -60,7 +60,7 @@ public sealed class AccountantReadOnlyUiTests
         var auth = DispatchProxy.Create<IAuthService, Auth>();
         context.Services.AddSingleton(new UserWebService(new HttpClient(new Handler(false)) { BaseAddress = new Uri("https://api.test/") }, auth));
         var page = context.RenderComponent<Users>();
-        page.WaitForAssertion(() => Assert.Contains("Own User", page.Markup));
+        page.WaitForAssertion(() => Assert.Contains("own@example.test", page.Markup));
         Assert.DoesNotContain(page.FindAll("button"), b => new[] { "Edit", "Disable", "Enable", "Delete", "+ New User" }.Contains(b.TextContent.Trim()));
     }
 
