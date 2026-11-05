@@ -64,6 +64,22 @@ public sealed class AccountantReadOnlyUiTests
         Assert.DoesNotContain(page.FindAll("button"), b => new[] { "Edit", "Disable", "Enable", "Delete", "+ New User" }.Contains(b.TextContent.Trim()));
     }
 
+    [Theory]
+    [InlineData("Draft")] [InlineData("Submitted")]
+    public void Accountant_material_request_details_ignore_old_submit_and_approve_grants(string status)
+    {
+        using var context = new TestContext();
+        WorkspaceTestAccess.Add(context, ["Accountant"], Enum.GetNames<GranularPermission>());
+        var api = DispatchProxy.Create<IProcurementService, MaterialRequestWorkflowTests.ProcurementProxy>();
+        var data = (MaterialRequestWorkflowTests.ProcurementProxy)(object)api;
+        data.Request.Status = status;
+        context.Services.AddSingleton(api);
+        context.Services.AddSingleton(DispatchProxy.Create<IAuthService, MaterialRequestWorkflowTests.AuthProxy>());
+        var page = context.RenderComponent<MaterialRequestDetails>(p => p.Add(x => x.Id, data.Request.Id));
+        Assert.Contains("MR-2026-001", page.Markup);
+        Assert.Empty(page.FindAll("#submit-material-request, #approve-material-request, input[type=number]"));
+    }
+
     public class Auth : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>

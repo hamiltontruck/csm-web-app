@@ -45,7 +45,7 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
         var root = parts[0];
         if (IsIn("Accountant") && !write)
         {
-            if (root == "users") return Has("Users_View");
+            if (root == "users" && !parts.Contains("audit")) return Has("Users_View");
             if (root == "equipment")
             {
                 var needsSites = parts.Any(p => p is "site" or "sites" or "report" || p.EndsWith("-sites", StringComparison.Ordinal));

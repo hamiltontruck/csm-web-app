@@ -54,7 +54,7 @@ public sealed class AccountantReadOnlyAccessTests
     {
         using var f = new Fixture();
         var manager = new Role { Name = "CompanyAdmin", GranularPermissions = [new() { Permission = GranularPermission.Users_Edit }] };
-        f.Actor.UserRoles.Add(new() { Role = manager });
+        f.Db.UserRoles.Add(new() { UserId = f.Actor.Id, Role = manager });
         f.Db.SaveChanges(true);
         Assert.True(await new PermissionEvaluator(f.Db).HasPermissionAsync(f.Actor.Id, "Users_Edit"));
         manager.IsDeleted = true;
@@ -242,7 +242,7 @@ public sealed class AccountantReadOnlyAccessTests
     public async Task SuperAdmin_added_to_Accountant_keeps_global_user_reads()
     {
         using var f = new Fixture();
-        f.Actor.UserRoles.Add(new() { Role = new Role { Name = "SuperAdmin", GranularPermissions = [new() { Permission = GranularPermission.Users_View }] } });
+        f.Db.UserRoles.Add(new() { UserId = f.Actor.Id, Role = new Role { Name = "SuperAdmin", GranularPermissions = [new() { Permission = GranularPermission.Users_View }] } });
         var target = new User { CompanyId = Guid.NewGuid(), IsActive = true };
         f.Db.Users.Add(target);
         f.Db.SaveChanges(true);
@@ -256,7 +256,7 @@ public sealed class AccountantReadOnlyAccessTests
     {
         using var f = new Fixture();
         f.Db.RoleGranularPermissions.Remove(f.Role.GranularPermissions.Single(p => p.Permission == GranularPermission.Procurement_Inventory_View));
-        f.Actor.UserRoles.Add(new() { Role = new Role { Name = "Employee", GranularPermissions = [new() { Permission = GranularPermission.Procurement_Inventory_View }] } });
+        f.Db.UserRoles.Add(new() { UserId = f.Actor.Id, Role = new Role { Name = "Employee", GranularPermissions = [new() { Permission = GranularPermission.Procurement_Inventory_View }] } });
         f.Db.SaveChanges(true);
         await Assert.ThrowsAsync<EquipmentManagementException>(() => new EquipmentService(f.Db).GetAllAsync(f.Actor.Id));
     }
