@@ -169,7 +169,7 @@ public sealed class AccountantReadOnlyAccessTests
             case 5: Assert.Empty(await new GoodsReceiptService(f.Db).GetAllAsync(f.Actor.Id)); break;
             case 6: Assert.Empty(await new StockBalanceService(f.Db).GetAllAsync(f.Actor.Id)); break;
             case 7: Assert.Empty(await new StockMovementService(f.Db).GetAllAsync(f.Actor.Id)); break;
-            case 8: Assert.Empty(await new StockIssueService(f.Db).GetAllAsync(f.Actor.Id)); break;
+            case 8: Assert.Empty(await new StockIssueService(f.Db, null!).GetAllAsync(f.Actor.Id)); break;
             case 9: Assert.Empty(await new StockReturnService(f.Db).GetAllAsync(f.Actor.Id)); break;
             case 10: Assert.Empty(await new StockAdjustmentService(f.Db).GetAllAsync(f.Actor.Id)); break;
             case 11: Assert.Empty(await new VendorService(f.Db).GetAllAsync(f.Actor.Id, null)); break;
