@@ -44,7 +44,7 @@ public sealed class AccountantReadOnlyUiTests
     {
         using var context = new TestContext();
         WorkspaceTestAccess.Add(context, ["SuperAdmin"], ["Users_View", "Users_Edit"]);
-        var auth = DispatchProxy.Create<IAuthService, RolePermissionUiTests.Auth>();
+        var auth = DispatchProxy.Create<IAuthService, Auth>();
         context.Services.AddSingleton(new RoleWebService(new HttpClient(new Handler(true)) { BaseAddress = new Uri("https://api.test/") }, auth));
         var page = context.RenderComponent<Roles>();
         page.WaitForAssertion(() => Assert.Single(page.FindAll("input[type=checkbox]")));
@@ -57,11 +57,17 @@ public sealed class AccountantReadOnlyUiTests
     {
         using var context = new TestContext();
         WorkspaceTestAccess.Add(context, ["Accountant"], Enum.GetNames<GranularPermission>());
-        var auth = DispatchProxy.Create<IAuthService, RolePermissionUiTests.Auth>();
+        var auth = DispatchProxy.Create<IAuthService, Auth>();
         context.Services.AddSingleton(new UserWebService(new HttpClient(new Handler(false)) { BaseAddress = new Uri("https://api.test/") }, auth));
         var page = context.RenderComponent<Users>();
         page.WaitForAssertion(() => Assert.Contains("Own User", page.Markup));
         Assert.DoesNotContain(page.FindAll("button"), b => new[] { "Edit", "Disable", "Enable", "Delete", "+ New User" }.Contains(b.TextContent.Trim()));
+    }
+
+    public class Auth : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args) =>
+            method!.Name == nameof(IAuthService.GetTokenAsync) ? Task.FromResult<string?>("test-token") : Task.CompletedTask;
     }
 
     private sealed class Handler(bool matrix) : HttpMessageHandler
