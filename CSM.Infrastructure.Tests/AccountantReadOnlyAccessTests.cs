@@ -27,13 +27,13 @@ public sealed class AccountantReadOnlyAccessTests
     [InlineData("Sites_Manage", false)]
     [InlineData("Projects_Manage", false)]
     [InlineData("Procurement_Inventory_Adjust", false)]
-    [InlineData("Procurement_PurchaseOrder_Manage", false)]
-    [InlineData("Procurement_PurchaseOrder_Approve", false)]
+    [InlineData("Procurement_PurchaseOrder_Manage", true)]
+    [InlineData("Procurement_PurchaseOrder_Approve", true)]
     [InlineData("Procurement_MaterialRequest_Submit", false)]
     [InlineData("Procurement_MaterialRequest_Approve", false)]
     [InlineData("Compliance_Manage", false)]
     [InlineData("Notifications_Manage", false)]
-    [InlineData("Users_View", true)]
+    [InlineData("Users_View", false)]
     [InlineData("Procurement_Inventory_View", true)]
     [InlineData("Procurement_PurchaseOrder_View", true)]
     [InlineData("Finance_Budget_Manage", true)]
@@ -85,7 +85,6 @@ public sealed class AccountantReadOnlyAccessTests
     }
 
     [Theory]
-    [InlineData("/users")]
     [InlineData("/equipment/list")]
     [InlineData("/equipment/sites")]
     [InlineData("/equipment/downtime-sites")]
@@ -96,7 +95,6 @@ public sealed class AccountantReadOnlyAccessTests
     [InlineData("/equipment/timesheet-sites")]
     [InlineData("/materials")]
     [InlineData("/vendors")]
-    [InlineData("/purchase-orders")]
     [InlineData("/goods-receipts")]
     [InlineData("/stock-balance")]
     [InlineData("/stock-movements")]
@@ -116,7 +114,7 @@ public sealed class AccountantReadOnlyAccessTests
     [InlineData("Users_Edit")]
     [InlineData("Users_Delete")]
     [InlineData("Procurement_Inventory_Adjust")]
-    [InlineData("Procurement_PurchaseOrder_Approve")]
+    [InlineData("Users_View")]
     public void Stale_browser_permissions_do_not_expose_Accountant_writes(string permission)
     {
         var access = new WorkspaceAccess(["Accountant"], Enum.GetNames<GranularPermission>());
@@ -137,7 +135,8 @@ public sealed class AccountantReadOnlyAccessTests
     [InlineData(typeof(UsersController), "Update", false)]
     [InlineData(typeof(UsersController), "Delete", false)]
     [InlineData(typeof(StockAdjustmentsController), "Create", false)]
-    [InlineData(typeof(PurchaseOrdersController), "Approve", false)]
+    [InlineData(typeof(PurchaseOrdersController), "Approve", true)]
+    [InlineData(typeof(UsersController), "GetAll", false)]
     [InlineData(typeof(MaterialRequestsController), "Approve", false)]
     [InlineData(typeof(EquipmentController), "Create", false)]
     [InlineData(typeof(VendorsController), "Create", false)]
@@ -196,7 +195,7 @@ public sealed class AccountantReadOnlyAccessTests
     }
 
     [Fact]
-    public async Task Accountant_can_read_user_detail_in_own_company_without_management_authority()
+    public async Task Accountant_has_no_user_directory_access_but_self_profile_remains()
     {
         using var f = new Fixture();
         var own = new User { CompanyId = f.Actor.CompanyId, IsActive = true, FirstName = "Own" };
@@ -204,8 +203,10 @@ public sealed class AccountantReadOnlyAccessTests
         f.Db.Users.AddRange(own, foreign);
         f.Db.SaveChanges(true);
         var service = new UserService(f.Db, new PasswordHasher());
-        Assert.Equal(own.Id, (await service.GetByIdAsync(f.Actor.Id, own.Id)).Id);
-        Assert.Equal(own.Id, (await service.GetProfileAsync(f.Actor.Id, own.Id)).Id);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.GetAllAsync(f.Actor.Id));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.GetByIdAsync(f.Actor.Id, own.Id));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.GetProfileAsync(f.Actor.Id, own.Id));
+        Assert.Equal(f.Actor.Id, (await service.GetProfileAsync(f.Actor.Id, f.Actor.Id)).Id);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.GetByIdAsync(f.Actor.Id, foreign.Id));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.DeleteAsync(f.Actor.Id, own.Id));
         Assert.False(own.IsDeleted);

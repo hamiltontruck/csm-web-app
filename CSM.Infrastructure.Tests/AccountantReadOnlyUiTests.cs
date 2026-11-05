@@ -53,10 +53,10 @@ public sealed class AccountantReadOnlyUiTests
     }
 
     [Fact]
-    public void Accountant_user_list_hides_activation_deletion_and_editing()
+    public void Read_only_user_list_hides_activation_deletion_and_editing()
     {
         using var context = new TestContext();
-        WorkspaceTestAccess.Add(context, ["Accountant"], Enum.GetNames<GranularPermission>());
+        WorkspaceTestAccess.Add(context, ["CompanyAdmin"], ["Users_View"]);
         var auth = DispatchProxy.Create<IAuthService, Auth>();
         context.Services.AddSingleton(new UserWebService(new HttpClient(new Handler(false)) { BaseAddress = new Uri("https://api.test/") }, auth));
         var page = context.RenderComponent<Users>();
