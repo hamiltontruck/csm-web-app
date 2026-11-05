@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Claims;
 using CSM.Api.Controllers;
 using CSM.Application.Common.Security;
+using CSM.Application.Common.Exceptions;
 using CSM.Application.Roles.Dtos;
 using CSM.Domain.Entities.Identity;
 using CSM.Domain.Entities.Procurement;
@@ -187,11 +188,54 @@ public sealed class AccountantReadOnlyAccessTests
         var service = new EquipmentService(f.Db);
         Assert.Equal(own.Id, Assert.Single(await service.GetAllAsync(f.Actor.Id)).Id);
         Assert.Equal(own.Id, (await service.GetByIdAsync(f.Actor.Id, own.Id)).Id);
-        await Assert.ThrowsAnyAsync<Exception>(() => service.GetByIdAsync(f.Actor.Id, foreign.Id));
+        await Assert.ThrowsAsync<EquipmentManagementException>(() => service.GetByIdAsync(f.Actor.Id, foreign.Id));
         var grant = f.Role.GranularPermissions.Single(p => p.Permission == GranularPermission.Procurement_Inventory_View);
         f.Db.RoleGranularPermissions.Remove(grant);
         f.Db.SaveChanges(true);
-        await Assert.ThrowsAnyAsync<Exception>(() => service.GetAllAsync(f.Actor.Id));
+        await Assert.ThrowsAsync<EquipmentManagementException>(() => service.GetAllAsync(f.Actor.Id));
+    }
+
+    [Fact]
+    public async Task Accountant_can_read_user_detail_in_own_company_without_management_authority()
+    {
+        using var f = new Fixture();
+        var own = new User { CompanyId = f.Actor.CompanyId, IsActive = true, FirstName = "Own" };
+        var foreign = new User { CompanyId = Guid.NewGuid(), IsActive = true, FirstName = "Foreign" };
+        f.Db.Users.AddRange(own, foreign);
+        f.Db.SaveChanges(true);
+        var service = new UserService(f.Db, new PasswordHasher());
+        Assert.Equal(own.Id, (await service.GetByIdAsync(f.Actor.Id, own.Id)).Id);
+        Assert.Equal(own.Id, (await service.GetProfileAsync(f.Actor.Id, own.Id)).Id);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.GetByIdAsync(f.Actor.Id, foreign.Id));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.DeleteAsync(f.Actor.Id, own.Id));
+        Assert.False(own.IsDeleted);
+    }
+
+    [Theory]
+    [InlineData("inactive")] [InlineData("deleted")] [InlineData("role-deleted")]
+    [InlineData("membership-deleted")] [InlineData("missing-company")]
+    public async Task Accountant_read_rejects_invalid_live_authority(string invalid)
+    {
+        using var f = new Fixture();
+        if (invalid == "inactive") f.Actor.IsActive = false;
+        if (invalid == "deleted") f.Actor.IsDeleted = true;
+        if (invalid == "role-deleted") f.Role.IsDeleted = true;
+        if (invalid == "membership-deleted") f.Actor.UserRoles.Single().IsDeleted = true;
+        if (invalid == "missing-company") f.Actor.CompanyId = null;
+        f.Db.SaveChanges(true);
+        await Assert.ThrowsAsync<EquipmentManagementException>(() => new EquipmentService(f.Db).GetAllAsync(f.Actor.Id));
+    }
+
+    [Fact]
+    public async Task Startup_removes_unsupported_Accountant_grants_but_preserves_Finance()
+    {
+        using var f = new Fixture();
+        var seed = typeof(DatabaseInitializer).GetMethod("SeedGranularRolePermissionsAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+        await (Task)seed.Invoke(null, new object[] { f.Db, CancellationToken.None })!;
+        Assert.DoesNotContain(f.Db.RoleGranularPermissions, p => p.RoleId == f.Role.Id && p.Permission == GranularPermission.Users_Delete);
+        Assert.Contains(f.Db.RoleGranularPermissions, p => p.RoleId == f.Role.Id && p.Permission == GranularPermission.Finance_Payment_Manage);
+        await (Task)seed.Invoke(null, new object[] { f.Db, CancellationToken.None })!;
+        Assert.Single(f.Db.RoleGranularPermissions.Where(p => p.RoleId == f.Role.Id && p.Permission == GranularPermission.Procurement_PurchaseOrder_View));
     }
 
     private sealed class Fixture : IDisposable
