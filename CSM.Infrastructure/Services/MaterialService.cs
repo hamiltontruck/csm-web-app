@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Procurement.Materials;
 using CSM.Application.Procurement.Materials.Dtos;
@@ -31,7 +32,9 @@ public sealed class MaterialService : IMaterialService
             currentUserId,
             cancellationToken);
 
-        EnsureCanAccess(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanAccess(actor);
 
         var query = _dbContext.Materials
             .AsNoTracking()
@@ -78,7 +81,9 @@ public sealed class MaterialService : IMaterialService
             currentUserId,
             cancellationToken);
 
-        EnsureCanAccess(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanAccess(actor);
 
         var material = await GetMaterialAsync(
             materialId,
@@ -566,6 +571,7 @@ public sealed class MaterialService : IMaterialService
         };
     }
 }
+
 
 
 

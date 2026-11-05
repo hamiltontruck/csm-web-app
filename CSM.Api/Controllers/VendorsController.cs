@@ -11,7 +11,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Accountant)]
 public sealed class VendorsController : ControllerBase
 {
     private readonly IVendorService _vendorService;
@@ -23,6 +23,7 @@ public sealed class VendorsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = "Procurement.Inventory.View")]
     public async Task<
         ActionResult<IReadOnlyCollection<VendorResponse>>> GetAll(
         [FromQuery] bool? isActive,
@@ -45,6 +46,7 @@ public sealed class VendorsController : ControllerBase
     }
 
     [HttpGet("{vendorId:guid}")]
+    [Authorize(Policy = "Procurement.Inventory.View")]
     public async Task<ActionResult<VendorResponse>> GetById(
         Guid vendorId,
         CancellationToken cancellationToken)
@@ -66,6 +68,7 @@ public sealed class VendorsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<VendorResponse>> Create(
         [FromBody] CreateVendorRequest request,
         CancellationToken cancellationToken)
@@ -90,6 +93,7 @@ public sealed class VendorsController : ControllerBase
     }
 
     [HttpPut("{vendorId:guid}")]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<VendorResponse>> Update(
         Guid vendorId,
         [FromBody] UpdateVendorRequest request,
@@ -129,3 +133,4 @@ public sealed class VendorsController : ControllerBase
         return parsedUserId;
     }
 }
+

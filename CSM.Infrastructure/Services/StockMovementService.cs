@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.StockMovements;
 using CSM.Application.Inventory.StockMovements.Dtos;
@@ -33,7 +34,9 @@ public sealed class StockMovementService : IStockMovementService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         ValidateDateRange(
             fromUtc,
@@ -112,7 +115,9 @@ public sealed class StockMovementService : IStockMovementService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var record = await BuildQuery()
             .SingleOrDefaultAsync(
@@ -333,4 +338,5 @@ public sealed class StockMovementService : IStockMovementService
         };
     }
 }
+
 

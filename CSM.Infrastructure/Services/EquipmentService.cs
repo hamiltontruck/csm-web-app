@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Procurement.Equipment;
 using CSM.Application.Procurement.Equipment.Dtos;
@@ -32,7 +33,9 @@ public sealed class EquipmentService : IEquipmentService
             currentUserId,
             cancellationToken);
 
-        EnsureCanAccess(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanAccess(actor);
 
         var query = _dbContext.Equipment
             .AsNoTracking()
@@ -82,7 +85,9 @@ public sealed class EquipmentService : IEquipmentService
             currentUserId,
             cancellationToken);
 
-        EnsureCanAccess(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanAccess(actor);
 
         var equipment = await GetEquipmentAsync(
             equipmentId,
@@ -621,3 +626,4 @@ public sealed class EquipmentService : IEquipmentService
         };
     }
 }
+

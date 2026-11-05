@@ -81,6 +81,7 @@ public sealed class MaterialRequestWorkflowTests
     private static TestContext Context()
     {
         var context = new TestContext();
+        WorkspaceTestAccess.Add(context);
         context.Services.AddSingleton(DispatchProxy.Create<IProcurementService, ProcurementProxy>());
         context.Services.AddSingleton(DispatchProxy.Create<IAuthService, AuthProxy>());
         return context;
@@ -123,3 +124,4 @@ public sealed class MaterialRequestWorkflowTests
         }
     }
 }
+

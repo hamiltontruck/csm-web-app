@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Accountant)]
 [Authorize(Policy = "Procurement.Inventory.View")]
 public sealed class EquipmentAssignmentsController : ControllerBase
 {
@@ -182,3 +182,4 @@ public sealed class EquipmentAssignmentsController : ControllerBase
 public sealed record ReleaseEquipmentAssignmentRequest(
     DateTime ReleasedAtUtc,
     decimal? MeterReadingAtRelease);
+

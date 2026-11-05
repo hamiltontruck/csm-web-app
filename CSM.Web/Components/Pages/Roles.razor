@@ -50,6 +50,7 @@ else
 
         <div class="card-header">
             Permissions
+            <div class="small text-muted">Accountant can view other modules; Finance permissions remain configurable. Unavailable permissions cannot be selected.</div>
         </div>
 
         <div class="card-body">
@@ -60,7 +61,7 @@ else
 
                     <input class="form-check-input"
                            type="checkbox"
-                           @bind="item.Granted" disabled="@(!CanEdit)"/>
+                           @bind="item.Granted" disabled="@(!CanEdit || !item.CanGrant)"/>
 
                     <label class="form-check-label">
                         @item.Permission

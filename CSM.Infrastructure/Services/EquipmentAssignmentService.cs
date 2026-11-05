@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Procurement.EquipmentAssignments;
 using CSM.Application.Procurement.EquipmentAssignments.Dtos;
@@ -39,7 +40,9 @@ public sealed class EquipmentAssignmentService :
             currentUserId,
             cancellationToken);
 
-        EnsureCanAccess(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanAccess(actor);
 
         var query = _dbContext.EquipmentAssignments
             .AsNoTracking()
@@ -102,7 +105,9 @@ public sealed class EquipmentAssignmentService :
             currentUserId,
             cancellationToken);
 
-        EnsureCanAccess(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanAccess(actor);
 
         var assignment = await GetAssignmentAsync(
             assignmentId,
@@ -620,4 +625,5 @@ public sealed class EquipmentAssignmentService :
             assignment.UpdatedAtUtc);
     }
 }
+
 

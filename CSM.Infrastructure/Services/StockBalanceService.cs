@@ -1,3 +1,5 @@
+using CSM.Domain.Enums;
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.StockBalances;
 using CSM.Application.Inventory.StockBalances.Dtos;
@@ -29,7 +31,9 @@ public sealed class StockBalanceService : IStockBalanceService
             currentUserId,
             cancellationToken);
 
-        EnsureCanRead(actor);
+        var accountantRead = await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken);
+        if (!accountantRead) EnsureCanRead(actor);
 
         var query = BuildQuery();
 
@@ -41,7 +45,7 @@ public sealed class StockBalanceService : IStockBalanceService
                 x => x.CompanyId == companyId);
         }
 
-        if (IsSiteScopedSupervisor(actor))
+        if (IsSiteScopedSupervisor(actor) && !accountantRead)
         {
             var allowedSites = GetSupervisorSiteIds(actor);
             query = query.Where(x => allowedSites.Contains(x.ConstructionSiteId));
@@ -80,11 +84,13 @@ public sealed class StockBalanceService : IStockBalanceService
             currentUserId,
             cancellationToken);
 
-        EnsureCanRead(actor);
+        var accountantRead = await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken);
+        if (!accountantRead) EnsureCanRead(actor);
 
         var query = BuildQuery();
 
-        if (IsSiteScopedSupervisor(actor))
+        if (IsSiteScopedSupervisor(actor) && !accountantRead)
         {
             var allowedSites = GetSupervisorSiteIds(actor);
             query = query.Where(x => allowedSites.Contains(x.ConstructionSiteId));
@@ -256,3 +262,4 @@ public sealed class StockBalanceService : IStockBalanceService
         };
     }
 }
+

@@ -1,4 +1,6 @@
 using CSM.Domain.Enums;
+using CSM.Domain.Constants;
+using CSM.Domain.Security;
 using CSM.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,10 +28,12 @@ public sealed class PermissionEvaluator : IPermissionEvaluator
             return false;
         }
 
+        var accountantAllowed = AccountantPermissionRules.Allows(AppRoles.Accountant, parsedPermission.ToString());
         return await _db.UserRoles
             .AsNoTracking()
             .Where(x => x.UserId == userId && !x.IsDeleted &&
                 x.User.IsActive && !x.User.IsDeleted && !x.Role.IsDeleted)
+            .Where(x => x.Role.Name != AppRoles.Accountant || accountantAllowed)
             .SelectMany(x => x.Role.GranularPermissions)
             .AnyAsync(
                 x => x.Permission == parsedPermission,
@@ -40,14 +44,14 @@ public sealed class PermissionEvaluator : IPermissionEvaluator
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        return await _db.UserRoles
+        var grants = await _db.UserRoles
             .AsNoTracking()
             .Where(x => x.UserId == userId && !x.IsDeleted &&
                 x.User.IsActive && !x.User.IsDeleted && !x.Role.IsDeleted)
-            .SelectMany(x => x.Role.GranularPermissions)
-            .Select(x => x.Permission.ToString())
-            .Distinct()
-            .OrderBy(x => x)
+            .SelectMany(x => x.Role.GranularPermissions,
+                (membership, grant) => new { RoleName = membership.Role.Name, grant.Permission })
             .ToListAsync(cancellationToken);
+        return grants.Where(x => AccountantPermissionRules.Allows(x.RoleName, x.Permission.ToString()))
+            .Select(x => x.Permission.ToString()).Distinct().OrderBy(x => x).ToList();
     }
 }

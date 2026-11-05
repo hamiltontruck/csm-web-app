@@ -1,3 +1,4 @@
+using CSM.Domain.Security;
 using CSM.Application.Roles;
 using CSM.Application.Roles.Dtos;
 using CSM.Domain.Entities.Identity;
@@ -31,6 +32,8 @@ public sealed class RolePermissionService : IRolePermissionService
         Guid roleId,
         CancellationToken cancellationToken = default)
     {
+        var roleName = await _db.Roles.Where(x => x.Id == roleId && !x.IsDeleted)
+            .Select(x => x.Name).SingleOrDefaultAsync(cancellationToken);
         var granted = await _db.RoleGranularPermissions
             .Where(x => x.RoleId == roleId)
             .Select(x => x.Permission)
@@ -39,7 +42,8 @@ public sealed class RolePermissionService : IRolePermissionService
         return Enum.GetValues<GranularPermission>()
             .Select(p => new RolePermissionDto(
                 p,
-                granted.Contains(p)))
+                granted.Contains(p) && AccountantPermissionRules.Allows(roleName, p.ToString()),
+                AccountantPermissionRules.Allows(roleName, p.ToString())))
             .ToList();
     }
 
@@ -59,8 +63,11 @@ public sealed class RolePermissionService : IRolePermissionService
             throw new UnauthorizedAccessException("You are not authorized to change shared role permissions.");
         if (request.Permissions is null || request.Permissions.Any(p => !Enum.IsDefined(p)))
             throw new ArgumentException("One or more permissions are invalid.");
-        if (!await _db.Roles.AnyAsync(x => x.Id == roleId && !x.IsDeleted, cancellationToken))
-            throw new KeyNotFoundException("Role was not found.");
+        var roleName = await _db.Roles.Where(x => x.Id == roleId && !x.IsDeleted)
+            .Select(x => x.Name).SingleOrDefaultAsync(cancellationToken)
+            ?? throw new KeyNotFoundException("Role was not found.");
+        if (request.Permissions.Any(p => !AccountantPermissionRules.Allows(roleName, p.ToString())))
+            throw new ArgumentException("Accountant is read-only outside Finance.");
 
         var selected = request.Permissions.ToHashSet();
         var existing = await _db.RoleGranularPermissions.Where(x => x.RoleId == roleId).ToListAsync(cancellationToken);
@@ -71,3 +78,4 @@ public sealed class RolePermissionService : IRolePermissionService
         await _db.SaveChangesAsync(cancellationToken);
     }
 }
+

@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Domain.Enums;
 using CSM.Domain.Entities.Procurement;
 using CSM.Domain.Constants;
@@ -28,7 +29,9 @@ public sealed class StockAdjustmentService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var query = _dbContext.StockMovements
             .AsNoTracking()
@@ -419,5 +422,6 @@ QuantityAfter = quantityAfter,
 }
 
 }
+
 
 

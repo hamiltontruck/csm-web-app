@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Procurement.GoodsReceipts;
 using CSM.Application.Procurement.GoodsReceipts.Dtos;
@@ -30,7 +31,9 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var query = BuildQuery();
 
@@ -97,7 +100,9 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var record = await GetGoodsReceiptAsync(
             goodsReceiptId,
@@ -831,3 +836,4 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
         };
     }
 }
+
