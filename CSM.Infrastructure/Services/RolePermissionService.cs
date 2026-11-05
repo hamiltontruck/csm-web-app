@@ -67,7 +67,7 @@ public sealed class RolePermissionService : IRolePermissionService
             .Select(x => x.Name).SingleOrDefaultAsync(cancellationToken)
             ?? throw new KeyNotFoundException("Role was not found.");
         if (request.Permissions.Any(p => !AccountantPermissionRules.Allows(roleName, p.ToString())))
-            throw new ArgumentException("Accountant is read-only outside Finance.");
+            throw new ArgumentException("This permission is not available for the Accountant role.");
 
         var selected = request.Permissions.ToHashSet();
         var existing = await _db.RoleGranularPermissions.Where(x => x.RoleId == roleId).ToListAsync(cancellationToken);

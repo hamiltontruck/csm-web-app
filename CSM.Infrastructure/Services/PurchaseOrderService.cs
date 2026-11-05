@@ -109,7 +109,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         ValidateHeader(
             request.PurchaseOrderNumber,
@@ -237,7 +237,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -423,7 +423,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -465,7 +465,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        EnsureCanApprove(actor);
+        await EnsureAccountantOrApproverAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -506,7 +506,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -564,7 +564,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -1066,6 +1066,20 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
                 cancellationToken)
             ?? throw new PurchaseOrderManagementException(
                 "Authenticated user was not found.");
+    }
+
+    private async Task EnsureAccountantOrManagerAsync(User actor, CancellationToken cancellationToken)
+    {
+        if (await AccountantReadAccess.HasPurchaseOrderPermissionAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_PurchaseOrder_Manage, cancellationToken)) return;
+        EnsureCanManage(actor);
+    }
+
+    private async Task EnsureAccountantOrApproverAsync(User actor, CancellationToken cancellationToken)
+    {
+        if (await AccountantReadAccess.HasPurchaseOrderPermissionAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_PurchaseOrder_Approve, cancellationToken)) return;
+        EnsureCanApprove(actor);
     }
 
     private static void EnsureCanManage(

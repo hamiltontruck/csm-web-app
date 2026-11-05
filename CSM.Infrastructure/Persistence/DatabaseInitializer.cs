@@ -333,9 +333,10 @@ public static class DatabaseInitializer
 
         Grant(
             AppRoles.Accountant,
-            GranularPermission.Users_View,
             GranularPermission.Procurement_MaterialRequest_View,
             GranularPermission.Procurement_PurchaseOrder_View,
+            GranularPermission.Procurement_PurchaseOrder_Manage,
+            GranularPermission.Procurement_PurchaseOrder_Approve,
             GranularPermission.Sites_View,
             GranularPermission.Projects_View,
             GranularPermission.HRM_Payroll_View,
@@ -413,7 +414,7 @@ public static class DatabaseInitializer
             GranularPermission.HRM_Leave_Submit,
             GranularPermission.Notifications_View);
 
-        // Remove old broad Accountant grants; runtime evaluation enforces this
+        // Remove unsupported Accountant grants; runtime evaluation enforces this
         // ceiling as well, including before startup cleanup or with stale tokens.
         var unsupportedAccountant = Enum.GetValues<GranularPermission>()
             .Where(p => !AccountantPermissionRules.Allows(AppRoles.Accountant, p.ToString())).ToArray();

@@ -42,7 +42,7 @@ else
 
             @if (order.Status == "Draft")
             {
-                <WorkspaceAction Route="/purchase-orders" Permission="Procurement_PurchaseOrder_Manage" Roles="SuperAdmin,CompanyAdmin,SiteManager">
+                <WorkspaceAction Route="/purchase-orders" Permission="Procurement_PurchaseOrder_Manage" Roles="SuperAdmin,CompanyAdmin,SiteManager,Accountant">
 <button class="btn btn-warning"
                         @onclick="SubmitForApproval">
                     Submit for Approval
@@ -51,7 +51,7 @@ else
             }
             else if (order.Status == "PendingApproval")
             {
-                <WorkspaceAction Route="/purchase-orders" Permission="Procurement_PurchaseOrder_Approve" Roles="SuperAdmin,CompanyAdmin">
+                <WorkspaceAction Route="/purchase-orders" Permission="Procurement_PurchaseOrder_Approve" Roles="SuperAdmin,CompanyAdmin,Accountant">
 <button class="btn btn-success"
                         @onclick="ApprovePurchaseOrder">
                     Approve
@@ -60,7 +60,7 @@ else
             }
             else if (order.Status == "Approved")
             {
-                <WorkspaceAction Route="/purchase-orders" Permission="Procurement_PurchaseOrder_Manage" Roles="SuperAdmin,CompanyAdmin,SiteManager">
+                <WorkspaceAction Route="/purchase-orders" Permission="Procurement_PurchaseOrder_Manage" Roles="SuperAdmin,CompanyAdmin,SiteManager,Accountant">
 <button class="btn btn-primary"
                         @onclick="SendToVendor">
                     Send to Vendor

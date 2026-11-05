@@ -18,8 +18,10 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
     private static readonly string[] FinanceReaders = ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager"];
     public bool Has(string permission) => _permissions.Contains(permission) &&
         (!(_roles.Count == 1 && _roles.Contains("Accountant")) ||
-         permission.StartsWith("Finance_", StringComparison.Ordinal) ||
-         permission.EndsWith("_View", StringComparison.Ordinal) || permission == "Reports_Export");
+         (!permission.StartsWith("Users_", StringComparison.Ordinal) &&
+          (permission.StartsWith("Finance_", StringComparison.Ordinal) ||
+           permission.EndsWith("_View", StringComparison.Ordinal) ||
+           permission is "Procurement_PurchaseOrder_Manage" or "Procurement_PurchaseOrder_Approve" or "Reports_Export")));
     public bool IsIn(params string[] roles) => roles.Any(_roles.Contains);
     public bool CanViewExecutive => Has("Reports_View") && Has("Reports_FinancialSummary_View");
     public bool CanApproveAttendance => IsIn(Managers) && Has("HRM_Attendance_Approve");
@@ -43,9 +45,14 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var write = parts.Contains("create") || parts.Contains("edit");
         var root = parts[0];
+        if (root == "purchase-orders" && IsIn("Accountant"))
+        {
+            var needsSites = parts.Length == 1 || parts.Contains("site") || write;
+            return Has("Procurement_PurchaseOrder_View") && (!needsSites || Has("Sites_View")) &&
+                (!write || (Has("Procurement_PurchaseOrder_Manage") && Has("Procurement_Inventory_View")));
+        }
         if (IsIn("Accountant") && !write)
         {
-            if (root == "users" && !parts.Contains("audit")) return Has("Users_View");
             if (root == "equipment")
             {
                 var needsSites = parts.Any(p => p is "site" or "sites" or "report" || p.EndsWith("-sites", StringComparison.Ordinal));
@@ -56,7 +63,6 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
                 return Has("Procurement_Inventory_View") && (parts.Length > 1 || Has("Sites_View"));
             if (root == "stock-balance" || root == "daily-material-usage")
                 return Has("Sites_View") && Has("Procurement_Inventory_View");
-            if (root == "purchase-orders") return Has("Procurement_PurchaseOrder_View") && (parts.Length > 1 || Has("Sites_View"));
         }
         if (root == "companies") return IsIn("SuperAdmin");
         if (root is "users" or "roles")
