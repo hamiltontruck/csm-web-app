@@ -1,3 +1,5 @@
+using CSM.Domain.Enums;
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Procurement.Vendors;
 using CSM.Application.Procurement.Vendors.Dtos;
@@ -28,7 +30,9 @@ public sealed class VendorService : IVendorService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var query = _dbContext.Vendors
             .AsNoTracking()
@@ -82,7 +86,9 @@ public sealed class VendorService : IVendorService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var vendor = await _dbContext.Vendors
             .AsNoTracking()
@@ -387,3 +393,4 @@ public sealed class VendorService : IVendorService
             : value.Trim();
     }
 }
+

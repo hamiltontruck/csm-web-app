@@ -14,6 +14,7 @@ public class RolePermissionModel
     public Permission Permission { get; set; }
 
     public bool Granted { get; set; }
+    public bool CanGrant { get; set; } = true;
 }
 
 public class UpdateRolePermissionsModel

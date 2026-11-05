@@ -16,7 +16,10 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
     private static readonly string[] StockManagers = ["SuperAdmin", "Administrator", "Storekeeper", "ProcurementOfficer"];
     private static readonly string[] FinanceManagers = ["SuperAdmin", "CompanyAdmin", "Accountant"];
     private static readonly string[] FinanceReaders = ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager"];
-    public bool Has(string permission) => _permissions.Contains(permission);
+    public bool Has(string permission) => _permissions.Contains(permission) &&
+        (!(_roles.Count == 1 && _roles.Contains("Accountant")) ||
+         permission.StartsWith("Finance_", StringComparison.Ordinal) ||
+         permission.EndsWith("_View", StringComparison.Ordinal) || permission == "Reports_Export");
     public bool IsIn(params string[] roles) => roles.Any(_roles.Contains);
     public bool CanViewExecutive => Has("Reports_View") && Has("Reports_FinancialSummary_View");
     public bool CanApproveAttendance => IsIn(Managers) && Has("HRM_Attendance_Approve");
@@ -40,6 +43,21 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var write = parts.Contains("create") || parts.Contains("edit");
         var root = parts[0];
+        if (IsIn("Accountant") && !write)
+        {
+            if (root == "users") return Has("Users_View");
+            if (root == "equipment")
+            {
+                var needsSites = parts.Any(p => p is "site" or "sites" or "report" || p.EndsWith("-sites", StringComparison.Ordinal));
+                return Has("Procurement_Inventory_View") && (!needsSites || Has("Sites_View"));
+            }
+            if (root is "materials" or "vendors") return Has("Procurement_Inventory_View");
+            if (root is "goods-receipts" or "stock-movements" or "stock-issues" or "stock-returns" or "stock-adjustments" or "material-return-audit")
+                return Has("Procurement_Inventory_View") && (parts.Length > 1 || Has("Sites_View"));
+            if (root == "stock-balance" || root == "daily-material-usage")
+                return Has("Sites_View") && Has("Procurement_Inventory_View");
+            if (root == "purchase-orders") return Has("Procurement_PurchaseOrder_View") && (parts.Length > 1 || Has("Sites_View"));
+        }
         if (root == "companies") return IsIn("SuperAdmin");
         if (root is "users" or "roles")
             return IsIn("SuperAdmin", "CompanyAdmin", "Administrator") &&
@@ -137,4 +155,5 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
     public static readonly string[] InventoryLinks = ["/stock-balance", "/stock-movements", "/stock-issues", "/daily-material-usage", "/material-return-audit", "/stock-returns", "/stock-transfers", "/stock-adjustments"];
     public static readonly string[] FinanceLinks = ["/finance/sites/{siteId}/budgets", "/finance/sites/{siteId}/payments", "/finance/sites/{siteId}/expenses", "/finance/petty-cash/site/{siteId}", "/finance/company/cost-codes", "/finance/company/budgets", "/finance/company/invoices", "/finance/company/payments", "/finance/company/expenses", "/finance/petty-cash", "/finance/summary"];
 }
+
 

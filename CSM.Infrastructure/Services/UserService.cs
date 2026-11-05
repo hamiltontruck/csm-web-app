@@ -33,7 +33,11 @@ public sealed class UserService : IUserService
         await EnsurePermissionAsync(actor.Id, GranularPermission.Users_View, cancellationToken);
         var query = _dbContext.Users.AsNoTracking().Where(x => !x.IsDeleted);
         if (!IsSuperAdmin(actor))
+        {
+            if (!actor.CompanyId.HasValue || actor.CompanyId == Guid.Empty)
+                throw new UnauthorizedAccessException("Current user is not assigned to a company.");
             query = query.Where(x => x.CompanyId == actor.CompanyId);
+        }
 
         var users = await query
             .Include(x => x.UserRoles).ThenInclude(x => x.Role)
@@ -57,7 +61,7 @@ public sealed class UserService : IUserService
             userId,
             cancellationToken);
 
-        if (actor.Id != target.Id) EnsureCanManage(actor, target);
+        if (actor.Id != target.Id) await EnsureCanReadAsync(actor, target, cancellationToken);
 
         return Map(target);
     }
@@ -441,6 +445,18 @@ public sealed class UserService : IUserService
         ?? throw new KeyNotFoundException("User was not found.");
 }
 
+    private async Task EnsureCanReadAsync(User actor, User target, CancellationToken cancellationToken)
+    {
+        if (IsSuperAdmin(actor)) return;
+        if (await AccountantReadAccess.HasAsync(_dbContext, actor.Id, GranularPermission.Users_View, cancellationToken))
+        {
+            if (actor.CompanyId != target.CompanyId)
+                throw new UnauthorizedAccessException("User access is not permitted outside your company.");
+            return;
+        }
+        EnsureCanManage(actor, target);
+    }
+
     private void EnsureCanManage(
         User actor,
         User target)
@@ -679,7 +695,7 @@ public sealed class UserService : IUserService
         if (actor.Id != userId)
             await EnsurePermissionAsync(actor.Id, GranularPermission.Users_View, cancellationToken);
         var user = await GetUserAsync(userId, cancellationToken);
-        if (actor.Id != userId) EnsureCanManage(actor, user);
+        if (actor.Id != userId) await EnsureCanReadAsync(actor, user, cancellationToken);
 
         return new UserProfileResponse(
             user.Id,
@@ -871,3 +887,4 @@ public sealed class UserService : IUserService
         );
     }
 }
+

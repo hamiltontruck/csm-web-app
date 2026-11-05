@@ -9,7 +9,8 @@ public sealed record RoleSummaryDto(
 
 public sealed record RolePermissionDto(
     GranularPermission Permission,
-    bool Granted
+    bool Granted,
+    bool CanGrant = true
 );
 
 public sealed record UpdateRolePermissionsRequest(

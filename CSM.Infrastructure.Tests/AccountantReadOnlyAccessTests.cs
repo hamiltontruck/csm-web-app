@@ -238,6 +238,47 @@ public sealed class AccountantReadOnlyAccessTests
         Assert.Single(f.Db.RoleGranularPermissions.Where(p => p.RoleId == f.Role.Id && p.Permission == GranularPermission.Procurement_PurchaseOrder_View));
     }
 
+    [Fact]
+    public async Task SuperAdmin_added_to_Accountant_keeps_global_user_reads()
+    {
+        using var f = new Fixture();
+        f.Actor.UserRoles.Add(new() { Role = new Role { Name = "SuperAdmin", GranularPermissions = [new() { Permission = GranularPermission.Users_View }] } });
+        var target = new User { CompanyId = Guid.NewGuid(), IsActive = true };
+        f.Db.Users.Add(target);
+        f.Db.SaveChanges(true);
+        var service = new UserService(f.Db, new PasswordHasher());
+        Assert.Equal(target.Id, (await service.GetByIdAsync(f.Actor.Id, target.Id)).Id);
+        Assert.Equal(target.Id, (await service.GetProfileAsync(f.Actor.Id, target.Id)).Id);
+    }
+
+    [Fact]
+    public async Task Read_authority_is_not_borrowed_from_an_unrelated_role()
+    {
+        using var f = new Fixture();
+        f.Db.RoleGranularPermissions.Remove(f.Role.GranularPermissions.Single(p => p.Permission == GranularPermission.Procurement_Inventory_View));
+        f.Actor.UserRoles.Add(new() { Role = new Role { Name = "Employee", GranularPermissions = [new() { Permission = GranularPermission.Procurement_Inventory_View }] } });
+        f.Db.SaveChanges(true);
+        await Assert.ThrowsAsync<EquipmentManagementException>(() => new EquipmentService(f.Db).GetAllAsync(f.Actor.Id));
+    }
+
+    [Theory]
+    [InlineData("Create")] [InlineData("Update")]
+    public async Task Accountant_and_unrelated_adjust_role_cannot_compose_fuel_mutation_authority(string action)
+    {
+        var registrations = new ServiceCollection().AddLogging();
+        registrations.AddAuthorization(o => o.AddPolicy(AppPolicies.ProcurementManagement, p => p.RequireRole(AppPolicies.ProcurementManagementRoles)));
+        using var services = registrations.AddGrantedBackendPermissions("Accountant").BuildServiceProvider();
+        var db = services.GetRequiredService<ApplicationDbContext>();
+        db.UserRoles.Add(new() { UserId = BackendAuthorizationFixture.ActorId, Role = new Role { Name = "Supervisor", GranularPermissions = [new() { Permission = GranularPermission.Procurement_Inventory_Adjust }] } });
+        db.SaveChanges(true);
+        var metadata = typeof(EquipmentFuelLogsController).GetCustomAttributes<AuthorizeAttribute>()
+            .Concat(typeof(EquipmentFuelLogsController).GetMethod(action)!.GetCustomAttributes<AuthorizeAttribute>());
+        var policy = await AuthorizationPolicy.CombineAsync(services.GetRequiredService<IAuthorizationPolicyProvider>(), metadata);
+        var actor = BackendAuthorizationFixture.WithGrantedIdentity(new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim(ClaimTypes.Role, "Accountant"), new Claim(ClaimTypes.Role, "Supervisor")], "test")));
+        Assert.False((await services.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!)).Succeeded);
+    }
+
     private sealed class Fixture : IDisposable
     {
         public ApplicationDbContext Db { get; } = new(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

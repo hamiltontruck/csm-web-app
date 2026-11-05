@@ -159,6 +159,7 @@ else
 }
 
 @code {
+    [CascadingParameter] public CSM.Web.Services.Access.WorkspaceAccess Access { get; set; } = CSM.Web.Services.Access.WorkspaceAccess.None;
     [Parameter]
     public Guid Id { get; set; }
 
@@ -177,9 +178,10 @@ else
 
         try
         {
+
             var permissions = await AuthService.GetPermissionsAsync();
-            _canSubmit = permissions.Contains("Procurement_MaterialRequest_Submit");
-            _canApprove = permissions.Contains("Procurement_MaterialRequest_Approve");
+            _canSubmit = permissions.Contains("Procurement_MaterialRequest_Submit") && Access.Has("Procurement_MaterialRequest_Submit");
+            _canApprove = permissions.Contains("Procurement_MaterialRequest_Approve") && Access.Has("Procurement_MaterialRequest_Approve");
             request = await ProcurementService.GetMaterialRequestAsync(Id);
             PrepareApproval();
         }

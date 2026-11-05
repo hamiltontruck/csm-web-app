@@ -152,22 +152,28 @@ else if (string.IsNullOrWhiteSpace(errorMessage))
 
                     @if (user.IsActive)
                     {
+                        <WorkspaceAction Route="/users/edit/{id}">
                         <button class="btn btn-sm btn-outline-danger me-1"
                                 @onclick="() => Deactivate(user.Id)">
                             Disable
                         </button>
+                        </WorkspaceAction>
                     }
                     else
                     {
+                        <WorkspaceAction Route="/users/edit/{id}">
                         <button class="btn btn-sm btn-outline-success me-1"
                                 @onclick="() => Activate(user.Id)">
                             Enable
                         </button>
+                        </WorkspaceAction>
 
+                        <WorkspaceAction Route="/users" Permission="Users_Delete">
                         <button class="btn btn-sm btn-danger"
                                 @onclick="() => ConfirmDelete(user.Id)">
                             Delete
                         </button>
+                        </WorkspaceAction>
                     }
 
                 </td>
@@ -213,6 +219,7 @@ else if (string.IsNullOrWhiteSpace(errorMessage))
 }
 
 @code {
+    [CascadingParameter] public CSM.Web.Services.Access.WorkspaceAccess Access { get; set; } = CSM.Web.Services.Access.WorkspaceAccess.None;
 
     private List<UserModel> users = [];
 
@@ -324,6 +331,7 @@ else if (string.IsNullOrWhiteSpace(errorMessage))
 
     private async Task DeleteUser()
     {
+        if (!Access.Has("Users_Delete")) return;
         await UserService.DeleteAsync(deleteUserId);
 
         users = await UserService.GetAllAsync();
@@ -338,6 +346,7 @@ else if (string.IsNullOrWhiteSpace(errorMessage))
 
     private async Task Activate(Guid id)
     {
+        if (!Access.Has("Users_Edit")) return;
         await UserService.ActivateAsync(id);
 
         users = await UserService.GetAllAsync();
@@ -348,6 +357,7 @@ else if (string.IsNullOrWhiteSpace(errorMessage))
 
     private async Task Deactivate(Guid id)
     {
+        if (!Access.Has("Users_Edit")) return;
         await UserService.DeactivateAsync(id);
 
         users = await UserService.GetAllAsync();

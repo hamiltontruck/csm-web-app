@@ -1,3 +1,4 @@
+using CSM.Domain.Security;
 using CSM.Application.Common.Security;
 using CSM.Domain.Constants;
 using CSM.Domain.Entities.Identity;
@@ -332,6 +333,9 @@ public static class DatabaseInitializer
 
         Grant(
             AppRoles.Accountant,
+            GranularPermission.Users_View,
+            GranularPermission.Procurement_MaterialRequest_View,
+            GranularPermission.Procurement_PurchaseOrder_View,
             GranularPermission.Sites_View,
             GranularPermission.Projects_View,
             GranularPermission.HRM_Payroll_View,
@@ -409,6 +413,15 @@ public static class DatabaseInitializer
             GranularPermission.HRM_Leave_Submit,
             GranularPermission.Notifications_View);
 
+        // Remove old broad Accountant grants; runtime evaluation enforces this
+        // ceiling as well, including before startup cleanup or with stale tokens.
+        var unsupportedAccountant = Enum.GetValues<GranularPermission>()
+            .Where(p => !AccountantPermissionRules.Allows(AppRoles.Accountant, p.ToString())).ToArray();
+        var staleAccountant = await dbContext.RoleGranularPermissions
+            .Where(x => x.Role.Name == AppRoles.Accountant && unsupportedAccountant.Contains(x.Permission))
+            .ToListAsync(cancellationToken);
+        dbContext.RoleGranularPermissions.RemoveRange(staleAccountant);
+
         var reportingPermissions = new[]
         {
             GranularPermission.Reports_View,
@@ -435,3 +448,4 @@ public static class DatabaseInitializer
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }
+

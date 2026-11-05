@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.StockReturns;
 using CSM.Application.Inventory.StockReturns.Dtos;
@@ -26,7 +27,9 @@ public sealed class StockReturnService : IStockReturnService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var query = _dbContext.StockMovements
             .AsNoTracking()
@@ -56,7 +59,9 @@ public sealed class StockReturnService : IStockReturnService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var query = _dbContext.StockMovements
             .AsNoTracking()
@@ -588,4 +593,5 @@ public sealed class StockReturnService : IStockReturnService
                 parts);
     }
 }
+
 

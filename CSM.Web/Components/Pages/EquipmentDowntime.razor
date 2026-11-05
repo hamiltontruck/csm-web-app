@@ -115,10 +115,13 @@
                                     Open
                                 </span>
 
+                                @if (canManage)
+                                {
                                 <button class="btn btn-sm btn-outline-success"
                                         @onclick="() => OpenCloseDialog(item)">
                                     Close
                                 </button>
+                                }
                             }
                             else
                             {
@@ -335,6 +338,7 @@
 
 
 @code {
+    [CascadingParameter] public CSM.Web.Services.Access.WorkspaceAccess Access { get; set; } = CSM.Web.Services.Access.WorkspaceAccess.None;
 
     [Parameter]
     public Guid SiteId { get; set; }
@@ -387,7 +391,7 @@
             var all = await EquipmentService.GetDowntimeAsync();
             downtimeRecords = all.Where(x => x.ConstructionSiteId == SiteId)
                 .OrderByDescending(x => x.StartedAtUtc).ToList();
-            canManage = true;
+            canManage = Access.CanVisit($"/equipment/downtime/create/{SiteId}") && Access.Has("Procurement_Inventory_Adjust");
         }
         catch (HttpRequestException ex)
         {

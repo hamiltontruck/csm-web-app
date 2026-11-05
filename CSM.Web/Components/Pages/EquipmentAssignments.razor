@@ -90,10 +90,13 @@
                                         Active
                                     </span>
 
+                                @if (canManage)
+                                {
                                     <button class="btn btn-sm btn-outline-danger"
                                             @onclick="() => ReleaseAssignment(item)">
                                         Release
                                     </button>
+                                }
 
                                 </div>
                             }
@@ -245,6 +248,7 @@
 </div>
 
 @code {
+    [CascadingParameter] public CSM.Web.Services.Access.WorkspaceAccess Access { get; set; } = CSM.Web.Services.Access.WorkspaceAccess.None;
 
     [Parameter]
     public Guid SiteId { get; set; }
@@ -287,7 +291,7 @@
             assignments = all.Where(x => x.ConstructionSiteId == SiteId)
                 .OrderByDescending(x => x.AssignedAtUtc).ToList();
             // Read and mutation endpoints share the controller and service role gates.
-            canManage = true;
+            canManage = Access.CanVisit($"/equipment/assignments/create/{SiteId}") && Access.Has("Procurement_Inventory_Adjust");
         }
         catch (HttpRequestException ex)
         {

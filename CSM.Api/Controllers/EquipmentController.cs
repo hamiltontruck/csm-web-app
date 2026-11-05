@@ -12,7 +12,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager)]
+[Authorize(Roles = AppRoles.SuperAdmin + "," + AppRoles.CompanyAdmin + "," + AppRoles.SiteManager + "," + AppRoles.Accountant)]
 [Authorize(Policy = "Procurement.Inventory.View")]
 public sealed class EquipmentController : ControllerBase
 {
@@ -147,3 +147,4 @@ public sealed class EquipmentController : ControllerBase
         return userId;
     }
 }
+

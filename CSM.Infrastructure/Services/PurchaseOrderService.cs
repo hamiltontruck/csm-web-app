@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Procurement.PurchaseOrders;
 using CSM.Application.Procurement.PurchaseOrders.Dtos;
@@ -31,7 +32,9 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_PurchaseOrder_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var query = BuildQuery()
             .AsSplitQuery();
@@ -82,7 +85,9 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_PurchaseOrder_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -1241,4 +1246,5 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             : value.Trim();
     }
 }
+
 

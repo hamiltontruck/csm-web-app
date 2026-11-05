@@ -1,3 +1,4 @@
+using CSM.Domain.Constants;
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
@@ -10,7 +11,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = AppPolicies.ProcurementManagement)]
+[Authorize(Roles = AppRoles.Administrator + "," + AppRoles.ProcurementOfficer + "," + AppRoles.Storekeeper + "," + AppRoles.Accountant)]
 [Authorize(Policy = "Procurement.Inventory.View")]
 public sealed class EquipmentFuelLogsController : ControllerBase
 {
@@ -63,6 +64,7 @@ public sealed class EquipmentFuelLogsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AppPolicies.ProcurementManagement)]
     [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentFuelLogResponse>> Create(
         [FromBody] CreateEquipmentFuelLogRequest request,
@@ -87,6 +89,7 @@ public sealed class EquipmentFuelLogsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AppPolicies.ProcurementManagement)]
     [Authorize(Policy = "Procurement.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentFuelLogResponse>> Update(
         Guid id,

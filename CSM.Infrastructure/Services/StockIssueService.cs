@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.StockIssues;
 using CSM.Application.Inventory.StockIssues.Dtos;
@@ -30,7 +31,9 @@ public sealed class StockIssueService : IStockIssueService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var query = _dbContext.StockMovements
             .AsNoTracking()
@@ -62,7 +65,9 @@ public sealed class StockIssueService : IStockIssueService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var query = _dbContext.StockMovements
             .AsNoTracking()
@@ -536,4 +541,5 @@ public sealed class StockIssueService : IStockIssueService
                 parts);
     }
 }
+
 

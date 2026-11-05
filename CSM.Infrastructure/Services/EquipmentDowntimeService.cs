@@ -1,3 +1,5 @@
+using CSM.Domain.Enums;
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
 using CSM.Application.Procurement.EquipmentDowntime;
@@ -33,7 +35,9 @@ public sealed class EquipmentDowntimeService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var query = _dbContext.EquipmentDowntimeRecords
             .AsNoTracking()
@@ -85,7 +89,9 @@ public sealed class EquipmentDowntimeService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+                GranularPermission.Procurement_Inventory_View, cancellationToken))
+            EnsureCanManage(actor);
 
         var downtime = await GetDowntimeAsync(
             downtimeId,
@@ -513,4 +519,5 @@ public sealed class EquipmentDowntimeService
             downtime.UpdatedAtUtc);
     }
 }
+
 
