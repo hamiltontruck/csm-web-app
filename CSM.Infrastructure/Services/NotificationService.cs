@@ -1,3 +1,4 @@
+using CSM.Domain.Enums;
 using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Notifications;
@@ -33,6 +34,7 @@ public sealed class NotificationService : INotificationService
                 x =>
                     x.CompanyId == actor.CompanyId &&
                     x.RecipientUserId == currentUserId);
+        query = await VisibleToActorAsync(actor, query, cancellationToken);
 
         if (isRead.HasValue)
         {
@@ -66,14 +68,10 @@ public sealed class NotificationService : INotificationService
             currentUserId,
             cancellationToken);
 
-        return await _dbContext.Notifications
-            .AsNoTracking()
-            .CountAsync(
-                x =>
-                    x.CompanyId == actor.CompanyId &&
-                    x.RecipientUserId == currentUserId &&
-                    !x.IsRead,
-                cancellationToken);
+        var query = _dbContext.Notifications.AsNoTracking().Where(x =>
+            x.CompanyId == actor.CompanyId && x.RecipientUserId == currentUserId && !x.IsRead);
+        query = await VisibleToActorAsync(actor, query, cancellationToken);
+        return await query.CountAsync(cancellationToken);
     }
 
     public async Task<NotificationResponse> CreateAsync(
@@ -154,13 +152,10 @@ public sealed class NotificationService : INotificationService
             currentUserId,
             cancellationToken);
 
-        var notification = await _dbContext.Notifications
-            .SingleOrDefaultAsync(
-                x =>
-                    x.Id == notificationId &&
-                    x.CompanyId == actor.CompanyId &&
-                    x.RecipientUserId == currentUserId,
-                cancellationToken);
+        var query = _dbContext.Notifications.Where(x => x.Id == notificationId &&
+            x.CompanyId == actor.CompanyId && x.RecipientUserId == currentUserId);
+        query = await VisibleToActorAsync(actor, query, cancellationToken);
+        var notification = await query.SingleOrDefaultAsync(cancellationToken);
 
         if (notification is null)
         {
@@ -178,6 +173,33 @@ public sealed class NotificationService : INotificationService
             cancellationToken);
 
         return ToResponse(notification);
+    }
+
+    private async Task<IQueryable<Notification>> VisibleToActorAsync(User actor, IQueryable<Notification> query, CancellationToken cancellationToken)
+    {
+        var independentRoles = await _dbContext.UserRoles.Where(x => x.UserId == actor.Id && x.Role.Name != "ProcurementOfficer")
+            .Select(x => x.Role.Name).Distinct().ToArrayAsync(cancellationToken);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Notifications_View, cancellationToken,
+            message => new NotificationManagementException(message), independentRoles);
+        if (!scope.IsScoped) return query;
+        actor = scope.For(actor);
+        bool Has(GranularPermission permission) => actor.UserRoles.Any(r => r.Role.GranularPermissions.Any(p => p.Permission == permission));
+        var canRequests = Has(GranularPermission.Procurement_MaterialRequest_View);
+        var canOrders = Has(GranularPermission.Procurement_PurchaseOrder_View);
+        var canStock = Has(GranularPermission.Procurement_Inventory_View);
+        var requests = scope.Filter(_dbContext.MaterialRequests, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId).Where(x => canRequests).Select(x => x.Id);
+        var orders = scope.Filter(_dbContext.PurchaseOrders, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId).Where(x => canOrders).Select(x => x.Id);
+        var receipts = scope.Filter(_dbContext.GoodsReceipts, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId).Where(x => canStock).Select(x => x.Id);
+        var stocks = scope.Filter(_dbContext.StockItems, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId).Where(x => canStock).Select(x => x.Id);
+        var movements = scope.Filter(_dbContext.StockMovements, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId).Where(x => canStock).Select(x => x.Id);
+        return query.Where(x =>
+            (x.SourceEntityType != "MaterialRequest" || (x.SourceEntityId.HasValue && requests.Contains(x.SourceEntityId.Value))) &&
+            (x.SourceEntityType != "PurchaseOrder" || (x.SourceEntityId.HasValue && orders.Contains(x.SourceEntityId.Value))) &&
+            (x.SourceEntityType != "GoodsReceipt" || (x.SourceEntityId.HasValue && receipts.Contains(x.SourceEntityId.Value))) &&
+            (x.SourceEntityType != "StockItem" || (x.SourceEntityId.HasValue && stocks.Contains(x.SourceEntityId.Value))) &&
+            (!(x.SourceEntityType == "StockMovement" || x.SourceEntityType == "StockIssue" || x.SourceEntityType == "StockReturn" || x.SourceEntityType == "StockAdjustment") ||
+                (x.SourceEntityId.HasValue && movements.Contains(x.SourceEntityId.Value))));
     }
 
     private async Task<User> GetActorAsync(
@@ -211,3 +233,4 @@ public sealed class NotificationService : INotificationService
             notification.CreatedAtUtc);
     }
 }
+

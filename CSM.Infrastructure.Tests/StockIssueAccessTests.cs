@@ -1,3 +1,4 @@
+using CSM.Domain.Enums;
 using System.Reflection;
 using System.Net;
 using System.Security.Claims;
@@ -193,7 +194,7 @@ public sealed class StockIssueAccessTests
         var companyId = Guid.NewGuid();
         db.Users.Add(new User { Id = ActorId, IsActive = true,
             CompanyId = role == AppRoles.Storekeeper ? Guid.NewGuid() : null,
-            UserRoles = [new UserRole { Id = Guid.NewGuid(), Role = new Role { Id = Guid.NewGuid(), Name = role } }] });
+            UserRoles = [new UserRole { Id = Guid.NewGuid(), Role = new Role { Id = Guid.NewGuid(), Name = role, GranularPermissions = role == AppRoles.ProcurementOfficer ? [new() { Permission = GranularPermission.Procurement_Inventory_View }, new() { Permission = GranularPermission.Procurement_Inventory_Adjust }] : [] } }] });
         db.StockItems.Add(new StockItem { Id = Guid.NewGuid(), CompanyId = companyId, MaterialId = MaterialId,
             ConstructionSiteId = SiteId, ConstructionSite = new ConstructionSite { Id = SiteId, CompanyId = companyId, Name = "Hamilton Test Site" },
             Material = new Material { Id = MaterialId, CompanyId = companyId, MaterialCode = "MAT-001", Name = "Cement", Category = "Cement", UnitOfMeasure = "Bag" },
@@ -225,3 +226,4 @@ public sealed class StockIssueAccessTests
                 new() { ConstructionSiteId = Guid.NewGuid(), MaterialName = "Other site material" } });
     }
 }
+

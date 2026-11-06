@@ -21,7 +21,7 @@
             <h2 class="mb-1">Reports & Analytics</h2>
             <p class="text-muted mb-0">
                 @(_scope == "Company"
-                    ? (CanReadCompanyFinance ? "Company-wide management reports and financial analytics." : "Reports for your permitted sites.")
+                    ? (CanReadCompanyFinance ? "Company-wide management reports and financial analytics." : (Access.IsIn("ProcurementOfficer") ? "Reports for your permitted sites." : "Reports for your assigned sites."))
                     : $"{CurrentScopeLabel} management reports and financial analytics.")
             </p>
         </div>
@@ -77,7 +77,7 @@
                         <InputSelect class="form-select"
                                      @bind-Value="_scope"
                                      @bind-Value:after="ScopeChanged">
-                            <option value="Company">@(CanReadCompanyFinance ? "Company" : "Permitted sites")</option>
+                            <option value="Company">@(CanReadCompanyFinance ? "Company" : PermittedScopeLabel)</option>
                             @if (_sites.Count > 0) { <option value="Site">Site</option> }
                         </InputSelect>
                     </div>
@@ -134,7 +134,7 @@
                         </h5>
                         <small>
                             @(_scope == "Company"
-                                ? (CanReadCompanyFinance ? "Company-wide management overview" : "Permitted site management overview")
+                                ? (CanReadCompanyFinance ? "Company-wide management overview" : (Access.IsIn("ProcurementOfficer") ? "Permitted site management overview" : "Assigned site management overview"))
                                 : $"{CurrentScopeLabel} management overview")
                         </small>
                     </div>
@@ -944,10 +944,11 @@
     private bool _loading = true;
     private string? _error;
 
+    private string PermittedScopeLabel => Access.IsIn("ProcurementOfficer") ? "Permitted sites" : "Assigned sites";
     private bool CanReadCompanyFinance => Access.IsIn("SuperAdmin", "CompanyAdmin", "Accountant");
     private string CurrentScopeLabel
         => _scope == "Company"
-            ? (CanReadCompanyFinance ? "Company-wide" : "Permitted sites")
+            ? (CanReadCompanyFinance ? "Company-wide" : PermittedScopeLabel)
             : _sites
                 .FirstOrDefault(
                     x => x.Id.ToString() == _selectedSiteId)

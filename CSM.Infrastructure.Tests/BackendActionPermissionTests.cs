@@ -117,7 +117,7 @@ public sealed class BackendActionPermissionTests
     public async Task HTTP_action_requires_its_own_permission_even_when_all_role_checks_pass(string controllerName, string action, GranularPermission required, GranularPermission read)
     {
         using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-        var role = new Role { Name = "SuperAdmin" };
+        var role = new Role { Name = controllerName is "EquipmentFuelLogsController" or "EquipmentUtilizationController" ? "Administrator" : "SuperAdmin" };
         var actor = new User { IsActive = true, UserRoles = [new() { Role = role }] };
         db.Users.Add(actor);
         if (controllerName.StartsWith("DailyProgress")) db.RoleGranularPermissions.Add(new() { Role = role, Permission = GranularPermission.Projects_View });
@@ -172,3 +172,4 @@ public sealed class BackendActionPermissionTests
     }
 
 }
+
