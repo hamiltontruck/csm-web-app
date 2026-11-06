@@ -42,8 +42,8 @@ public sealed class RolePermissionService : IRolePermissionService
         return Enum.GetValues<GranularPermission>()
             .Select(p => new RolePermissionDto(
                 p,
-                granted.Contains(p) && AccountantPermissionRules.Allows(roleName, p.ToString()),
-                AccountantPermissionRules.Allows(roleName, p.ToString())))
+                granted.Contains(p) && RolePermissionRules.Allows(roleName, p.ToString()),
+                RolePermissionRules.Allows(roleName, p.ToString())))
             .ToList();
     }
 
@@ -66,8 +66,8 @@ public sealed class RolePermissionService : IRolePermissionService
         var roleName = await _db.Roles.Where(x => x.Id == roleId && !x.IsDeleted)
             .Select(x => x.Name).SingleOrDefaultAsync(cancellationToken)
             ?? throw new KeyNotFoundException("Role was not found.");
-        if (request.Permissions.Any(p => !AccountantPermissionRules.Allows(roleName, p.ToString())))
-            throw new ArgumentException("This permission is not available for the Accountant role.");
+        if (request.Permissions.Any(p => !RolePermissionRules.Allows(roleName, p.ToString())))
+            throw new ArgumentException("This permission is not available for the selected role.");
 
         var selected = request.Permissions.ToHashSet();
         var existing = await _db.RoleGranularPermissions.Where(x => x.RoleId == roleId).ToListAsync(cancellationToken);
@@ -78,4 +78,5 @@ public sealed class RolePermissionService : IRolePermissionService
         await _db.SaveChangesAsync(cancellationToken);
     }
 }
+
 

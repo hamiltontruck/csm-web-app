@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Sites;
 using CSM.Application.Sites.Dtos;
@@ -27,11 +28,21 @@ public sealed class SiteService : ISiteService
             currentUserId,
             cancellationToken);
 
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Sites_View, cancellationToken,
+            message => new SiteManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "Supervisor", "Storekeeper", "HrOfficer", "HROfficer"]);
+        actor = scope.For(actor);
+
         IQueryable<ConstructionSite> query =
             _dbContext.ConstructionSites
                 .AsNoTracking();
 
-        if (!IsSuperAdmin(actor))
+        if (scope.IsScoped)
+        {
+            query = scope.Filter(query.Where(x => x.IsActive), x => x.CompanyId, x => (Guid?)x.Id);
+        }
+        else if (!IsSuperAdmin(actor))
         {
             EnsureSiteRole(actor);
 
@@ -94,11 +105,22 @@ public sealed class SiteService : ISiteService
             currentUserId,
             cancellationToken);
 
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Sites_View, cancellationToken,
+            message => new SiteManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "Supervisor", "Storekeeper", "HrOfficer", "HROfficer"]);
+        actor = scope.For(actor);
+
         var site = await GetSiteAsync(
             siteId,
             cancellationToken);
 
-        EnsureSiteAccess(actor, site);
+        if (scope.IsScoped)
+        {
+            scope.Ensure(site.CompanyId, site.Id);
+            if (!site.IsActive) throw new SiteManagementException("This site is inactive.");
+        }
+        else EnsureSiteAccess(actor, site);
 
         return Map(site);
     }

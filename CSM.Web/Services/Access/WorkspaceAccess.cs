@@ -16,7 +16,13 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
     private static readonly string[] StockManagers = ["SuperAdmin", "Administrator", "Storekeeper", "ProcurementOfficer"];
     private static readonly string[] FinanceManagers = ["SuperAdmin", "CompanyAdmin", "Accountant"];
     private static readonly string[] FinanceReaders = ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager"];
+    private static bool OfficerAllows(string permission) => permission is
+        "Sites_View" or "Procurement_Vendor_View" or "Procurement_MaterialRequest_View" or
+        "Procurement_MaterialRequest_Submit" or "Procurement_PurchaseOrder_View" or
+        "Procurement_PurchaseOrder_Manage" or "Procurement_Inventory_View" or
+        "Procurement_Inventory_Adjust" or "Notifications_View" or "Reports_View";
     public bool Has(string permission) => _permissions.Contains(permission) &&
+        (!(_roles.Count == 1 && _roles.Contains("ProcurementOfficer")) || OfficerAllows(permission)) &&
         (!(_roles.Count == 1 && _roles.Contains("Accountant")) ||
          (!permission.StartsWith("Users_", StringComparison.Ordinal) &&
           (permission.StartsWith("Finance_", StringComparison.Ordinal) ||
@@ -45,11 +51,24 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var write = parts.Contains("create") || parts.Contains("edit");
         var root = parts[0];
+        if (IsIn("ProcurementOfficer"))
+        {
+            if (root == "vendors" && !write) return Has("Procurement_Vendor_View");
+            if (_roles.Count == 1 && (root is "vendors" or "materials") && write) return false;
+            if (root == "materials" && !write) return Has("Procurement_Inventory_View");
+            if (root == "material-requests") return Has("Procurement_MaterialRequest_View") &&
+                (!write || (Has("Procurement_MaterialRequest_Submit") && Has("Sites_View") && Has("Procurement_Inventory_View")));
+            if (root == "purchase-orders") return Has("Procurement_PurchaseOrder_View") && Has("Sites_View") &&
+                (!write || (Has("Procurement_PurchaseOrder_Manage") && Has("Procurement_Inventory_View") && Has("Procurement_Vendor_View")));
+            if (root == "goods-receipts") return Has("Procurement_Inventory_View") && Has("Sites_View") &&
+                (!write || (Has("Procurement_Inventory_Adjust") && Has("Procurement_PurchaseOrder_View")));
+            if (root == "daily-material-usage" && !write) return Has("Sites_View") && Has("Procurement_Inventory_View");
+        }
         if (root == "purchase-orders" && IsIn("Accountant"))
         {
             var needsSites = parts.Length == 1 || parts.Contains("site") || write;
             return Has("Procurement_PurchaseOrder_View") && (!needsSites || Has("Sites_View")) &&
-                (!write || (Has("Procurement_PurchaseOrder_Manage") && Has("Procurement_Inventory_View")));
+                (!write || (Has("Procurement_PurchaseOrder_Manage") && Has("Procurement_Inventory_View") && Has("Procurement_Vendor_View")));
         }
         if (IsIn("Accountant") && !write)
         {
@@ -58,7 +77,8 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
                 var needsSites = parts.Any(p => p is "site" or "sites" or "report" || p.EndsWith("-sites", StringComparison.Ordinal));
                 return Has("Procurement_Inventory_View") && (!needsSites || Has("Sites_View"));
             }
-            if (root is "materials" or "vendors") return Has("Procurement_Inventory_View");
+            if (root == "materials") return Has("Procurement_Inventory_View");
+            if (root == "vendors") return Has("Procurement_Vendor_View");
             if (root is "goods-receipts" or "stock-movements" or "stock-issues" or "stock-returns" or "stock-adjustments" or "material-return-audit")
                 return Has("Procurement_Inventory_View") && (parts.Length > 1 || Has("Sites_View"));
             if (root == "stock-balance" || root == "daily-material-usage")
@@ -122,10 +142,11 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
         }
         if (root == "compliance") return IsIn(Managers) && Has(write ? "Compliance_Manage" : "Compliance_View");
         if (root == "procurement") return ProcurementLinks.Any(CanVisit);
-        if (root is "materials" or "vendors") return IsIn(Managers) && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View");
+        if (root == "materials") return IsIn(Managers) && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View");
+        if (root == "vendors") return IsIn(Managers) && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Vendor_View");
         if (root == "material-requests") return IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant") &&
             Has(write ? "Procurement_MaterialRequest_Submit" : "Procurement_MaterialRequest_View") && (!write || IsIn(Managers));
-        if (root == "purchase-orders") return IsIn(Managers) && Has(write ? "Procurement_PurchaseOrder_Manage" : "Procurement_PurchaseOrder_View");
+        if (root == "purchase-orders") return IsIn(Managers) && Has(write ? "Procurement_PurchaseOrder_Manage" : "Procurement_PurchaseOrder_View") && (!write || Has("Procurement_Vendor_View"));
         if (root == "goods-receipts") return IsIn(Managers) && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") && (!write || IsIn(Managers));
         if (root is "inventory" or "stock-items") return InventoryLinks.Any(CanVisit);
         if (root == "stock-balance") return (parts.Length > 1 && !parts.Contains("site") || Has("Sites_View")) && Has("Procurement_Inventory_View") && IsIn("SuperAdmin", "Administrator", "Supervisor", "Storekeeper", "ProcurementOfficer");
@@ -161,5 +182,6 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
     public static readonly string[] InventoryLinks = ["/stock-balance", "/stock-movements", "/stock-issues", "/daily-material-usage", "/material-return-audit", "/stock-returns", "/stock-transfers", "/stock-adjustments"];
     public static readonly string[] FinanceLinks = ["/finance/sites/{siteId}/budgets", "/finance/sites/{siteId}/payments", "/finance/sites/{siteId}/expenses", "/finance/petty-cash/site/{siteId}", "/finance/company/cost-codes", "/finance/company/budgets", "/finance/company/invoices", "/finance/company/payments", "/finance/company/expenses", "/finance/petty-cash", "/finance/summary"];
 }
+
 
 

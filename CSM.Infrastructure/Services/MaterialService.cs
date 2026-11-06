@@ -32,7 +32,13 @@ public sealed class MaterialService : IMaterialService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new MaterialManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanAccess(actor);
 
@@ -41,6 +47,7 @@ public sealed class MaterialService : IMaterialService
             .Include(x => x.DefaultCostCode)
             .Include(x => x.RebarSpec)
             .AsQueryable();
+        query = scope.Filter(query, x => x.CompanyId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -81,7 +88,13 @@ public sealed class MaterialService : IMaterialService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new MaterialManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanAccess(actor);
 
@@ -92,6 +105,7 @@ public sealed class MaterialService : IMaterialService
         EnsureCompanyAccess(
             actor,
             material.CompanyId);
+        scope.Ensure(material.CompanyId, catalog: true);
 
         return Map(material);
     }
@@ -105,7 +119,13 @@ public sealed class MaterialService : IMaterialService
             currentUserId,
             cancellationToken);
 
-        EnsureCanAccess(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
+            message => new MaterialManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager"], allowOfficer: false);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanAccess(actor);
 
         var companyId = await ResolveCreateCompanyAsync(actor, request.CompanyId, cancellationToken);
 
@@ -184,7 +204,13 @@ public sealed class MaterialService : IMaterialService
             currentUserId,
             cancellationToken);
 
-        EnsureCanAccess(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
+            message => new MaterialManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager"], allowOfficer: false);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanAccess(actor);
 
         var material = await GetMaterialAsync(
             materialId,
@@ -193,6 +219,7 @@ public sealed class MaterialService : IMaterialService
         EnsureCompanyAccess(
             actor,
             material.CompanyId);
+        scope.Ensure(material.CompanyId, catalog: true);
 
         var materialCode = Clean(request.MaterialCode);
         var name = Clean(request.Name);
@@ -571,6 +598,7 @@ public sealed class MaterialService : IMaterialService
         };
     }
 }
+
 
 
 

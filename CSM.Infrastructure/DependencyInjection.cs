@@ -228,6 +228,7 @@ services.AddScoped<
     IAuthorizationHandler,
     PermissionAuthorizationHandler>();
 services.AddScoped<IPermissionEvaluator, PermissionEvaluator>();
+services.AddScoped<IAuthorizationHandler, EquipmentPermissionHandler>();
         services.AddScoped<CurrentUserTokenValidator>();
 
 
@@ -274,6 +275,7 @@ services.AddScoped<IPermissionEvaluator, PermissionEvaluator>();
 
         services.AddAuthorization(options =>
         {
+            EquipmentPermissionRequirement.AddPolicies(options);
             // Canonical granular policies are available to every controller action.
             // Existing named policies below keep their original definitions.
             foreach (var permission in Enum.GetValues<GranularPermission>())
@@ -679,6 +681,7 @@ services.AddScoped<IPermissionEvaluator, PermissionEvaluator>();
         return services;
     }
 }
+
 
 
 

@@ -28,12 +28,14 @@ public sealed class PermissionEvaluator : IPermissionEvaluator
             return false;
         }
 
+        var officerAllowed = RolePermissionRules.Allows(AppRoles.ProcurementOfficer, parsedPermission.ToString());
         var accountantAllowed = AccountantPermissionRules.Allows(AppRoles.Accountant, parsedPermission.ToString());
         return await _db.UserRoles
             .AsNoTracking()
             .Where(x => x.UserId == userId && !x.IsDeleted &&
                 x.User.IsActive && !x.User.IsDeleted && !x.Role.IsDeleted)
             .Where(x => x.Role.Name != AppRoles.Accountant || accountantAllowed)
+            .Where(x => x.Role.Name != AppRoles.ProcurementOfficer || officerAllowed)
             .SelectMany(x => x.Role.GranularPermissions)
             .AnyAsync(
                 x => x.Permission == parsedPermission,
@@ -51,7 +53,8 @@ public sealed class PermissionEvaluator : IPermissionEvaluator
             .SelectMany(x => x.Role.GranularPermissions,
                 (membership, grant) => new { RoleName = membership.Role.Name, grant.Permission })
             .ToListAsync(cancellationToken);
-        return grants.Where(x => AccountantPermissionRules.Allows(x.RoleName, x.Permission.ToString()))
+        return grants.Where(x => RolePermissionRules.Allows(x.RoleName, x.Permission.ToString()))
             .Select(x => x.Permission.ToString()).Distinct().OrderBy(x => x).ToList();
     }
 }
+

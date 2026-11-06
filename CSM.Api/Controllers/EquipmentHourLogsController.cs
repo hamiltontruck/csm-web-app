@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
-[Authorize(Policy = "Procurement.Inventory.View")]
+[Authorize(Policy = "Equipment.Inventory.View")]
 public class EquipmentHourLogsController : ControllerBase
 {
     private readonly EquipmentHourLogService _service;
@@ -34,7 +34,7 @@ public class EquipmentHourLogsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = "Procurement.Inventory.Adjust")]
+    [Authorize(Policy = "Equipment.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentHourLogResponse>> Create(
         CreateEquipmentHourLogRequest request,
         CancellationToken cancellationToken)

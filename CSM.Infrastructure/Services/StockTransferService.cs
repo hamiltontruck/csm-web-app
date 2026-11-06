@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.StockTransfers;
 using CSM.Application.Inventory.StockTransfers.Dtos;
@@ -21,10 +22,53 @@ public sealed partial class StockTransferService
         _dbContext = dbContext;
     }
 
-    public async Task<List<StockTransferResponse>> GetAllAsync(
-        CancellationToken cancellationToken = default)
+    // Trusted internal compatibility entry point; authenticated API uses GetAllForUserAsync.
+    public Task<List<StockTransferResponse>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        GetTransfersAsync(null, null, cancellationToken);
+
+    public async Task<List<StockTransferResponse>> GetAllForUserAsync(Guid currentUserId, CancellationToken cancellationToken = default)
     {
-        var transfers = await _dbContext.StockMovements
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Procurement_Inventory_View", cancellationToken))
+            throw new StockTransferManagementException("Stock transfer access is not permitted.");
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new StockTransferManagementException(message),
+            actor.UserRoles.Where(x => x.Role.Name != AppRoles.ProcurementOfficer).Select(x => x.Role.Name).ToArray());
+        actor = scope.For(actor);
+        var global = !scope.IsScoped && await _dbContext.UserRoles.AnyAsync(x => x.UserId == actor.Id && !x.IsDeleted &&
+            !x.Role.IsDeleted && (x.Role.Name == AppRoles.SuperAdmin || x.Role.Name == AppRoles.Administrator) &&
+            x.Role.GranularPermissions.Any(p => p.Permission == GranularPermission.Procurement_Inventory_View), cancellationToken);
+        if (!global && (!actor.CompanyId.HasValue || actor.CompanyId == Guid.Empty))
+            throw new StockTransferManagementException("Current user is not assigned to a company.");
+        return await GetTransfersAsync(global ? null : actor.CompanyId, scope, cancellationToken);
+    }
+
+    public async Task<StockTransferResponse> CreateForUserAsync(Guid currentUserId, CreateStockTransferRequest request, CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
+            message => new StockTransferManagementException(message), ["Administrator", "Storekeeper"]);
+        actor = scope.For(actor);
+        if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Procurement_Inventory_Adjust", cancellationToken))
+            throw new StockTransferManagementException("Stock transfer management is not permitted.");
+        if (!scope.IsScoped) EnsureCanManage(actor);
+        if (!actor.CompanyId.HasValue || actor.CompanyId == Guid.Empty)
+            throw new StockTransferManagementException("Current user is not assigned to a company.");
+        var company = actor.CompanyId.Value;
+        foreach (var siteId in new[] { request.SourceConstructionSiteId, request.DestinationConstructionSiteId })
+        {
+            var site = await _dbContext.ConstructionSites.AsNoTracking().SingleOrDefaultAsync(x => x.Id == siteId && x.CompanyId == company && x.IsActive && !x.IsDeleted, cancellationToken)
+                ?? throw new StockTransferManagementException("Transfer site is unavailable in your company.");
+            scope.Ensure(company, site.Id);
+        }
+        return await CreateAsync(company, request, cancellationToken);
+    }
+
+    private async Task<List<StockTransferResponse>> GetTransfersAsync(Guid? companyId, ProcurementOfficerScope? scope, CancellationToken cancellationToken)
+    {
+        var query = _dbContext.StockMovements
             .AsNoTracking()
             .Include(x => x.StockItem)
                 .ThenInclude(x => x.Material)
@@ -33,22 +77,29 @@ public sealed partial class StockTransferService
             .Where(x =>
                 x.ReferenceType == "StockTransfer" &&
                 x.MovementType == StockMovementType.TransferOut)
-            .OrderByDescending(x => x.MovementDateUtc)
-            .ToListAsync(cancellationToken);
+            .Where(x => x.StockItem.CompanyId == x.CompanyId);
+        if (companyId.HasValue) query = query.Where(x => x.CompanyId == companyId.Value);
+        if (scope is not null) query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId);
+        var transfers = await query.OrderByDescending(x => x.MovementDateUtc).ToListAsync(cancellationToken);
 
         var results = new List<StockTransferResponse>();
 
         foreach (var movement in transfers)
         {
-            var destination = await _dbContext.StockMovements
+            var destinationQuery = _dbContext.StockMovements
                 .AsNoTracking()
                 .Include(x => x.StockItem)
                     .ThenInclude(x => x.ConstructionSite)
-                .FirstOrDefaultAsync(x =>
+                .Where(x =>
+                    x.CompanyId == movement.CompanyId && x.StockItem.CompanyId == movement.CompanyId &&
+                    x.StockItem.MaterialId == movement.StockItem.MaterialId &&
+                    x.StockItem.ConstructionSite.CompanyId == movement.CompanyId &&
                     x.ReferenceType == "StockTransfer" &&
-                    x.ReferenceNumber == movement.ReferenceNumber &&
-                    x.MovementType == StockMovementType.TransferIn,
-                    cancellationToken);
+                    (x.ReferenceId == movement.Id || (!x.ReferenceId.HasValue && !string.IsNullOrEmpty(movement.ReferenceNumber) && x.ReferenceNumber == movement.ReferenceNumber)) &&
+                    x.MovementType == StockMovementType.TransferIn);
+            if (scope is not null) destinationQuery = scope.Filter(destinationQuery, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId);
+            var destination = await destinationQuery.FirstOrDefaultAsync(cancellationToken);
+            if (scope is { IsScoped: true } && destination is null) continue;
 
             results.Add(new StockTransferResponse
             {

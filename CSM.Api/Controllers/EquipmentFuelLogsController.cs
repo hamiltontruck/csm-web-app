@@ -12,7 +12,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.Administrator + "," + AppRoles.ProcurementOfficer + "," + AppRoles.Storekeeper + "," + AppRoles.Accountant)]
-[Authorize(Policy = "Procurement.Inventory.View")]
+[Authorize(Policy = "Equipment.Corporate.View")]
 public sealed class EquipmentFuelLogsController : ControllerBase
 {
     private readonly EquipmentFuelLogService _service;
@@ -65,7 +65,7 @@ public sealed class EquipmentFuelLogsController : ControllerBase
 
     [HttpPost]
     [Authorize(Policy = AppPolicies.ProcurementManagement)]
-    [Authorize(Policy = "Procurement.Inventory.Adjust")]
+    [Authorize(Policy = "Equipment.Corporate.Adjust")]
     public async Task<ActionResult<EquipmentFuelLogResponse>> Create(
         [FromBody] CreateEquipmentFuelLogRequest request,
         CancellationToken cancellationToken)
@@ -90,7 +90,7 @@ public sealed class EquipmentFuelLogsController : ControllerBase
 
     [HttpPut("{id:guid}")]
     [Authorize(Policy = AppPolicies.ProcurementManagement)]
-    [Authorize(Policy = "Procurement.Inventory.Adjust")]
+    [Authorize(Policy = "Equipment.Corporate.Adjust")]
     public async Task<ActionResult<EquipmentFuelLogResponse>> Update(
         Guid id,
         [FromBody] UpdateEquipmentFuelLogRequest request,
@@ -127,3 +127,4 @@ public sealed class EquipmentFuelLogsController : ControllerBase
         return userId;
     }
 }
+

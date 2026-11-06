@@ -298,8 +298,15 @@ public static class DatabaseInitializer
         Grant(
             AppRoles.ProcurementOfficer,
             GranularPermission.Sites_View,
+            GranularPermission.Procurement_Vendor_View,
+            GranularPermission.Procurement_MaterialRequest_View,
+            GranularPermission.Procurement_MaterialRequest_Submit,
+            GranularPermission.Procurement_PurchaseOrder_View,
+            GranularPermission.Procurement_PurchaseOrder_Manage,
             GranularPermission.Procurement_Inventory_View,
-            GranularPermission.Procurement_Inventory_Adjust);
+            GranularPermission.Procurement_Inventory_Adjust,
+            GranularPermission.Notifications_View,
+            GranularPermission.Reports_View);
 
         Grant(
             AppRoles.SiteManager,
@@ -414,6 +421,17 @@ public static class DatabaseInitializer
             GranularPermission.HRM_Leave_Submit,
             GranularPermission.Notifications_View);
 
+        // SuperAdmin and CompanyAdmin already receive every enum value above.
+        foreach (var reader in new[] { AppRoles.SiteManager, AppRoles.Accountant })
+            Grant(reader, GranularPermission.Procurement_Vendor_View);
+
+        var unsupportedOfficer = Enum.GetValues<GranularPermission>()
+            .Where(p => !RolePermissionRules.Allows(AppRoles.ProcurementOfficer, p.ToString())).ToArray();
+        var staleOfficer = await dbContext.RoleGranularPermissions
+            .Where(x => x.Role.Name == AppRoles.ProcurementOfficer && unsupportedOfficer.Contains(x.Permission))
+            .ToListAsync(cancellationToken);
+        dbContext.RoleGranularPermissions.RemoveRange(staleOfficer);
+
         // Remove unsupported Accountant grants; runtime evaluation enforces this
         // ceiling as well, including before startup cleanup or with stale tokens.
         var unsupportedAccountant = Enum.GetValues<GranularPermission>()
@@ -441,7 +459,8 @@ public static class DatabaseInitializer
             .Include(x => x.Role)
             .Where(x =>
                 reportingPermissions.Contains(x.Permission) &&
-                !reportingRoles.Contains(x.Role.Name))
+                !reportingRoles.Contains(x.Role.Name) &&
+                !(x.Role.Name == AppRoles.ProcurementOfficer && x.Permission == GranularPermission.Reports_View))
             .ToListAsync(cancellationToken);
 
         dbContext.RoleGranularPermissions.RemoveRange(staleReportingPermissions);
@@ -449,4 +468,5 @@ public static class DatabaseInitializer
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }
+
 
