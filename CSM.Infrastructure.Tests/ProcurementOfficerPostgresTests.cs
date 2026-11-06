@@ -1,3 +1,4 @@
+using System.Reflection;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.StockAdjustments.Dtos;
 using CSM.Domain.Entities.Identity;
@@ -57,6 +58,15 @@ public sealed class ProcurementOfficerPostgresTests
             assignment.IsActive = false; await db.SaveChangesAsync();
             Assert.Equal(2, (await stock.GetAllAsync(actor.Id)).Count);
             Assert.Equal(2, (await new ReportingService(db).GetExecutiveDashboardAsync(actor.Id)).TotalSites);
+            // Relational uniqueness must hold for newly appended default permissions.
+            var admin = new Role { Name = "SuperAdmin", NormalizedName = "SUPERADMIN" };
+            var companyAdmin = new Role { Name = "CompanyAdmin", NormalizedName = "COMPANYADMIN" };
+            db.Roles.AddRange(admin, companyAdmin); await db.SaveChangesAsync();
+            var seed = typeof(DatabaseInitializer).GetMethod("SeedGranularRolePermissionsAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+            await (Task)seed.Invoke(null, new object[] { db, CancellationToken.None })!;
+            await (Task)seed.Invoke(null, new object[] { db, CancellationToken.None })!;
+            Assert.Single(await db.RoleGranularPermissions.Where(x => x.RoleId == admin.Id && x.Permission == GranularPermission.Procurement_Vendor_View).ToListAsync());
+            Assert.Single(await db.RoleGranularPermissions.Where(x => x.RoleId == companyAdmin.Id && x.Permission == GranularPermission.Procurement_Vendor_View).ToListAsync());
         }
         finally { await db.Database.EnsureDeletedAsync(); }
     }
