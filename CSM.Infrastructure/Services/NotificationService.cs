@@ -192,7 +192,7 @@ public sealed class NotificationService : INotificationService
         var orders = scope.Filter(_dbContext.PurchaseOrders, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId).Where(x => canOrders).Select(x => x.Id);
         var receipts = scope.Filter(_dbContext.GoodsReceipts, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId).Where(x => canStock).Select(x => x.Id);
         var stocks = scope.Filter(_dbContext.StockItems, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId).Where(x => canStock).Select(x => x.Id);
-        var movements = scope.Filter(_dbContext.StockMovements, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId).Where(x => canStock).Select(x => x.Id);
+        var movements = scope.FilterStockMovements(_dbContext, _dbContext.StockMovements).Where(x => canStock).Select(x => x.Id);
         return query.Where(x =>
             (x.SourceEntityType != "MaterialRequest" || (x.SourceEntityId.HasValue && requests.Contains(x.SourceEntityId.Value))) &&
             (x.SourceEntityType != "PurchaseOrder" || (x.SourceEntityId.HasValue && orders.Contains(x.SourceEntityId.Value))) &&

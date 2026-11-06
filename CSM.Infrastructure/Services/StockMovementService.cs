@@ -49,7 +49,7 @@ public sealed class StockMovementService : IStockMovementService
             toUtc);
 
         var query = BuildQuery();
-        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId);
+        query = scope.FilterStockMovements(_dbContext, query);
 
         if (!IsSuperAdmin(actor))
         {
@@ -132,7 +132,8 @@ public sealed class StockMovementService : IStockMovementService
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
-        var record = await BuildQuery()
+        var query = scope.FilterStockMovements(_dbContext, BuildQuery());
+        var record = await query
             .SingleOrDefaultAsync(
                 x => x.Id == stockMovementId,
                 cancellationToken)
@@ -149,30 +150,22 @@ public sealed class StockMovementService : IStockMovementService
 
         if (record.ReferenceType == "StockTransfer")
         {
+            var counterparts = scope.FilterStockMovements(_dbContext, BuildQuery()).Where(x =>
+                x.ReferenceType == "StockTransfer" && x.CompanyId == record.CompanyId &&
+                x.StockItem.MaterialId == record.StockItem.MaterialId && x.StockItem.CompanyId == record.CompanyId &&
+                x.StockItem.ConstructionSite.CompanyId == record.CompanyId);
             if (record.MovementType == StockMovementType.TransferOut)
             {
                 moveFrom = record.StockItem.ConstructionSite.Name;
-
-                moveTo = await _dbContext.StockMovements
-                    .AsNoTracking()
-                    .Include(x => x.StockItem)
-                        .ThenInclude(x => x.ConstructionSite)
-                    .Where(x => x.ReferenceId == record.Id)
-                    .Select(x => x.StockItem.ConstructionSite.Name)
-                    .FirstOrDefaultAsync(cancellationToken);
+                moveTo = await counterparts.Where(x => x.MovementType == StockMovementType.TransferIn &&
+                    (x.ReferenceId == record.Id || (!x.ReferenceId.HasValue && !string.IsNullOrEmpty(record.ReferenceNumber) && x.ReferenceNumber == record.ReferenceNumber)))
+                    .Select(x => x.StockItem.ConstructionSite.Name).FirstOrDefaultAsync(cancellationToken);
             }
-            else if (record.MovementType == StockMovementType.TransferIn &&
-                     record.ReferenceId.HasValue)
+            else if (record.MovementType == StockMovementType.TransferIn)
             {
-                var source = await _dbContext.StockMovements
-                    .AsNoTracking()
-                    .Include(x => x.StockItem)
-                        .ThenInclude(x => x.ConstructionSite)
-                    .FirstOrDefaultAsync(
-                        x => x.Id == record.ReferenceId.Value,
-                        cancellationToken);
-
-                moveFrom = source?.StockItem.ConstructionSite.Name;
+                moveFrom = await counterparts.Where(x => x.MovementType == StockMovementType.TransferOut &&
+                    (record.ReferenceId == x.Id || (!record.ReferenceId.HasValue && !string.IsNullOrEmpty(record.ReferenceNumber) && x.ReferenceNumber == record.ReferenceNumber)))
+                    .Select(x => x.StockItem.ConstructionSite.Name).FirstOrDefaultAsync(cancellationToken);
                 moveTo = record.StockItem.ConstructionSite.Name;
             }
         }

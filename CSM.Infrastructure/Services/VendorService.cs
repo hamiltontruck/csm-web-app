@@ -37,7 +37,7 @@ public sealed class VendorService : IVendorService
         actor = scope.For(actor);
 
         if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
-                GranularPermission.Procurement_Inventory_View, cancellationToken))
+                GranularPermission.Procurement_Vendor_View, cancellationToken))
             EnsureCanManage(actor);
 
         var query = _dbContext.Vendors
@@ -100,7 +100,7 @@ public sealed class VendorService : IVendorService
         actor = scope.For(actor);
 
         if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
-                GranularPermission.Procurement_Inventory_View, cancellationToken))
+                GranularPermission.Procurement_Vendor_View, cancellationToken))
             EnsureCanManage(actor);
 
         var vendor = await _dbContext.Vendors

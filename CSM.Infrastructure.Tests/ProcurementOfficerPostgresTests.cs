@@ -2,6 +2,7 @@ using System.Reflection;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.StockAdjustments.Dtos;
 using CSM.Domain.Entities.Identity;
+using CSM.Domain.Entities.Notifications;
 using CSM.Domain.Entities.Organization;
 using CSM.Domain.Entities.Procurement;
 using CSM.Domain.Enums;
@@ -55,8 +56,24 @@ public sealed class ProcurementOfficerPostgresTests
             await new StockAdjustmentService(db).CreateAsync(actor.Id, change);
             Assert.Equal(1m, Assert.Single(await stock.GetAllAsync(actor.Id)).QuantityOnHand);
             Assert.Single(await new StockMovementService(db).GetAllAsync(actor.Id));
+            var firstStock = await db.StockItems.SingleAsync(x => x.ConstructionSiteId == first.Id);
+            var secondStock = await db.StockItems.SingleAsync(x => x.ConstructionSiteId == second.Id);
+            var outgoing = new StockMovement { CompanyId = company.Id, StockItemId = firstStock.Id, MovementType = StockMovementType.TransferOut,
+                ReferenceType = "StockTransfer", ReferenceNumber = "PAIR", Quantity = 1m, MovementDateUtc = DateTime.UtcNow };
+            var incoming = new StockMovement { CompanyId = company.Id, StockItemId = secondStock.Id, MovementType = StockMovementType.TransferIn,
+                ReferenceType = "StockTransfer", ReferenceId = outgoing.Id, ReferenceNumber = "PAIR", Quantity = 1m, MovementDateUtc = DateTime.UtcNow };
+            db.StockMovements.AddRange(outgoing, incoming);
+            db.Notifications.Add(new Notification { CompanyId = company.Id, RecipientUserId = actor.Id, Title = "Transfer", Message = "Transfer details",
+                SourceEntityType = "StockMovement", SourceEntityId = outgoing.Id });
+            await db.SaveChangesAsync();
+            Assert.Single(await new StockMovementService(db).GetAllAsync(actor.Id)); // Only the permitted adjustment.
+            await Assert.ThrowsAsync<StockMovementManagementException>(() => new StockMovementService(db).GetByIdAsync(actor.Id, outgoing.Id));
+            Assert.Empty(await new NotificationService(db).GetAllAsync(actor.Id, null));
+            Assert.Equal(0, await new NotificationService(db).GetUnreadCountAsync(actor.Id));
             assignment.IsActive = false; await db.SaveChangesAsync();
             Assert.Equal(2, (await stock.GetAllAsync(actor.Id)).Count);
+            Assert.Equal(3, (await new StockMovementService(db).GetAllAsync(actor.Id)).Count);
+            Assert.Single(await new NotificationService(db).GetAllAsync(actor.Id, null));
             Assert.Equal(2, (await new ReportingService(db).GetExecutiveDashboardAsync(actor.Id)).TotalSites);
             // Relational uniqueness must hold for newly appended default permissions.
             var admin = new Role { Name = "SuperAdmin", NormalizedName = "SUPERADMIN" };

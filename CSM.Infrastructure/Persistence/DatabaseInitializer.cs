@@ -421,7 +421,8 @@ public static class DatabaseInitializer
             GranularPermission.HRM_Leave_Submit,
             GranularPermission.Notifications_View);
 
-        foreach (var reader in new[] { AppRoles.SuperAdmin, AppRoles.CompanyAdmin, AppRoles.SiteManager, AppRoles.Accountant })
+        // SuperAdmin and CompanyAdmin already receive every enum value above.
+        foreach (var reader in new[] { AppRoles.SiteManager, AppRoles.Accountant })
             Grant(reader, GranularPermission.Procurement_Vendor_View);
 
         var unsupportedOfficer = Enum.GetValues<GranularPermission>()

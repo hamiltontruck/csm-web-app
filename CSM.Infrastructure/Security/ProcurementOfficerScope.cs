@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using CSM.Domain.Constants;
 using CSM.Domain.Entities.Identity;
+using CSM.Domain.Entities.Procurement;
 using CSM.Domain.Enums;
 using CSM.Domain.Security;
 using CSM.Infrastructure.Persistence;
@@ -82,6 +83,26 @@ internal sealed class ProcurementOfficerScope
             predicate = Expression.AndAlso(predicate, Expression.AndAlso(hasValue, contains));
         }
         return query.Where(Expression.Lambda<Func<T, bool>>(predicate, parameter));
+    }
+
+    public IQueryable<StockMovement> FilterStockMovements(ApplicationDbContext db, IQueryable<StockMovement> rows)
+    {
+        if (!IsScoped) return rows;
+        var permitted = Filter(db.StockMovements.AsNoTracking().Where(x =>
+                x.StockItem.CompanyId == x.CompanyId && x.StockItem.ConstructionSite.CompanyId == x.CompanyId),
+            x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId);
+        // A transfer is one operation with two ends. Explicit incoming.ReferenceId
+        // is authoritative; legacy rows without it may use the company/material reference.
+        return rows.Where(x => permitted.Any(p => p.Id == x.Id) &&
+            (x.ReferenceType != "StockTransfer" ||
+             (x.MovementType == StockMovementType.TransferOut && permitted.Any(p =>
+                 p.ReferenceType == "StockTransfer" && p.MovementType == StockMovementType.TransferIn &&
+                 p.CompanyId == x.CompanyId && p.StockItem.MaterialId == x.StockItem.MaterialId &&
+                 (p.ReferenceId == x.Id || (!p.ReferenceId.HasValue && !string.IsNullOrEmpty(x.ReferenceNumber) && p.ReferenceNumber == x.ReferenceNumber)))) ||
+             (x.MovementType == StockMovementType.TransferIn && permitted.Any(p =>
+                 p.ReferenceType == "StockTransfer" && p.MovementType == StockMovementType.TransferOut &&
+                 p.CompanyId == x.CompanyId && p.StockItem.MaterialId == x.StockItem.MaterialId &&
+                 (x.ReferenceId == p.Id || (!x.ReferenceId.HasValue && !string.IsNullOrEmpty(x.ReferenceNumber) && p.ReferenceNumber == x.ReferenceNumber))))));
     }
 
     private sealed class ReplaceParameter(ParameterExpression from, ParameterExpression to) : ExpressionVisitor

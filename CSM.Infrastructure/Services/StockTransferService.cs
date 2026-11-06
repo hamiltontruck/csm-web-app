@@ -95,7 +95,7 @@ public sealed partial class StockTransferService
                     x.StockItem.MaterialId == movement.StockItem.MaterialId &&
                     x.StockItem.ConstructionSite.CompanyId == movement.CompanyId &&
                     x.ReferenceType == "StockTransfer" &&
-                    x.ReferenceNumber == movement.ReferenceNumber &&
+                    (x.ReferenceId == movement.Id || (!x.ReferenceId.HasValue && !string.IsNullOrEmpty(movement.ReferenceNumber) && x.ReferenceNumber == movement.ReferenceNumber)) &&
                     x.MovementType == StockMovementType.TransferIn);
             if (scope is not null) destinationQuery = scope.Filter(destinationQuery, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId);
             var destination = await destinationQuery.FirstOrDefaultAsync(cancellationToken);

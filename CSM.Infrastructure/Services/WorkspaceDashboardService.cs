@@ -55,20 +55,19 @@ public sealed class WorkspaceDashboardService(ApplicationDbContext db) : IWorksp
         }
         if (Has(GranularPermission.Procurement_Inventory_View) && IsIn("SuperAdmin", "Administrator", "Supervisor", "Storekeeper", "ProcurementOfficer"))
         {
-            // Stock readers already have company scope; only Supervisor-only actors
-            // are restricted to their active assigned sites by StockBalanceService.
-            var companyStock = IsIn("SuperAdmin", "Administrator", "Storekeeper", "ProcurementOfficer");
-            var stockSites = db.ConstructionSites.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted &&
-                (companyStock || (x.IsActive && sites.Contains(x.Id)))).Select(x => x.Id);
             var stockScope = await ProcurementOfficerScope.ResolveAsync(db, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken,
                 message => new UnauthorizedAccessException(message), ["SuperAdmin", "Administrator", "Supervisor", "Storekeeper"]);
-            stockSites = stockScope.Filter(db.ConstructionSites.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted),
-                x => x.CompanyId, x => (Guid?)x.Id).Select(x => x.Id);
-            if (!stockScope.IsScoped)
-                stockSites = db.ConstructionSites.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted &&
-                    (companyStock || (x.IsActive && sites.Contains(x.Id)))).Select(x => x.Id);
-            result.LowStockItems = await db.StockItems.AsNoTracking().CountAsync(x => x.CompanyId == company.Id && !x.IsDeleted && stockSites.Contains(x.ConstructionSiteId) && x.QuantityOnHand <= x.ReorderLevel, cancellationToken);
+            var stockActor = stockScope.For(actor);
+            var companyStock = stockActor.UserRoles.Any(x => !x.IsDeleted && !x.Role.IsDeleted &&
+                new[] { "SuperAdmin", "Administrator", "Storekeeper" }.Contains(x.Role.Name));
+            var assignedStockSites = db.UserSiteAccesses.Where(x => x.UserId == actor.Id && x.CompanyId == company.Id &&
+                x.IsActive && !x.IsDeleted && x.Site.IsActive && !x.Site.IsDeleted && x.Site.CompanyId == company.Id).Select(x => x.SiteId);
+            var stockSites = db.ConstructionSites.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted);
+            stockSites = stockScope.IsScoped
+                ? stockScope.Filter(stockSites, x => x.CompanyId, x => (Guid?)x.Id)
+                : stockSites.Where(x => companyStock || (x.IsActive && assignedStockSites.Contains(x.Id)));
+            result.LowStockItems = await db.StockItems.AsNoTracking().CountAsync(x => x.CompanyId == company.Id && !x.IsDeleted && stockSites.Select(site => site.Id).Contains(x.ConstructionSiteId) && x.QuantityOnHand <= x.ReorderLevel, cancellationToken);
         }
         if (Has(GranularPermission.Compliance_View) && IsIn("SuperAdmin", "CompanyAdmin", "SiteManager"))
             result.OpenSafetyIncidents = await db.SafetyIncidents.AsNoTracking().CountAsync(x => x.CompanyId == company.Id && !x.IsDeleted && sites.Contains(x.ConstructionSiteId) && x.Status != SafetyIncidentStatus.Resolved, cancellationToken);
