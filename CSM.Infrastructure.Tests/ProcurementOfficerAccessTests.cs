@@ -139,7 +139,7 @@ public sealed class ProcurementOfficerAccessTests
         using var f = new Fixture();
         f.Assign(f.First);
         var service = new MaterialRequestService(f.Db);
-        var mr = await service.CreateAsync(f.Actor.Id, new CreateMaterialRequestRequest {
+        var mr = await service.CreateAsync(f.Actor.Id, new CSM.Application.Procurement.MaterialRequests.Dtos.CreateMaterialRequestRequest {
             ConstructionSiteId = f.First.Id, RequestNumber = "MR-OFFICER", RequestDate = new(2026, 11, 6),
             Lines = [new() { MaterialId = f.Material.Id, RequestedQuantity = 1m }] });
         Assert.Equal(MaterialRequestStatus.Submitted, (await service.SubmitAsync(f.Actor.Id, mr.Id)).Status);
