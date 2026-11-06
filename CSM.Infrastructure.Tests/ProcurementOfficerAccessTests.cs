@@ -1,4 +1,8 @@
 using System.Reflection;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using CSM.Application.Inventory.StockAdjustments.Dtos;
+using CSM.Application.Inventory.StockTransfers.Dtos;
 using System.Security.Claims;
 using CSM.Api.Controllers;
 using CSM.Application.Common.Security;
@@ -184,6 +188,70 @@ public sealed class ProcurementOfficerAccessTests
         Assert.Null(report.TotalBudget);
         await Assert.ThrowsAnyAsync<Exception>(() => new ReportingService(f.Db).GetFinancialSummaryAsync(f.Actor.Id));
     }
+
+    [Fact]
+    public async Task Stock_adjustment_checks_assignment_before_any_balance_or_movement_change()
+    {
+        using var f = new Fixture();
+        f.Assign(f.First);
+        var service = new StockAdjustmentService(f.Db);
+        var denied = new CreateStockAdjustmentRequest { ConstructionSiteId = f.Second.Id, MaterialId = f.Material.Id,
+            Increase = true, Quantity = 2m, AdjustmentNumber = "DENIED", Reason = "Test", AdjustmentDateUtc = DateTime.UtcNow };
+        await Assert.ThrowsAnyAsync<Exception>(() => service.CreateAsync(f.Actor.Id, denied));
+        Assert.Equal(0m, f.SecondStock.QuantityOnHand);
+        Assert.Empty(f.Db.StockMovements);
+        denied.ConstructionSiteId = f.First.Id;
+        denied.AdjustmentNumber = "ALLOWED";
+        await service.CreateAsync(f.Actor.Id, denied);
+        Assert.Equal(2m, f.Db.StockItems.Single(x => x.ConstructionSiteId == f.First.Id).QuantityOnHand);
+        Assert.Single(f.Db.StockMovements);
+    }
+
+    [Fact]
+    public async Task Public_transfer_list_requires_both_sites_and_never_returns_another_company()
+    {
+        using var f = new Fixture();
+        var first = f.Db.StockItems.Single(x => x.ConstructionSiteId == f.First.Id);
+        f.Db.StockMovements.AddRange(
+            new StockMovement { CompanyId = f.First.CompanyId, StockItemId = first.Id, MovementType = StockMovementType.TransferOut, ReferenceType = "StockTransfer", ReferenceNumber = "PAIR", Quantity = 1m },
+            new StockMovement { CompanyId = f.Second.CompanyId, StockItemId = f.SecondStock.Id, MovementType = StockMovementType.TransferIn, ReferenceType = "StockTransfer", ReferenceNumber = "PAIR", Quantity = 1m });
+        var foreignMaterial = new Material { CompanyId = f.Foreign.CompanyId, MaterialCode = "F", Name = "Foreign", UnitOfMeasure = "Bag" };
+        var foreignStock = new StockItem { CompanyId = f.Foreign.CompanyId, ConstructionSite = f.Foreign, Material = foreignMaterial };
+        f.Db.StockItems.Add(foreignStock);
+        f.Db.StockMovements.Add(new StockMovement { CompanyId = f.Foreign.CompanyId, StockItem = foreignStock, MovementType = StockMovementType.TransferOut, ReferenceType = "StockTransfer", ReferenceNumber = "FOREIGN", Quantity = 1m });
+        f.Db.SaveChanges(true);
+        var controller = TransferController(f);
+        var own = Assert.IsType<OkObjectResult>((await controller.GetAll(CancellationToken.None)).Result);
+        Assert.Single(Assert.IsType<List<StockTransferResponse>>(own.Value));
+        f.Assign(f.First);
+        var assigned = Assert.IsType<OkObjectResult>((await controller.GetAll(CancellationToken.None)).Result);
+        Assert.Empty(Assert.IsType<List<StockTransferResponse>>(assigned.Value));
+        f.Assign(f.Second);
+        var both = Assert.IsType<OkObjectResult>((await controller.GetAll(CancellationToken.None)).Result);
+        Assert.Single(Assert.IsType<List<StockTransferResponse>>(both.Value));
+    }
+
+    [Fact]
+    public async Task Public_transfer_create_rejects_unassigned_destination_before_writing()
+    {
+        using var f = new Fixture();
+        f.Assign(f.First);
+        var source = f.Db.StockItems.Single(x => x.ConstructionSiteId == f.First.Id);
+        source.QuantityOnHand = 10m;
+        f.Db.SaveChanges(true);
+        var controller = TransferController(f);
+        var result = await controller.Create(new CreateStockTransferRequest { SourceConstructionSiteId = f.First.Id,
+            DestinationConstructionSiteId = f.Second.Id, MaterialId = f.Material.Id, Quantity = 1m,
+            TransferNumber = "DENIED", TransferDateUtc = DateTime.UtcNow }, CancellationToken.None);
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Equal(10m, source.QuantityOnHand);
+        Assert.Equal(0m, f.SecondStock.QuantityOnHand);
+        Assert.Empty(f.Db.StockMovements);
+    }
+
+    private static StockTransfersController TransferController(Fixture f) => new(new StockTransferService(f.Db)) {
+        ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim(ClaimTypes.NameIdentifier, f.Actor.Id.ToString()), new Claim("company_id", f.First.CompanyId.ToString())], "test")) } } };
 
     private sealed class Fixture : IDisposable
     {
