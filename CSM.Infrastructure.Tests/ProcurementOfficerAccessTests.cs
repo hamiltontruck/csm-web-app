@@ -1,4 +1,13 @@
 using System.Reflection;
+using System.Security.Claims;
+using CSM.Api.Controllers;
+using CSM.Application.Common.Security;
+using CSM.Application.Procurement.PurchaseOrders.Dtos;
+using CSM.Application.Procurement.MaterialRequests.Dtos;
+using CSM.Domain.Entities.Finance;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using CSM.Domain.Constants;
 using CSM.Domain.Entities.Identity;
 using CSM.Domain.Entities.Organization;
@@ -109,15 +118,84 @@ public sealed class ProcurementOfficerAccessTests
         Assert.Equal(Allowed.Order(), f.Db.RoleGranularPermissions.Where(x => x.RoleId == f.Role.Id).Select(x => x.Permission.ToString()).Order());
     }
 
+    [Fact]
+    public async Task Officer_creates_and_submits_PO_but_cannot_approve_even_with_stale_approval_grant()
+    {
+        using var f = new Fixture();
+        f.Assign(f.First);
+        var service = new PurchaseOrderService(f.Db);
+        var order = await service.CreateAsync(f.Actor.Id, f.Order(f.First));
+        Assert.Equal(100m, order.TotalAmount);
+        Assert.Equal(PurchaseOrderStatus.PendingApproval, (await service.SubmitAsync(f.Actor.Id, order.Id)).Status);
+        await Assert.ThrowsAnyAsync<Exception>(() => service.ApproveAsync(f.Actor.Id, order.Id));
+        Assert.Equal(PurchaseOrderStatus.PendingApproval, f.Db.PurchaseOrders.Single().Status);
+        await Assert.ThrowsAnyAsync<Exception>(() => service.CreateAsync(f.Actor.Id, f.Order(f.Second)));
+        Assert.Single(f.Db.PurchaseOrders);
+    }
+
+    [Fact]
+    public async Task Officer_creates_and_submits_MR_in_scope_and_cannot_approve()
+    {
+        using var f = new Fixture();
+        f.Assign(f.First);
+        var service = new MaterialRequestService(f.Db);
+        var mr = await service.CreateAsync(f.Actor.Id, new CreateMaterialRequestRequest {
+            ConstructionSiteId = f.First.Id, RequestNumber = "MR-OFFICER", RequestDate = new(2026, 11, 6),
+            Lines = [new() { MaterialId = f.Material.Id, RequestedQuantity = 1m }] });
+        Assert.Equal(MaterialRequestStatus.Submitted, (await service.SubmitAsync(f.Actor.Id, mr.Id)).Status);
+        await Assert.ThrowsAnyAsync<Exception>(() => service.ApproveAsync(f.Actor.Id, mr.Id, new ApproveMaterialRequestRequest()));
+        Assert.Equal(MaterialRequestStatus.Submitted, f.Db.MaterialRequests.Single().Status);
+    }
+
+    [Theory]
+    [InlineData(typeof(EquipmentFuelLogsController), "GetAll")]
+    [InlineData(typeof(EquipmentFuelLogsController), "Create")]
+    [InlineData(typeof(EquipmentUtilizationController), "GetAll")]
+    [InlineData(typeof(EquipmentHourLogsController), "GetAll")]
+    [InlineData(typeof(EquipmentHourLogsController), "Create")]
+    [InlineData(typeof(EquipmentTimesheetsController), "GetAll")]
+    [InlineData(typeof(EquipmentTimesheetsController), "Create")]
+    public async Task Officer_inventory_grant_does_not_open_raw_equipment_APIs(Type controller, string action)
+    {
+        var registrations = new ServiceCollection().AddLogging();
+        registrations.AddAuthorization(o => o.AddPolicy(AppPolicies.ProcurementManagement, p => p.RequireRole(AppPolicies.ProcurementManagementRoles)));
+        using var provider = registrations.AddGrantedBackendPermissions(AppRoles.ProcurementOfficer).BuildServiceProvider();
+        var attributes = controller.GetCustomAttributes<AuthorizeAttribute>().Concat(controller.GetMethod(action)!.GetCustomAttributes<AuthorizeAttribute>());
+        var policy = await AuthorizationPolicy.CombineAsync(provider.GetRequiredService<IAuthorizationPolicyProvider>(), attributes);
+        var actor = BackendAuthorizationFixture.WithGrantedIdentity(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, AppRoles.ProcurementOfficer)], "test")));
+        Assert.False((await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(actor, null, policy!)).Succeeded);
+    }
+
+    [Fact]
+    public async Task Dashboard_and_reports_follow_conditional_scope_without_financial_leak()
+    {
+        using var f = new Fixture();
+        f.Db.Companies.Add(new Company { Id = f.Actor.CompanyId!.Value, Name = "Own", Code = "OWN", IsActive = true });
+        f.Db.SaveChanges(true);
+        var service = new WorkspaceDashboardService(f.Db);
+        Assert.Equal(2, (await service.GetAsync(f.Actor.Id)).LowStockItems);
+        f.Assign(f.First);
+        var dashboard = await service.GetAsync(f.Actor.Id);
+        Assert.Equal(1, dashboard.LowStockItems);
+        Assert.Null(dashboard.TotalBudget);
+        Assert.Null(dashboard.TotalExpenses);
+        var report = await new ReportingService(f.Db).GetExecutiveDashboardAsync(f.Actor.Id);
+        Assert.Equal(1, report.TotalSites);
+        Assert.Null(report.TotalBudget);
+        await Assert.ThrowsAnyAsync<Exception>(() => new ReportingService(f.Db).GetFinancialSummaryAsync(f.Actor.Id));
+    }
+
     private sealed class Fixture : IDisposable
     {
-        public ApplicationDbContext Db { get; } = new(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        public TestDb Db { get; } = new();
         public Role Role { get; } = new() { Name = AppRoles.ProcurementOfficer, GranularPermissions = Enum.GetValues<GranularPermission>().Select(p => new RoleGranularPermission { Permission = p }).ToList() };
         public User Actor { get; }
         public ConstructionSite First { get; }
         public ConstructionSite Second { get; }
         public ConstructionSite Foreign { get; }
         public StockItem SecondStock { get; }
+        public Material Material { get; }
+        public Vendor Vendor { get; }
         public Fixture()
         {
             var company = Guid.NewGuid();
@@ -125,13 +203,18 @@ public sealed class ProcurementOfficerAccessTests
             First = new() { CompanyId = company, Name = "First", SiteCode = "FIRST", IsActive = true };
             Second = new() { CompanyId = company, Name = "Second", SiteCode = "SECOND", IsActive = true };
             Foreign = new() { CompanyId = Guid.NewGuid(), Name = "Foreign", SiteCode = "FOREIGN", IsActive = true };
-            var material = new Material { CompanyId = company, MaterialCode = "M", Name = "Material", UnitOfMeasure = "Bag" };
-            SecondStock = new() { CompanyId = company, ConstructionSite = Second, Material = material };
+            Material = new Material { CompanyId = company, MaterialCode = "M", Name = "Material", UnitOfMeasure = "Bag", IsActive = true };
+            Vendor = new Vendor { CompanyId = company, VendorCode = "V", Name = "Vendor", IsActive = true };
+            Db.Vendors.Add(Vendor);
+            SecondStock = new() { CompanyId = company, ConstructionSite = Second, Material = Material };
             Db.Users.Add(Actor);
             Db.ConstructionSites.AddRange(First, Second, Foreign);
-            Db.StockItems.AddRange(new StockItem { CompanyId = company, ConstructionSite = First, Material = material }, SecondStock);
+            Db.StockItems.AddRange(new StockItem { CompanyId = company, ConstructionSite = First, Material = Material }, SecondStock);
             Db.SaveChanges(true);
         }
+        public CreatePurchaseOrderRequest Order(ConstructionSite site) => new() {
+            ConstructionSiteId = site.Id, VendorId = Vendor.Id, PurchaseOrderNumber = "PO-" + site.SiteCode,
+            OrderDate = new(2026, 11, 6), Lines = [new() { MaterialId = Material.Id, OrderedQuantity = 2m, UnitPrice = 50m }] };
         public UserSiteAccess Assign(ConstructionSite site)
         {
             var access = new UserSiteAccess { UserId = Actor.Id, SiteId = site.Id, CompanyId = site.CompanyId, IsActive = true };
@@ -140,5 +223,10 @@ public sealed class ProcurementOfficerAccessTests
             return access;
         }
         public void Dispose() => Db.Dispose();
+    }
+    private sealed class TestDb() : ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+        .UseInMemoryDatabase(Guid.NewGuid().ToString()).ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning)).Options)
+    {
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => base.SaveChangesAsync(true, cancellationToken);
     }
 }
