@@ -272,6 +272,62 @@ public sealed class ProcurementOfficerAccessTests
         Assert.False(notification.IsRead);
     }
 
+    [Theory]
+    [InlineData("Accountant")] [InlineData("SiteManager")]
+    public void Vendor_route_uses_canonical_vendor_grant_independently_of_inventory(string role)
+    {
+        Assert.True(new WorkspaceAccess([role], ["Procurement_Vendor_View"]).CanVisit("/vendors"));
+        Assert.False(new WorkspaceAccess([role], ["Procurement_Inventory_View"]).CanVisit("/vendors"));
+        Assert.False(new WorkspaceAccess([role], ["Sites_View", "Procurement_PurchaseOrder_View", "Procurement_PurchaseOrder_Manage", "Procurement_Inventory_View"])
+            .CanVisit("/purchase-orders/create/00000000-0000-0000-0000-000000000001"));
+    }
+
+    [Fact]
+    public async Task Accountant_vendor_reads_use_vendor_grant_without_inventory_grant()
+    {
+        using var f = new Fixture();
+        f.Role.Name = "Accountant";
+        f.Db.RoleGranularPermissions.Remove(f.Role.GranularPermissions.Single(p => p.Permission == GranularPermission.Procurement_Inventory_View));
+        f.Db.SaveChanges(true);
+        var service = new VendorService(f.Db);
+        Assert.Equal(f.Vendor.Id, Assert.Single(await service.GetAllAsync(f.Actor.Id, null)).Id);
+        Assert.Equal(f.Vendor.Id, (await service.GetByIdAsync(f.Actor.Id, f.Vendor.Id)).Id);
+    }
+
+    [Fact]
+    public async Task Granted_Supervisor_does_not_borrow_Officer_company_stock_dashboard_scope()
+    {
+        using var f = new Fixture();
+        f.Assign(f.First);
+        f.Db.Companies.Add(new Company { Id = f.First.CompanyId, Name = "Own", Code = "OWN" });
+        f.Db.UserRoles.Add(new() { UserId = f.Actor.Id, Role = new Role { Name = "Supervisor", GranularPermissions = [new() { Permission = GranularPermission.Procurement_Inventory_View }] } });
+        f.Db.SaveChanges(true);
+        Assert.Single(await new StockBalanceService(f.Db).GetAllAsync(f.Actor.Id));
+        Assert.Equal(1, (await new WorkspaceDashboardService(f.Db).GetAsync(f.Actor.Id)).LowStockItems);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task Movement_list_and_detail_require_both_transfer_ends(bool inbound)
+    {
+        using var f = new Fixture();
+        f.Assign(f.First);
+        var firstStock = f.Db.StockItems.Single(x => x.ConstructionSiteId == f.First.Id);
+        var source = inbound ? f.SecondStock : firstStock;
+        var destination = inbound ? firstStock : f.SecondStock;
+        var outgoing = new StockMovement { CompanyId = f.First.CompanyId, StockItemId = source.Id, MovementType = StockMovementType.TransferOut,
+            ReferenceType = "StockTransfer", ReferenceNumber = "PAIR", Quantity = 1m };
+        var incoming = new StockMovement { CompanyId = f.First.CompanyId, StockItemId = destination.Id, MovementType = StockMovementType.TransferIn,
+            ReferenceType = "StockTransfer", ReferenceId = outgoing.Id, ReferenceNumber = "PAIR", Quantity = 1m };
+        f.Db.StockMovements.AddRange(outgoing, incoming); f.Db.SaveChanges(true);
+        var service = new StockMovementService(f.Db);
+        Assert.Empty(await service.GetAllAsync(f.Actor.Id));
+        await Assert.ThrowsAnyAsync<Exception>(() => service.GetByIdAsync(f.Actor.Id, inbound ? incoming.Id : outgoing.Id));
+        f.Assign(f.Second);
+        Assert.Equal(2, (await service.GetAllAsync(f.Actor.Id)).Count);
+        Assert.Equal(inbound ? "First" : "Second", (await service.GetByIdAsync(f.Actor.Id, outgoing.Id)).MoveTo);
+    }
+
     private sealed class Fixture : IDisposable
     {
         public TestDb Db { get; } = new();
