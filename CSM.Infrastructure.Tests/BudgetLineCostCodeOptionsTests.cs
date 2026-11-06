@@ -21,7 +21,7 @@ namespace CSM.Infrastructure.Tests;
 public sealed class BudgetLineCostCodeOptionsTests
 {
     private static readonly Guid Company = Guid.NewGuid(), OtherCompany = Guid.NewGuid();
-    private static readonly Guid Actor = Guid.NewGuid(), BudgetId = Guid.NewGuid(), CodeId = Guid.NewGuid();
+    private static readonly Guid Actor = Guid.NewGuid(), BudgetId = Guid.NewGuid(), CodeId = Guid.Parse("27f29c45-4ad7-403b-959e-d78520287770");
 
     [Theory]
     [InlineData(false)]
@@ -36,7 +36,7 @@ public sealed class BudgetLineCostCodeOptionsTests
             ? context.RenderComponent<BudgetLineEdit>(p => p.Add(x => x.BudgetId, BudgetId).Add(x => x.BudgetLineId, CodeId))
             : context.RenderComponent<BudgetLineCreate>(p => p.Add(x => x.BudgetId, BudgetId));
         page.WaitForAssertion(() => Assert.Contains("LAB - Labour", page.Markup));
-        Assert.DoesNotContain("403", page.Markup);
+        Assert.Empty(page.FindAll(".alert-danger, [role=alert]"));
         page.Find("select").Change(CodeId.ToString());
         page.Find("input").Change("Accountant budget line test.");
         page.FindAll("input").ElementAt(1).Change("5000");
