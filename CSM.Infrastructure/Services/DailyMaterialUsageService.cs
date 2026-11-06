@@ -1,3 +1,5 @@
+using CSM.Domain.Enums;
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Inventory.DailyMaterialUsage;
 using CSM.Application.Inventory.DailyMaterialUsage.Dtos;
@@ -28,6 +30,12 @@ public sealed class DailyMaterialUsageService :
             currentUserId,
             cancellationToken);
 
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new DailyMaterialUsageManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor", "Accountant"]);
+        actor = scope.For(actor);
+
         var query = _dbContext.DailyMaterialUsages
             .AsNoTracking()
             .Include(x => x.ConstructionSite)
@@ -35,6 +43,7 @@ public sealed class DailyMaterialUsageService :
             .Include(x => x.DailyProgressLog)
             .Include(x => x.LoggedByUser)
             .AsQueryable();
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -61,7 +70,13 @@ public sealed class DailyMaterialUsageService :
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
+            message => new DailyMaterialUsageManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor"], allowOfficer: false);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanManage(actor);
 
         ValidateRequest(request);
 
@@ -76,6 +91,7 @@ public sealed class DailyMaterialUsageService :
         EnsureCompanyAccess(
             actor,
             site.CompanyId);
+        scope.Ensure(site.CompanyId, site.Id);
 
         var material = await _dbContext.Materials
             .AsNoTracking()
@@ -506,6 +522,7 @@ public sealed class DailyMaterialUsageService :
             : value.Trim();
     }
 }
+
 
 
 

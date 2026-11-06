@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Domain.Common;
 using CSM.Domain.Entities.Finance;
 using CSM.Domain.Entities.Identity;
@@ -9,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CSM.Infrastructure.Services;
 
 /// <summary>Corporate finance roles read their company; other report readers need live site grants.</summary>
-internal sealed class FinancialReadScope(ApplicationDbContext db, User actor, Guid companyId)
+internal sealed class FinancialReadScope(ApplicationDbContext db, User actor, Guid companyId, ProcurementOfficerScope? operationalScope = null)
 {
     public bool IncludesCompany { get; } = actor.UserRoles.Any(x => !x.IsDeleted && !x.Role.IsDeleted &&
         new[] { "SuperAdmin", "CompanyAdmin", "Accountant" }.Contains(x.Role.Name, StringComparer.OrdinalIgnoreCase));
@@ -17,6 +18,9 @@ internal sealed class FinancialReadScope(ApplicationDbContext db, User actor, Gu
     {
         get
         {
+            if (operationalScope is { IsScoped: true })
+                return operationalScope.Filter(db.ConstructionSites.AsNoTracking().Where(x => !x.IsDeleted && x.IsActive),
+                    x => x.CompanyId, x => (Guid?)x.Id);
             var companyScope = IncludesCompany;
             return db.ConstructionSites.AsNoTracking().Where(x => x.CompanyId == companyId && !x.IsDeleted &&
                 (companyScope || db.UserSiteAccesses.Any(a => a.UserId == actor.Id && a.CompanyId == companyId && a.SiteId == x.Id && a.IsActive && !a.IsDeleted)));
@@ -54,3 +58,4 @@ internal sealed class FinancialReadScope(ApplicationDbContext db, User actor, Gu
         }
     }
 }
+

@@ -1,5 +1,6 @@
 using CSM.Application.Common.Exceptions;
 using CSM.Domain.Constants;
+using CSM.Domain.Enums;
 using CSM.Domain.Entities.Identity;
 using CSM.Domain.Entities.Organization;
 using CSM.Infrastructure.Persistence;
@@ -21,7 +22,7 @@ public sealed class InventorySiteAccessTests
         var company = Guid.NewGuid();
         var actor = new User { Id = Guid.NewGuid(), CompanyId = company, IsActive = true,
             UserRoles = [new UserRole { Id = Guid.NewGuid(),
-                Role = new Role { Id = Guid.NewGuid(), Name = role } }] };
+                Role = new Role { Id = Guid.NewGuid(), Name = role, GranularPermissions = [new() { Permission = GranularPermission.Sites_View }] } }] };
         var assigned = Site(company, "Assigned");
         var unassigned = Site(company, "Unassigned");
         var inactiveAccess = Site(company, "Inactive access");
@@ -53,3 +54,4 @@ public sealed class InventorySiteAccessTests
         new() { Id = Guid.NewGuid(), UserId = actor.Id, User = actor,
             SiteId = site.Id, Site = site, CompanyId = site.CompanyId, IsActive = active };
 }
+

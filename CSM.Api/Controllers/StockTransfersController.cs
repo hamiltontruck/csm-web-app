@@ -26,7 +26,7 @@ public sealed class StockTransfersController : ControllerBase
     public async Task<ActionResult<List<StockTransferResponse>>> GetAll(
         CancellationToken cancellationToken)
     {
-        var result = await _stockTransferService.GetAllAsync(cancellationToken);
+        var result = await _stockTransferService.GetAllForUserAsync(GetCurrentUserId(), cancellationToken);
 
         return Ok(result);
     }
@@ -39,8 +39,8 @@ public sealed class StockTransfersController : ControllerBase
     {
         try
         {
-            var result = await _stockTransferService.CreateAsync(
-                GetCurrentCompanyId(),
+            var result = await _stockTransferService.CreateForUserAsync(
+                GetCurrentUserId(),
                 request,
                 cancellationToken);
 
@@ -55,16 +55,17 @@ public sealed class StockTransfersController : ControllerBase
         }
     }
 
-    private Guid GetCurrentCompanyId()
+    private Guid GetCurrentUserId()
     {
-        var value = User.FindFirst("company_id")?.Value;
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        if (!Guid.TryParse(value, out var companyId))
+        if (!Guid.TryParse(value, out var userId))
         {
             throw new StockTransferManagementException(
-                "Invalid authenticated company.");
+                "Invalid authenticated user.");
         }
 
-        return companyId;
+        return userId;
     }
 }
+

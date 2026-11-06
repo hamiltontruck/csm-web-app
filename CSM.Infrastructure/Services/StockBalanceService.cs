@@ -31,11 +31,18 @@ public sealed class StockBalanceService : IStockBalanceService
             currentUserId,
             cancellationToken);
 
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new StockBalanceManagementException(message),
+            ["SuperAdmin", "Administrator", "Supervisor", "Storekeeper", "Accountant"]);
+        actor = scope.For(actor);
+
         var accountantRead = await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
             GranularPermission.Procurement_Inventory_View, cancellationToken);
-        if (!accountantRead) EnsureCanRead(actor);
+        if (!scope.IsScoped && !accountantRead) EnsureCanRead(actor);
 
         var query = BuildQuery();
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -84,11 +91,18 @@ public sealed class StockBalanceService : IStockBalanceService
             currentUserId,
             cancellationToken);
 
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new StockBalanceManagementException(message),
+            ["SuperAdmin", "Administrator", "Supervisor", "Storekeeper", "Accountant"]);
+        actor = scope.For(actor);
+
         var accountantRead = await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
             GranularPermission.Procurement_Inventory_View, cancellationToken);
-        if (!accountantRead) EnsureCanRead(actor);
+        if (!scope.IsScoped && !accountantRead) EnsureCanRead(actor);
 
         var query = BuildQuery();
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId);
 
         if (IsSiteScopedSupervisor(actor) && !accountantRead)
         {
@@ -106,6 +120,7 @@ public sealed class StockBalanceService : IStockBalanceService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         return Map(record);
     }
@@ -262,4 +277,5 @@ public sealed class StockBalanceService : IStockBalanceService
         };
     }
 }
+
 

@@ -32,12 +32,19 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_PurchaseOrder_View, cancellationToken,
+            message => new PurchaseOrderManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_PurchaseOrder_View, cancellationToken))
             EnsureCanManage(actor);
 
         var query = BuildQuery()
             .AsSplitQuery();
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -85,7 +92,13 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_PurchaseOrder_View, cancellationToken,
+            message => new PurchaseOrderManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_PurchaseOrder_View, cancellationToken))
             EnsureCanManage(actor);
 
@@ -96,6 +109,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         return Map(record);
     }
@@ -109,7 +123,13 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_PurchaseOrder_Manage, cancellationToken,
+            message => new PurchaseOrderManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         ValidateHeader(
             request.PurchaseOrderNumber,
@@ -131,6 +151,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         EnsureCompanyAccess(
             actor,
             site.CompanyId);
+        scope.Ensure(site.CompanyId, site.Id);
 
         await ValidateProjectAsync(
             site.CompanyId,
@@ -237,7 +258,13 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_PurchaseOrder_Manage, cancellationToken,
+            message => new PurchaseOrderManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -246,6 +273,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status != PurchaseOrderStatus.Draft)
         {
@@ -269,6 +297,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
                 cancellationToken)
             ?? throw new PurchaseOrderManagementException(
                 "Construction site was not found.");
+        scope.Ensure(site.CompanyId, site.Id);
 
         if (site.CompanyId != record.CompanyId)
         {
@@ -423,7 +452,13 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_PurchaseOrder_Manage, cancellationToken,
+            message => new PurchaseOrderManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -432,6 +467,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status != PurchaseOrderStatus.Draft)
         {
@@ -465,7 +501,13 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        await EnsureAccountantOrApproverAsync(actor, cancellationToken);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_PurchaseOrder_Approve, cancellationToken,
+            message => new PurchaseOrderManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) await EnsureAccountantOrApproverAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -474,6 +516,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status !=
             PurchaseOrderStatus.PendingApproval)
@@ -506,7 +549,13 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_PurchaseOrder_Manage, cancellationToken,
+            message => new PurchaseOrderManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -515,6 +564,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status != PurchaseOrderStatus.Approved)
         {
@@ -522,6 +572,15 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
                 "Only Approved purchase orders can be sent to the vendor.");
         }
 
+        if (scope.IsScoped && record.MaterialRequestId.HasValue)
+        {
+            var linkedRequest = await _dbContext.MaterialRequests.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == record.MaterialRequestId.Value, cancellationToken)
+                ?? throw new PurchaseOrderManagementException("Linked material request was not found.");
+            scope.Ensure(linkedRequest.CompanyId, linkedRequest.ConstructionSiteId);
+            if (linkedRequest.CompanyId != record.CompanyId || linkedRequest.ConstructionSiteId != record.ConstructionSiteId)
+                throw new PurchaseOrderManagementException("Linked material request does not belong to this order's site.");
+        }
         record.Status =
             PurchaseOrderStatus.SentToVendor;
         record.UpdatedBy =
@@ -564,7 +623,13 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             currentUserId,
             cancellationToken);
 
-        await EnsureAccountantOrManagerAsync(actor, cancellationToken);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_PurchaseOrder_Manage, cancellationToken,
+            message => new PurchaseOrderManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) await EnsureAccountantOrManagerAsync(actor, cancellationToken);
 
         var record = await GetPurchaseOrderAsync(
             purchaseOrderId,
@@ -573,6 +638,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status is
             PurchaseOrderStatus.PartiallyDelivered or
@@ -1260,5 +1326,6 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             : value.Trim();
     }
 }
+
 
 

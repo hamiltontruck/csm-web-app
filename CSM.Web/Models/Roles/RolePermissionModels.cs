@@ -99,5 +99,8 @@ public enum Permission
     Reports_FinancialSummary_View,
     Reports_Export,
 
-    HRM_Attendance_Approve
+    HRM_Attendance_Approve,
+
+    Procurement_Vendor_View = 53
 }
+

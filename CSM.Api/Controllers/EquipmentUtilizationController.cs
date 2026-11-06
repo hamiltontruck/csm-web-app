@@ -14,7 +14,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = AppRoles.Administrator + "," + AppRoles.ProcurementOfficer + "," + AppRoles.Storekeeper + "," + AppRoles.Accountant)]
-[Authorize(Policy = "Procurement.Inventory.View")]
+[Authorize(Policy = "Equipment.Corporate.View")]
 public sealed class EquipmentUtilizationController : ControllerBase
 {
     private readonly EquipmentUtilizationService _service;
@@ -86,3 +86,4 @@ public sealed class EquipmentUtilizationController : ControllerBase
         return userId;
     }
 }
+

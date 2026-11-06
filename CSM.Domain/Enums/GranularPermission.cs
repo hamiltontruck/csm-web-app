@@ -77,6 +77,8 @@ public enum GranularPermission
     Reports_Export,
 
     // Append permissions to preserve existing persisted numeric values.
-    HRM_Attendance_Approve
+    HRM_Attendance_Approve,
+
+    Procurement_Vendor_View = 53
 
 }

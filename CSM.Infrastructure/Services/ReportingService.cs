@@ -1,3 +1,5 @@
+using CSM.Domain.Security;
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
 using CSM.Application.Reporting;
@@ -33,7 +35,13 @@ public sealed class ReportingService : IReportingService
             GranularPermission.Reports_View);
 
         var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
-        var scope = new FinancialReadScope(_dbContext, actor, companyId);
+        var officerScope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Reports_View, cancellationToken,
+            message => new UnauthorizedAccessException(message),
+            actor.UserRoles.Where(x => x.Role.Name != AppRoles.ProcurementOfficer).Select(x => x.Role.Name).Distinct().ToArray());
+        actor = officerScope.For(actor);
+        companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
+        var scope = new FinancialReadScope(_dbContext, actor, companyId, officerScope);
         var canFinance = HasPermission(actor, GranularPermission.Reports_FinancialSummary_View);
 
         var sites = scope.Sites
@@ -976,7 +984,13 @@ public sealed class ReportingService : IReportingService
             GranularPermission.Reports_View);
 
         var companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
-        var scope = new FinancialReadScope(_dbContext, actor, companyId);
+        var officerScope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Reports_View, cancellationToken,
+            message => new UnauthorizedAccessException(message),
+            actor.UserRoles.Where(x => x.Role.Name != AppRoles.ProcurementOfficer).Select(x => x.Role.Name).Distinct().ToArray());
+        actor = officerScope.For(actor);
+        companyId = await GetCompanyIdAsync(actor, selectedCompanyId, cancellationToken);
+        var scope = new FinancialReadScope(_dbContext, actor, companyId, officerScope);
         var canFinance = HasPermission(actor, GranularPermission.Reports_FinancialSummary_View);
 
         var site = await scope.Sites
@@ -1092,6 +1106,7 @@ public sealed class ReportingService : IReportingService
            userRole =>
                !userRole.IsDeleted &&
                !userRole.Role.IsDeleted &&
+               RolePermissionRules.Allows(userRole.Role.Name, permission.ToString()) &&
                userRole.Role.GranularPermissions.Any(
                    rolePermission =>
                        rolePermission.Permission == permission));
@@ -1135,3 +1150,4 @@ public sealed class ReportingService : IReportingService
                     StringComparison.OrdinalIgnoreCase));
     }
 }
+

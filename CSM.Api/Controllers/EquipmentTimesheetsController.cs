@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
-[Authorize(Policy = "Procurement.Inventory.View")]
+[Authorize(Policy = "Equipment.Inventory.View")]
 public sealed class EquipmentTimesheetsController : ControllerBase
 {
     private readonly EquipmentTimesheetService _service;
@@ -35,7 +35,7 @@ public sealed class EquipmentTimesheetsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = "Procurement.Inventory.Adjust")]
+    [Authorize(Policy = "Equipment.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentTimesheetResponse>> Create(
         CreateEquipmentTimesheetRequest request,
         CancellationToken cancellationToken)
@@ -71,7 +71,7 @@ public sealed class EquipmentTimesheetsController : ControllerBase
         return Ok(result);
     }
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = "Procurement.Inventory.Adjust")]
+    [Authorize(Policy = "Equipment.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentTimesheetResponse>> Update(
         Guid id,
         CreateEquipmentTimesheetRequest request,

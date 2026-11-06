@@ -25,7 +25,9 @@ internal static class BackendAuthorizationFixture
         });
         services.AddSingleton<IPermissionEvaluator, PermissionEvaluator>();
         services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+        services.AddSingleton<IAuthorizationHandler, EquipmentPermissionHandler>();
         services.AddAuthorization(options => {
+            EquipmentPermissionRequirement.AddPolicies(options);
             foreach (var permission in Enum.GetValues<GranularPermission>())
                 options.AddPolicy(permission.ToString().Replace('_', '.'), p => p.RequireAuthenticatedUser().AddRequirements(new PermissionRequirement(permission.ToString())));
         });
@@ -34,3 +36,4 @@ internal static class BackendAuthorizationFixture
     public static ClaimsPrincipal WithGrantedIdentity(ClaimsPrincipal principal) => new(new ClaimsIdentity(
         principal.Claims.Where(c => c.Type != ClaimTypes.NameIdentifier).Append(new Claim(ClaimTypes.NameIdentifier, ActorId.ToString())), "test"));
 }
+

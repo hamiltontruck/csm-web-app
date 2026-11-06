@@ -34,7 +34,13 @@ public sealed class StockMovementService : IStockMovementService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new StockMovementManagementException(message),
+            ["SuperAdmin", "Administrator", "Storekeeper", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
@@ -43,6 +49,7 @@ public sealed class StockMovementService : IStockMovementService
             toUtc);
 
         var query = BuildQuery();
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -115,7 +122,13 @@ public sealed class StockMovementService : IStockMovementService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new StockMovementManagementException(message),
+            ["SuperAdmin", "Administrator", "Storekeeper", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
@@ -129,6 +142,7 @@ public sealed class StockMovementService : IStockMovementService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.StockItem.ConstructionSiteId);
 
         string? moveFrom = null;
         string? moveTo = null;
@@ -338,5 +352,6 @@ public sealed class StockMovementService : IStockMovementService
         };
     }
 }
+
 
 

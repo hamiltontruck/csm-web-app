@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Procurement.MaterialRequests;
 using CSM.Application.Procurement.MaterialRequests.Dtos;
@@ -33,7 +34,13 @@ public sealed class MaterialRequestService : IMaterialRequestService
             currentUserId,
             cancellationToken);
 
-        EnsureCanView(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_MaterialRequest_View, cancellationToken,
+            message => new MaterialRequestManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanView(actor);
 
         var query = _dbContext.MaterialRequests
             .AsNoTracking()
@@ -44,6 +51,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
             .Include(x => x.Lines)
                 .ThenInclude(x => x.Material)
             .AsQueryable();
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -89,7 +97,13 @@ public sealed class MaterialRequestService : IMaterialRequestService
             currentUserId,
             cancellationToken);
 
-        EnsureCanView(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_MaterialRequest_View, cancellationToken,
+            message => new MaterialRequestManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanView(actor);
 
         var record = await GetMaterialRequestAsync(
             materialRequestId,
@@ -98,6 +112,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         return Map(record);
     }
@@ -111,7 +126,13 @@ public sealed class MaterialRequestService : IMaterialRequestService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_MaterialRequest_Submit, cancellationToken,
+            message => new MaterialRequestManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanManage(actor);
 
         ValidateHeader(
             request.RequestNumber,
@@ -130,6 +151,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
         EnsureCompanyAccess(
             actor,
             site.CompanyId);
+        scope.Ensure(site.CompanyId, site.Id);
 
         await ValidateProjectAsync(
             site.CompanyId,
@@ -210,7 +232,13 @@ public sealed class MaterialRequestService : IMaterialRequestService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_MaterialRequest_Submit, cancellationToken,
+            message => new MaterialRequestManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanManage(actor);
 
         var record = await _dbContext.MaterialRequests
             .SingleOrDefaultAsync(
@@ -222,6 +250,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status != MaterialRequestStatus.Draft)
         {
@@ -242,6 +271,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
                 cancellationToken)
             ?? throw new MaterialRequestManagementException(
                 "Construction site was not found.");
+        scope.Ensure(site.CompanyId, site.Id);
 
         if (site.CompanyId != record.CompanyId)
         {
@@ -443,7 +473,13 @@ public sealed class MaterialRequestService : IMaterialRequestService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_MaterialRequest_Submit, cancellationToken,
+            message => new MaterialRequestManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanManage(actor);
 
         var record = await GetMaterialRequestAsync(
             materialRequestId,
@@ -452,6 +488,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status != MaterialRequestStatus.Draft)
         {
@@ -502,7 +539,13 @@ public sealed class MaterialRequestService : IMaterialRequestService
             currentUserId,
             cancellationToken);
 
-        EnsureCanApprove(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_MaterialRequest_Approve, cancellationToken,
+            message => new MaterialRequestManagementException(message),
+            ["SuperAdmin", "CompanyAdmin"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanApprove(actor);
 
         var record = await GetMaterialRequestAsync(
             materialRequestId,
@@ -511,6 +554,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status != MaterialRequestStatus.Submitted)
         {
@@ -604,7 +648,13 @@ public sealed class MaterialRequestService : IMaterialRequestService
             currentUserId,
             cancellationToken);
 
-        EnsureCanApprove(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_MaterialRequest_Approve, cancellationToken,
+            message => new MaterialRequestManagementException(message),
+            ["SuperAdmin", "CompanyAdmin"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanApprove(actor);
 
         var record = await GetMaterialRequestAsync(
             materialRequestId,
@@ -613,6 +663,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status != MaterialRequestStatus.Submitted)
         {
@@ -656,7 +707,13 @@ public sealed class MaterialRequestService : IMaterialRequestService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_MaterialRequest_Submit, cancellationToken,
+            message => new MaterialRequestManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanManage(actor);
 
         var record = await GetMaterialRequestAsync(
             materialRequestId,
@@ -665,6 +722,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         if (record.Status is
             MaterialRequestStatus.Ordered or
@@ -1036,6 +1094,7 @@ public sealed class MaterialRequestService : IMaterialRequestService
        };
    }
 }
+
 
 
 

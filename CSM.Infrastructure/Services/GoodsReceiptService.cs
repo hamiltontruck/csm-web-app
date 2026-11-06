@@ -31,11 +31,18 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new GoodsReceiptManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
         var query = BuildQuery();
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.ConstructionSiteId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -100,7 +107,13 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new GoodsReceiptManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
@@ -111,6 +124,7 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
         EnsureCompanyAccess(
             actor,
             record.CompanyId);
+        scope.Ensure(record.CompanyId, record.ConstructionSiteId);
 
         var stockMovements = await _dbContext.StockMovements
             .AsNoTracking()
@@ -135,7 +149,13 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
+            message => new GoodsReceiptManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanManage(actor);
 
         ValidateRequest(request);
 
@@ -168,6 +188,7 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
                     EnsureCompanyAccess(
                         actor,
                         purchaseOrder.CompanyId);
+                    scope.Ensure(purchaseOrder.CompanyId, purchaseOrder.ConstructionSiteId);
 
                     if (purchaseOrder.Status is not
                         PurchaseOrderStatus.SentToVendor and not
@@ -836,4 +857,5 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
         };
     }
 }
+
 

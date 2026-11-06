@@ -29,7 +29,13 @@ public sealed class StockAdjustmentService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new StockAdjustmentManagementException(message),
+            ["SuperAdmin", "Administrator", "Storekeeper", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
@@ -40,6 +46,7 @@ public sealed class StockAdjustmentService
             .Include(x => x.StockItem)
                 .ThenInclude(x => x.ConstructionSite)
             .Where(x => x.ReferenceType == "StockAdjustment");
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -92,7 +99,13 @@ public sealed class StockAdjustmentService
         currentUserId,
         cancellationToken);
 
-    EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
+            message => new StockAdjustmentManagementException(message),
+            ["SuperAdmin", "Administrator", "Storekeeper"]);
+        actor = scope.For(actor);
+
+    if (!scope.IsScoped) EnsureCanManage(actor);
 
     ValidateRequest(request);
 
@@ -135,6 +148,7 @@ decimal quantityAfter = 0m;
                 EnsureCompanyAccess(
                     actor,
                     stockItem.CompanyId);
+                scope.Ensure(stockItem.CompanyId, stockItem.ConstructionSiteId);
 
                 var duplicate =
                     await _dbContext.StockMovements
@@ -422,6 +436,7 @@ QuantityAfter = quantityAfter,
 }
 
 }
+
 
 
 

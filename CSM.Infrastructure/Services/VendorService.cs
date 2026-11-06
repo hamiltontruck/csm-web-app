@@ -30,13 +30,20 @@ public sealed class VendorService : IVendorService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Vendor_View, cancellationToken,
+            message => new VendorManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
         var query = _dbContext.Vendors
             .AsNoTracking()
             .AsQueryable();
+        query = scope.Filter(query, x => x.CompanyId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -86,7 +93,13 @@ public sealed class VendorService : IVendorService
             currentUserId,
             cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Vendor_View, cancellationToken,
+            message => new VendorManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
@@ -99,6 +112,7 @@ public sealed class VendorService : IVendorService
                 "Vendor was not found.");
 
         EnsureCompanyAccess(actor, vendor.CompanyId);
+        scope.Ensure(vendor.CompanyId, catalog: true);
 
         return Map(vendor);
     }
@@ -112,7 +126,13 @@ public sealed class VendorService : IVendorService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
+            message => new VendorManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager"], allowOfficer: false);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanManage(actor);
 
         var companyId = await ResolveCreateCompanyAsync(actor, request.CompanyId, cancellationToken);
 
@@ -173,7 +193,13 @@ public sealed class VendorService : IVendorService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
+            message => new VendorManagementException(message),
+            ["SuperAdmin", "CompanyAdmin", "SiteManager"], allowOfficer: false);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanManage(actor);
 
         var vendor = await _dbContext.Vendors
             .SingleOrDefaultAsync(
@@ -183,6 +209,7 @@ public sealed class VendorService : IVendorService
                 "Vendor was not found.");
 
         EnsureCompanyAccess(actor, vendor.CompanyId);
+        scope.Ensure(vendor.CompanyId, catalog: true);
 
         Validate(
             request.VendorCode,
@@ -393,4 +420,5 @@ public sealed class VendorService : IVendorService
             : value.Trim();
     }
 }
+
 

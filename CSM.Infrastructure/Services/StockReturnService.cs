@@ -27,7 +27,13 @@ public sealed class StockReturnService : IStockReturnService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new StockReturnManagementException(message),
+            ["SuperAdmin", "Administrator", "Storekeeper", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
@@ -39,6 +45,7 @@ public sealed class StockReturnService : IStockReturnService
             .Include(x => x.StockItem)
                 .ThenInclude(x => x.Material)
             .AsQueryable();
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -59,7 +66,13 @@ public sealed class StockReturnService : IStockReturnService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
 
-        if (!await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_View, cancellationToken,
+            message => new StockReturnManagementException(message),
+            ["SuperAdmin", "Administrator", "Storekeeper", "Accountant"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped && !await AccountantReadAccess.HasAsync(_dbContext, actor.Id,
                 GranularPermission.Procurement_Inventory_View, cancellationToken))
             EnsureCanManage(actor);
 
@@ -73,6 +86,7 @@ public sealed class StockReturnService : IStockReturnService
             .Include(x => x.StockItem)
                 .ThenInclude(x => x.Material)
             .AsQueryable();
+        query = scope.Filter(query, x => x.CompanyId, x => (Guid?)x.StockItem.ConstructionSiteId);
 
         if (!IsSuperAdmin(actor))
         {
@@ -94,7 +108,13 @@ public sealed class StockReturnService : IStockReturnService
             currentUserId,
             cancellationToken);
 
-        EnsureCanManage(actor);
+        var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
+            GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
+            message => new StockReturnManagementException(message),
+            ["SuperAdmin", "Administrator", "Storekeeper"]);
+        actor = scope.For(actor);
+
+        if (!scope.IsScoped) EnsureCanManage(actor);
 
         ValidateRequest(request);
 
@@ -161,6 +181,7 @@ public sealed class StockReturnService : IStockReturnService
                     EnsureCompanyAccess(
                         actor,
                         originalIssue.CompanyId);
+                    scope.Ensure(originalIssue.CompanyId, originalIssue.StockItem.ConstructionSiteId);
 
                     var duplicateReference =
                         await _dbContext.StockMovements
@@ -593,5 +614,6 @@ public sealed class StockReturnService : IStockReturnService
                 parts);
     }
 }
+
 
 

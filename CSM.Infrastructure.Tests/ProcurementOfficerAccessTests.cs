@@ -1,4 +1,6 @@
 using System.Reflection;
+using CSM.Domain.Entities.Notifications;
+using CSM.Application.Notifications.Dtos;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using CSM.Application.Inventory.StockAdjustments.Dtos;
@@ -110,7 +112,7 @@ public sealed class ProcurementOfficerAccessTests
         Assert.Empty(await new MaterialRequestService(f.Db).GetAllAsync(f.Actor.Id));
         Assert.Empty(await new PurchaseOrderService(f.Db).GetAllAsync(f.Actor.Id, null, null, null));
         Assert.Empty(await new GoodsReceiptService(f.Db).GetAllAsync(f.Actor.Id));
-        Assert.Empty(await new VendorService(f.Db).GetAllAsync(f.Actor.Id, null));
+        Assert.Single(await new VendorService(f.Db).GetAllAsync(f.Actor.Id, null));
     }
 
     [Fact]
@@ -252,6 +254,23 @@ public sealed class ProcurementOfficerAccessTests
     private static StockTransfersController TransferController(Fixture f) => new(new StockTransferService(f.Db)) {
         ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([
             new Claim(ClaimTypes.NameIdentifier, f.Actor.Id.ToString()), new Claim("company_id", f.First.CompanyId.ToString())], "test")) } } };
+
+    [Fact]
+    public async Task Assignment_change_hides_out_of_scope_material_request_notifications_and_counts()
+    {
+        using var f = new Fixture();
+        f.Assign(f.First);
+        var request = new MaterialRequest { CompanyId = f.Second.CompanyId, ConstructionSite = f.Second,
+            RequestNumber = "HIDDEN", RequestDate = new(2026, 11, 6), RequestedBy = f.Actor.Id };
+        var notification = new Notification { CompanyId = f.Second.CompanyId, RecipientUserId = f.Actor.Id,
+            Title = "Material Request", Message = "Other site details", SourceEntityType = "MaterialRequest", SourceEntityId = request.Id };
+        f.Db.MaterialRequests.Add(request); f.Db.Notifications.Add(notification); f.Db.SaveChanges(true);
+        var service = new NotificationService(f.Db);
+        Assert.Empty(await service.GetAllAsync(f.Actor.Id, null));
+        Assert.Equal(0, await service.GetUnreadCountAsync(f.Actor.Id));
+        await Assert.ThrowsAnyAsync<Exception>(() => service.MarkReadAsync(f.Actor.Id, notification.Id, new MarkNotificationReadRequest(true)));
+        Assert.False(notification.IsRead);
+    }
 
     private sealed class Fixture : IDisposable
     {
