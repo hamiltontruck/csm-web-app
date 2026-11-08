@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CSM.Web.Models.Procurement;
 
 public class CreatePurchaseOrderRequest
@@ -10,6 +12,7 @@ public class CreatePurchaseOrderRequest
 
     public DateOnly OrderDate { get; set; }
 
+    [JsonPropertyName("notes")]
     public string? Remarks { get; set; }
 
     public List<PurchaseOrderLineRequest> Lines { get; set; } = new();
