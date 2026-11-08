@@ -36,6 +36,7 @@ else
                   OnValidSubmit="@Save"
                   FormName="PurchaseOrderCreateForm">
             <DataAnnotationsValidator />
+            <ValidationSummary />
 
 
 
@@ -46,8 +47,9 @@ else
 
                         <div class="col-md-6">
                             <label class="form-label">PO Number</label>
-                            <InputText class="form-control"
-                                       @bind-Value="request.PurchaseOrderNumber"/>
+                            <input type="text" class="form-control"
+                                   @bind="request.PurchaseOrderNumber" @bind:event="oninput"
+                                   @onchange="@(e => request.PurchaseOrderNumber = e.Value?.ToString() ?? string.Empty)" />
                         </div>
 
                         <div class="col-md-6">
@@ -73,9 +75,9 @@ else
                         <div class="col-12">
                             <label class="form-label">Remarks</label>
 
-                            <InputTextArea class="form-control"
-                                           rows="3"
-                                           @bind-Value="request.Remarks"/>
+                            <textarea class="form-control" rows="3"
+                                      @bind="request.Remarks" @bind:event="oninput"
+                                      @onchange="@(e => request.Remarks = e.Value?.ToString())"></textarea>
                         </div>
 
                     </div>
@@ -99,7 +101,7 @@ else
 
                     @foreach (var line in request.Lines)
                     {
-                        <div class="border rounded p-3 mb-3">
+                        <div @key="line" class="border rounded p-3 mb-3">
 
                             <div class="row g-3">
 
@@ -120,23 +122,17 @@ else
                                 <div class="col-md-2">
                                     <label class="form-label">Quantity</label>
 
-                                    <InputNumber class="form-control"
-                                                 @bind-Value="line.OrderedQuantity" />
+                                    <PurchaseOrderDecimalInput class="form-control"
+                                                               DisplayName="Quantity"
+                                                               @bind-Value="line.OrderedQuantity" />
                                 </div>
 
                                 <div class="col-md-3">
                                     <label class="form-label">Unit Price (ETB)</label>
 
-                                    <InputNumber class="form-control"
-                                                 @bind-Value="line.UnitPrice"
-                                                 @onkeydown:preventDefault />
-                                </div>
-
-                                <div class="col-md-3">
-                                    <label class="form-label">Remarks</label>
-
-                                    <InputText class="form-control"
-                                               @bind-Value="line.Remarks" />
+                                    <PurchaseOrderDecimalInput class="form-control"
+                                                               DisplayName="Unit Price"
+                                                               @bind-Value="line.UnitPrice" />
                                 </div>
 
                                 <div class="col-12 text-end">
