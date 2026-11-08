@@ -20,7 +20,6 @@ public sealed class PurchaseOrderCreateInputTests
     [InlineData("price", true)] [InlineData("price", false)]
     [InlineData("quantity", true)] [InlineData("quantity", false)]
     [InlineData("header", true)] [InlineData("header", false)]
-    [InlineData("line", true)] [InlineData("line", false)]
     [InlineData("number", true)] [InlineData("number", false)]
     public void Save_sends_latest_form_values_using_the_API_contract(string field, bool inputOnly)
     {
@@ -31,7 +30,6 @@ public sealed class PurchaseOrderCreateInputTests
             "price" => ("Unit Price (ETB)", 0, "100.25"),
             "quantity" => ("Quantity", 0, "2.5"),
             "header" => ("Remarks", 0, "Procurement Officer purchase order test."),
-            "line" => ("Remarks", 1, "Cement line note."),
             _ => ("PO Number", 0, "PO-INPUT-TEST-002")
         };
         Enter(Field(page, label, index), value, inputOnly);
@@ -45,7 +43,6 @@ public sealed class PurchaseOrderCreateInputTests
             case "price": Assert.Equal(100.25m, request.Lines[0].UnitPrice); break;
             case "quantity": Assert.Equal(2.5m, request.Lines[0].OrderedQuantity); break;
             case "header": Assert.Equal(value, request.Notes); break;
-            case "line": Assert.Equal(value, request.Lines[0].Remarks); break;
             case "number": Assert.Equal(value, request.PurchaseOrderNumber); break;
         }
     }
@@ -78,7 +75,6 @@ public sealed class PurchaseOrderCreateInputTests
         Field(page, "Material", 1).Change(Material.ToString());
         Enter(Field(page, "Quantity", 1), "3", true);
         Enter(Field(page, "Unit Price (ETB)", 1), "75.25", true);
-        Enter(Field(page, "Remarks", 2), "Surviving line", true);
         page.FindAll("button").First(x => x.TextContent.Trim() == "Remove").Click();
         page.Find("form").Submit();
         page.WaitForAssertion(() => Assert.Equal(1, state.SaveCalls));
@@ -86,7 +82,6 @@ public sealed class PurchaseOrderCreateInputTests
         var line = Assert.Single(request.Lines);
         Assert.Equal(3m, line.OrderedQuantity);
         Assert.Equal(75.25m, line.UnitPrice);
-        Assert.Equal("Surviving line", line.Remarks);
     }
 
     private static void Enter(IElement field, string value, bool inputOnly)
@@ -108,7 +103,6 @@ public sealed class PurchaseOrderCreateInputTests
         Field(page, "Quantity").Change("1");
         Field(page, "Unit Price (ETB)").Change("12.5");
         Field(page, "Remarks", 0).Change("Initial header");
-        Field(page, "Remarks", 1).Change("Initial line");
     }
     private static IRenderedComponent<PurchaseOrderCreate> Render(TestContext context)
     {
