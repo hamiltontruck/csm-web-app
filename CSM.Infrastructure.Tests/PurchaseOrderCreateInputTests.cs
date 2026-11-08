@@ -48,21 +48,27 @@ public sealed class PurchaseOrderCreateInputTests
     }
 
     [Theory]
-    [InlineData("Quantity")] [InlineData("Unit Price (ETB)")]
-    public void Clearing_number_blocks_save_until_corrected_instead_of_reusing_old_value(string field)
+    [InlineData("Quantity", "")] [InlineData("Unit Price (ETB)", "")]
+    [InlineData("Quantity", "79228162514264337593543950336")]
+    [InlineData("Unit Price (ETB)", "79228162514264337593543950336")]
+    public void Invalid_number_blocks_save_until_corrected_instead_of_reusing_old_value(string field, string invalid)
     {
         using var context = Context(out var state);
         var page = Render(context);
         Fill(page);
-        Enter(Field(page, field), "", true);
+        Enter(Field(page, field), invalid, true);
         page.Find("form").Submit();
         Assert.Equal(0, state.SaveCalls);
-        Assert.Contains("number", page.Markup, StringComparison.OrdinalIgnoreCase);
+        var displayName = field == "Quantity" ? "Quantity" : "Unit Price";
+        Assert.Contains(page.FindAll(".validation-errors li"), message =>
+            message.TextContent.Contains(displayName, StringComparison.Ordinal) &&
+            message.TextContent.Contains("number", StringComparison.OrdinalIgnoreCase));
         Enter(Field(page, field), "25.50", true);
         page.Find("form").Submit();
         page.WaitForAssertion(() => Assert.Equal(1, state.SaveCalls));
         var request = JsonSerializer.Deserialize<ApiRequest>(state.Payload!, Wire)!;
         Assert.Equal(25.50m, field == "Quantity" ? request.Lines[0].OrderedQuantity : request.Lines[0].UnitPrice);
+        Assert.Empty(page.FindAll(".validation-errors li"));
     }
 
     [Fact]
