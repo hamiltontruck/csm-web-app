@@ -38,7 +38,7 @@ const path = require('path');
    await page.goto('http://127.0.0.1:5069/purchase-orders/create/'+site);
    await page.getByRole('heading',{name:'New Purchase Order',exact:true}).waitFor();
    const form=page.locator('form'); await form.waitFor();
-   await form.locator('input[type=text]').first().fill('PO-BROWSER-'+width);
+   await form.locator('input:not([type]), input[type=text]').first().fill('PO-BROWSER-'+width);
    await form.locator('select').first().selectOption(vendor); await form.locator('select').nth(1).selectOption(material);
    await form.locator('input[type=number]').first().fill('1');
    await form.locator('textarea').first().fill('Procurement Officer purchase order test.');
