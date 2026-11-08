@@ -1,0 +1,43 @@
+name: Purchase Order input browser regression
+on:
+  pull_request:
+    paths:
+      - 'CSM.Web/**'
+      - 'scripts/qa/po-create-input.cjs'
+      - '.github/workflows/po-create-input.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'CSM.Web/**'
+      - 'scripts/qa/po-create-input.cjs'
+      - '.github/workflows/po-create-input.yml'
+permissions:
+  contents: read
+jobs:
+  browser-input:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build Web app
+        run: dotnet build CSM.Web/CSM.Web.csproj --configuration Release
+      - name: Install browser test dependencies
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Verify typed Purchase Order inputs against local API fixture
+        run: node scripts/qa/po-create-input.cjs
+        env:
+          CSM_SCREENSHOT_DIR: artifacts/po-create-input
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: po-create-input-browser
+          path: artifacts/po-create-input
+          if-no-files-found: ignore
