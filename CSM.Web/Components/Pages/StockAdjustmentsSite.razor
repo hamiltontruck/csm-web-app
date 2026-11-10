@@ -12,14 +12,14 @@
 
 <PageTitle>Site Stock Adjustments</PageTitle>
 
-<div class="container py-4">
+<div class="container py-4 stock-adjustments-page">
 
     <button class="btn btn-outline-secondary mb-3"
             @onclick="GoBack">
         <i class="bi bi-arrow-left"></i> Back
     </button>
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 adjustments-page-header">
         <div>
             <h2>@siteName</h2>
             <div class="text-muted">Stock Adjustments</div>
@@ -62,8 +62,8 @@
             <div class="card shadow-sm mb-3">
                 <div class="card-body">
 
-                    <div class="d-flex justify-content-between">
-                        <div>
+                    <div class="adjustment-header">
+                        <div class="adjustment-material">
                             <div class="fw-bold">
                                 @item.MaterialCode - @item.MaterialName
                             </div>
@@ -73,16 +73,15 @@
                             </small>
                         </div>
 
-                        <div class="text-end">
+                        <div class="adjustment-quantity">
                             <div class="fw-bold">
                                 @item.Quantity @item.UnitOfMeasure
                             </div>
 
-                            <span class="badge bg-secondary">
-                                @item.Reason
-                            </span>
                         </div>
                     </div>
+
+                    <div class="adjustment-reason text-muted">@item.Reason</div>
 
                     <hr />
 

@@ -1,0 +1,34 @@
+
+.adjustments-page-header {
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.adjustments-page-header > div {
+    min-width: 0;
+}
+
+.adjustment-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: .75rem 1rem;
+}
+
+.adjustment-material {
+    flex: 1 1 10rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.adjustment-quantity {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.adjustment-reason {
+    margin-top: 1rem;
+    line-height: 1.5;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
