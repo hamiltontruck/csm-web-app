@@ -32,14 +32,24 @@ public sealed class SiteDetailsAccessTests
         Assert.Empty(page.FindAll("[role=alert]"));
     }
 
-    [Fact]
-    public void Project_reader_keeps_site_projects_and_authorized_status_action()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Project_reader_keeps_site_projects_with_status_controls_only_when_authorized(bool canManageSite)
     {
-        using var context = Context(true, out var api);
+        using var context = Context(true, out var api, canManageSite);
         var page = context.RenderComponent<SiteDetails>(p => p.Add(x => x.SiteId, SiteId));
         page.WaitForAssertion(() => Assert.Contains("Visible site project", page.Markup));
         Assert.DoesNotContain("Other site project", page.Markup);
         Assert.Equal(1, api.ProjectCalls);
+        if (!canManageSite)
+        {
+            Assert.Empty(page.FindAll("select"));
+            Assert.DoesNotContain("Update Status", page.Markup);
+            Assert.DoesNotContain("Edit Site", page.Markup);
+            Assert.Equal(0, api.StatusWrites);
+            return;
+        }
         page.Find("select").Change("Active");
         page.FindAll("button").Single(b => b.TextContent.Trim() == "Update Status").Click();
         page.WaitForAssertion(() => Assert.Equal(1, api.StatusWrites));
@@ -80,11 +90,12 @@ public sealed class SiteDetailsAccessTests
         Assert.Equal(0, api.ProjectCalls);
     }
 
-    private static TestContext Context(bool manage, out Api api)
+    private static TestContext Context(bool manage, out Api api, bool allowSiteWrites = true)
     {
         var context = new TestContext();
         WorkspaceTestAccess.Add(context, manage ? ["SiteManager"] : ["ProcurementOfficer"],
-            manage ? ["Sites_View", "Sites_Manage", "Projects_View"] : ["Sites_View", "Procurement_Inventory_View"]);
+            manage ? (allowSiteWrites ? ["Sites_View", "Sites_Manage", "Projects_View"] : ["Sites_View", "Projects_View"])
+                : ["Sites_View", "Procurement_Inventory_View"]);
         var service = DispatchProxy.Create<IProjectService, Api>();
         api = (Api)(object)service;
         api.AllowProjects = manage;
