@@ -75,6 +75,22 @@ public sealed class ProcurementOfficerPostgresTests
             Assert.Equal(3, (await new StockMovementService(db).GetAllAsync(actor.Id)).Count);
             Assert.Single(await new NotificationService(db).GetAllAsync(actor.Id, null));
             Assert.Equal(2, (await new ReportingService(db).GetExecutiveDashboardAsync(actor.Id)).TotalSites);
+            // A successful DTO alone is insufficient: re-query persisted read state.
+            var notifications = new NotificationService(db);
+            var visible = Assert.Single(await notifications.GetAllAsync(actor.Id, null));
+            db.ChangeTracker.Clear();
+            Assert.True((await notifications.MarkReadAsync(actor.Id, visible.Id, new(true))).IsRead);
+            db.ChangeTracker.Clear();
+            var saved = await db.Notifications.AsNoTracking().SingleAsync(x => x.Id == visible.Id);
+            Assert.True(saved.IsRead);
+            Assert.NotNull(saved.ReadAtUtc);
+            Assert.Equal(0, await notifications.GetUnreadCountAsync(actor.Id));
+            Assert.False((await notifications.MarkReadAsync(actor.Id, visible.Id, new(false))).IsRead);
+            db.ChangeTracker.Clear();
+            saved = await db.Notifications.AsNoTracking().SingleAsync(x => x.Id == visible.Id);
+            Assert.False(saved.IsRead);
+            Assert.Null(saved.ReadAtUtc);
+            Assert.Equal(1, await notifications.GetUnreadCountAsync(actor.Id));
             // Relational uniqueness must hold for newly appended default permissions.
             var admin = new Role { Name = "SuperAdmin", NormalizedName = "SUPERADMIN" };
             var companyAdmin = new Role { Name = "CompanyAdmin", NormalizedName = "COMPANYADMIN" };
@@ -88,3 +104,4 @@ public sealed class ProcurementOfficerPostgresTests
         finally { await db.Database.EnsureDeletedAsync(); }
     }
 }
+

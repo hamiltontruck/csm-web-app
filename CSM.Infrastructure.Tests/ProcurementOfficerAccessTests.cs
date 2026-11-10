@@ -328,6 +328,33 @@ public sealed class ProcurementOfficerAccessTests
         Assert.Equal(inbound ? "First" : "Second", (await service.GetByIdAsync(f.Actor.Id, outgoing.Id)).MoveTo);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Officer_read_state_is_persisted_after_a_fresh_load(bool assigned, bool isRead)
+    {
+        using var f = new Fixture();
+        if (assigned) f.Assign(f.First);
+        var request = new MaterialRequest { CompanyId = f.First.CompanyId, ConstructionSite = f.First,
+            RequestNumber = "READ-STATE", RequestDate = new(2026, 11, 10), RequestedBy = f.Actor.Id };
+        var notification = new Notification { CompanyId = f.First.CompanyId, RecipientUserId = f.Actor.Id,
+            Title = "Material Request", Message = "Own permitted request", SourceEntityType = "MaterialRequest",
+            SourceEntityId = request.Id, IsRead = !isRead, ReadAtUtc = !isRead ? DateTime.UtcNow : null };
+        f.Db.MaterialRequests.Add(request); f.Db.Notifications.Add(notification); f.Db.SaveChanges(true);
+        f.Db.ChangeTracker.Clear();
+        var service = new NotificationService(f.Db);
+        var result = await service.MarkReadAsync(f.Actor.Id, notification.Id, new MarkNotificationReadRequest(isRead));
+        Assert.Equal(isRead, result.IsRead);
+        f.Db.ChangeTracker.Clear();
+        var saved = await f.Db.Notifications.AsNoTracking().SingleAsync(x => x.Id == notification.Id);
+        Assert.Equal(isRead, saved.IsRead);
+        Assert.Equal(isRead, saved.ReadAtUtc.HasValue);
+        Assert.Equal(isRead, Assert.Single(await service.GetAllAsync(f.Actor.Id, null)).IsRead);
+        Assert.Equal(isRead ? 0 : 1, await service.GetUnreadCountAsync(f.Actor.Id));
+    }
+
     private sealed class Fixture : IDisposable
     {
         public TestDb Db { get; } = new();
@@ -373,3 +400,4 @@ public sealed class ProcurementOfficerAccessTests
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => base.SaveChangesAsync(true, cancellationToken);
     }
 }
+
