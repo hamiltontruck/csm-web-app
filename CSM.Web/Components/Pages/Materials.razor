@@ -63,7 +63,7 @@ else
                     <tbody>
                         @foreach (var material in _materials)
                         {
-                            <tr style="cursor:pointer"
+                            <tr style="cursor:@(CanEditMaterials ? "pointer" : "default")"
                                 @onclick='() => Edit(material.Id)'>
                                 <td>@material.MaterialCode</td>
                                 <td>@material.Name</td>
@@ -88,6 +88,9 @@ else
 }
 
 @code {
+    [CascadingParameter] public WorkspaceAccess Access { get; set; } = WorkspaceAccess.None;
+    private bool CanEditMaterials => Access.CanVisit("/materials/{id}/edit");
+
     private List<MaterialResponse> _materials = [];
     private bool _loading = true;
     private string? _error;
@@ -116,7 +119,10 @@ else
         => Navigation.NavigateTo("/materials/create");
 
     void Edit(Guid id)
-        => Navigation.NavigateTo($"/materials/{id}/edit");
+    {
+        var route = $"/materials/{id}/edit";
+        if (Access.CanVisit(route)) Navigation.NavigateTo(route);
+    }
 
     void GoBack()
         => Navigation.NavigateTo("/procurement");
