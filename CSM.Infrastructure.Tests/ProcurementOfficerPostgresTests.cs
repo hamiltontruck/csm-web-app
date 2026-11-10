@@ -91,6 +91,22 @@ public sealed class ProcurementOfficerPostgresTests
             Assert.False(saved.IsRead);
             Assert.Null(saved.ReadAtUtc);
             Assert.Equal(1, await notifications.GetUnreadCountAsync(actor.Id));
+            var activeAssignment = await db.UserSiteAccesses.SingleAsync(x => x.Id == assignment.Id);
+            activeAssignment.IsActive = true;
+            var request = new MaterialRequest { CompanyId = company.Id, ConstructionSiteId = first.Id,
+                RequestNumber = "MARK-READ", RequestDate = new(2026, 11, 10), RequestedBy = actor.Id };
+            var requestNotice = new Notification { CompanyId = company.Id, RecipientUserId = actor.Id,
+                Title = "Material Request Created", Message = "Permitted material request", SourceEntityType = "MaterialRequest",
+                SourceEntityId = request.Id };
+            db.MaterialRequests.Add(request); db.Notifications.Add(requestNotice);
+            await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+            Assert.Equal(requestNotice.Id, Assert.Single(await notifications.GetAllAsync(actor.Id, null)).Id);
+            Assert.Equal(1, await notifications.GetUnreadCountAsync(actor.Id));
+            Assert.True((await notifications.MarkReadAsync(actor.Id, requestNotice.Id, new(true))).IsRead);
+            db.ChangeTracker.Clear();
+            Assert.True((await db.Notifications.AsNoTracking().SingleAsync(x => x.Id == requestNotice.Id)).IsRead);
+            Assert.True(Assert.Single(await notifications.GetAllAsync(actor.Id, null)).IsRead);
+            Assert.Equal(0, await notifications.GetUnreadCountAsync(actor.Id));
             // Relational uniqueness must hold for newly appended default permissions.
             var admin = new Role { Name = "SuperAdmin", NormalizedName = "SUPERADMIN" };
             var companyAdmin = new Role { Name = "CompanyAdmin", NormalizedName = "COMPANYADMIN" };

@@ -7,16 +7,19 @@ using CSM.Domain.Entities.Identity;
 using CSM.Domain.Entities.Notifications;
 using CSM.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CSM.Infrastructure.Services;
 
 public sealed class NotificationService : INotificationService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly ILogger<NotificationService>? _logger;
 
-    public NotificationService(ApplicationDbContext dbContext)
+    public NotificationService(ApplicationDbContext dbContext, ILogger<NotificationService>? logger = null)
     {
         _dbContext = dbContext;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyCollection<NotificationResponse>> GetAllAsync(
@@ -165,15 +168,21 @@ public sealed class NotificationService : INotificationService
                 "Notification was not found.");
         }
 
+        _logger?.LogInformation("Notification read trace v1: requested {RequestedIsRead}, prior {PriorIsRead}, tracking {TrackingState}, detect changes {DetectChanges}",
+            request.IsRead, notification.IsRead, _dbContext.Entry(notification).State, _dbContext.ChangeTracker.AutoDetectChangesEnabled);
         notification.IsRead = request.IsRead;
         notification.ReadAtUtc =
             request.IsRead
                 ? DateTime.UtcNow
                 : null;
 
-        await _dbContext.SaveChangesAsync(
+        var savedRows = await _dbContext.SaveChangesAsync(
             cancellationToken);
 
+        var persistedRead = await _dbContext.Notifications.AsNoTracking()
+            .Where(x => x.Id == notificationId).Select(x => x.IsRead).SingleAsync(cancellationToken);
+        _logger?.LogInformation("Notification read trace v1: saved rows {SavedRows}, returned {ReturnedIsRead}, persisted {PersistedIsRead}",
+            savedRows, notification.IsRead, persistedRead);
         return ToResponse(notification);
     }
 
