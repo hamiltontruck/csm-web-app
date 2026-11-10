@@ -155,7 +155,9 @@ public sealed class NotificationService : INotificationService
         var query = _dbContext.Notifications.Where(x => x.Id == notificationId &&
             x.CompanyId == actor.CompanyId && x.RecipientUserId == currentUserId);
         query = await VisibleToActorAsync(actor, query, cancellationToken);
-        var notification = await query.SingleOrDefaultAsync(cancellationToken);
+        // Scope subqueries contain AsNoTracking; explicitly track this authorized
+        // notification so a successful read-state response is persisted too.
+        var notification = await query.AsTracking().SingleOrDefaultAsync(cancellationToken);
 
         if (notification is null)
         {
@@ -233,4 +235,5 @@ public sealed class NotificationService : INotificationService
             notification.CreatedAtUtc);
     }
 }
+
 
