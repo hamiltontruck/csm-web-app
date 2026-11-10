@@ -16,6 +16,21 @@
         <h4>Loading site...</h4>
     </div>
 }
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="container py-4">
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (_signInRequired)
+        {
+            <a id="site-details-sign-in" class="btn btn-primary" href="/login">Sign in</a>
+        }
+        else if (_canRetry)
+        {
+            <button id="retry-site-details" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+        }
+        <button class="btn btn-outline-secondary" @onclick="Back">← Construction Sites</button>
+    </div>
+}
 else if (_site is null)
 {
     <div class="container py-4">
@@ -61,6 +76,8 @@ else
 
         </div>
 
+        @if (CanViewProjects)
+        {
         <!-- KPI -->
         <div class="row g-3 mb-4">
 
@@ -101,6 +118,8 @@ else
             </div>
 
         </div>
+
+        }
 
         <!-- Site Information -->
         <div class="card shadow-sm mb-4">
@@ -169,6 +188,8 @@ else
 
         </div>
 
+        @if (CanManageSite)
+        {
         <div class="card shadow-sm mb-4">
             <div class="card-header">
                 <strong>Site Status</strong>
@@ -208,9 +229,12 @@ else
             </div>
         </div>
 
+        }
+
         <!-- Quick Modules -->
         <div class="row g-4 mb-4">
 
+            <WorkspaceAction Route="/sites/{SiteId}/projects">
             <div class="col-lg-3 col-md-6">
 
                 <div class="card shadow-sm h-100 module-card"
@@ -233,6 +257,8 @@ else
 
             </div>
 
+            </WorkspaceAction>
+            <WorkspaceAction Route="/hr/employees/site/{SiteId}">
             <div class="col-lg-3 col-md-6">
 
                 <div class="card shadow-sm h-100 module-card"
@@ -255,6 +281,8 @@ else
 
             </div>
 
+            </WorkspaceAction>
+            <WorkspaceAction Route="/stock-balance/{SiteId}">
             <div class="col-lg-3 col-md-6">
 
                 <div class="card shadow-sm h-100 module-card"
@@ -277,6 +305,8 @@ else
 
             </div>
 
+            </WorkspaceAction>
+            <WorkspaceAction Route="/compliance">
             <div class="col-lg-3 col-md-6">
 
                 <div class="card shadow-sm h-100 module-card"
@@ -299,8 +329,11 @@ else
 
             </div>
 
+            </WorkspaceAction>
         </div>
 
+        @if (CanViewProjects)
+        {
         <!-- Projects -->
         <div class="card shadow-sm">
 
@@ -399,6 +432,8 @@ else
 
         </div>
 
+        }
+
     </div>
 }
 
@@ -413,6 +448,13 @@ else
 
     private bool _loading = true;
     private bool _loaded;
+    private string? _error;
+    private bool _canRetry;
+    private bool _signInRequired;
+
+    [CascadingParameter] public WorkspaceAccess Access { get; set; } = WorkspaceAccess.None;
+    private bool CanViewProjects => Access.CanVisit($"/sites/{SiteId}/projects");
+    private bool CanManageSite => Access.CanVisit($"/sites/edit/{SiteId}");
 
     private List<ProjectSummary> _siteProjects = [];
 
@@ -423,47 +465,72 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _loaded)
-            return;
-
+        if (!firstRender || _loaded) return;
         _loaded = true;
+        await LoadAsync();
+    }
 
-        _site = await ProjectService.GetSiteAsync(SiteId);
-
-        if (_site is null)
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _site = null;
+        _siteProjects = [];
+        _canRetry = true;
+        _signInRequired = false;
+        try
         {
-            Navigation.NavigateTo("/project-tracking");
-            return;
+            _site = await ProjectService.GetSiteAsync(SiteId);
+            if (_site is null)
+            {
+                _error = "Site not found or unavailable.";
+                _canRetry = false;
+                return;
+            }
+            SelectedStatus = Enum.TryParse<SiteStatus>(_site.Status, out var status)
+                ? status : SiteStatus.Planning;
+
+            if (CanViewProjects)
+            {
+                var projects = await ProjectService.GetProjectsAsync();
+                _siteProjects = projects.Where(x => x.ConstructionSiteId == SiteId)
+                    .OrderBy(x => x.Name).ToList();
+                _projectCount = _siteProjects.Count;
+                _activeProjects = _siteProjects.Count(x => x.Status == "Active");
+                _contractValue = _siteProjects.Sum(x => x.ContractValue);
+                _averageProgress = _siteProjects.Count == 0 ? 0
+                    : (int)Math.Round(_siteProjects.Average(x => x.ProgressPercentage));
+            }
         }
-
-        SelectedStatus = Enum.TryParse<SiteStatus>(
-            _site.Status,
-            out var status)
-                ? status
-                : SiteStatus.Planning;
-
-        var projects = await ProjectService.GetProjectsAsync();
-
-        _siteProjects = projects
-            .Where(x => x.ConstructionSiteId == SiteId)
-            .OrderBy(x => x.Name)
-            .ToList();
-
-        _projectCount = _siteProjects.Count;
-        _activeProjects = _siteProjects.Count(x => x.Status == "Active");
-        _contractValue = _siteProjects.Sum(x => x.ContractValue);
-
-        _averageProgress = _siteProjects.Count == 0
-            ? 0
-            : (int)Math.Round(_siteProjects.Average(x => x.ProgressPercentage));
-
-        _loading = false;
-
-        StateHasChanged();
+        catch (HttpRequestException ex)
+        {
+            _site = null;
+            _signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            _canRetry = ex.StatusCode is not (System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound);
+            _error = ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view this site or its requested details.",
+                System.Net.HttpStatusCode.NotFound => "Site not found or unavailable.",
+                _ => "Unable to load this site. Please try again."
+            };
+        }
+        catch (Exception)
+        {
+            _site = null;
+            _error = "Unable to load this site. Please try again.";
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task UpdateStatus()
     {
+        if (!CanManageSite) return;
         _site = await ProjectService.ChangeSiteStatusAsync(
             SiteId,
             SelectedStatus);
@@ -520,3 +587,4 @@ else
         opacity: .75;
     }
 </style>
+
