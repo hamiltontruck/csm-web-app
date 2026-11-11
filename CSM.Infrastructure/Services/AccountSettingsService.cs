@@ -15,9 +15,21 @@ public sealed class AccountSettingsService(ApplicationDbContext db, ITokenServic
         await db.Users.SingleOrDefaultAsync(x => x.Id == id && x.IsActive && !x.IsDeleted, ct)
         ?? throw new AuthenticationException("The authenticated account is unavailable.");
 
-    private static OwnProfileResponse Profile(User user) => new(user.FirstName, user.LastName, user.PhoneNumber, user.JobTitle);
+    private async Task<OwnProfileResponse> ProfileAsync(User user, CancellationToken ct)
+    {
+        var roles = await db.UserRoles.AsNoTracking().Where(x => x.UserId == user.Id && !x.IsDeleted && !x.Role.IsDeleted)
+            .Select(x => x.Role.Name).Distinct().OrderBy(x => x).ToListAsync(ct);
+        var hasAssignments = user.CompanyId is { } company && company != Guid.Empty &&
+            await db.UserSiteAccesses.AsNoTracking().AnyAsync(x => x.UserId == user.Id && x.CompanyId == company &&
+                x.IsActive && !x.IsDeleted && x.Site.CompanyId == company && x.Site.IsActive && !x.Site.IsDeleted, ct);
+        return new(user.FirstName, user.LastName, user.PhoneNumber, user.JobTitle)
+        {
+            UserId = user.Id, CompanyId = user.CompanyId, Email = user.Email,
+            Name = (user.FirstName + " " + user.LastName).Trim(), Roles = roles, HasActiveSiteAccess = hasAssignments
+        };
+    }
 
-    public async Task<OwnProfileResponse> GetProfileAsync(Guid userId, CancellationToken ct = default) => Profile(await Actor(userId, ct));
+    public async Task<OwnProfileResponse> GetProfileAsync(Guid userId, CancellationToken ct = default) => await ProfileAsync(await Actor(userId, ct), ct);
 
     public async Task<OwnProfileResponse> UpdateProfileAsync(Guid userId, UpdateMyProfileRequest request, CancellationToken ct = default)
     {
@@ -30,7 +42,7 @@ public sealed class AccountSettingsService(ApplicationDbContext db, ITokenServic
         actor.FirstName = first; actor.LastName = last; actor.PhoneNumber = phone; actor.JobTitle = job;
         actor.UpdatedBy = actor.Id; actor.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
-        return Profile(actor);
+        return await ProfileAsync(actor, ct);
     }
 
     private static string Text(string? value, string label, int max, bool required = false)

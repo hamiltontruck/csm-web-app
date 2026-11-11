@@ -10,6 +10,9 @@ permissions:
 jobs:
   settings-browser:
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +24,6 @@ jobs:
           node-version: 22
       - run: dotnet build CSM.Web/CSM.Web.csproj --configuration Release
       - run: npm install --no-save --no-package-lock playwright@1.56.1
-      - run: npx playwright install --with-deps chromium
       - run: node scripts/qa/settings-preferences.test.cjs
       - run: node scripts/qa/settings-privacy.cjs
         env:

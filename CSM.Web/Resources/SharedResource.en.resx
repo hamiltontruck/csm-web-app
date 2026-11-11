@@ -99,10 +99,10 @@
     <value>Use a denser layout for tables and dashboard cards.</value>
   </data>
   <data name="Settings.Appearance.ThemeInfo" xml:space="preserve">
-    <value>Theme selection currently changes this page's selection state.</value>
+    <value>Preview your theme across supported workspace controls.</value>
   </data>
   <data name="Settings.Appearance.ThemeInfoDetails" xml:space="preserve">
-    <value>Application-wide theme application requires integration with the shared layout.</value>
+    <value>Select Save preferences to keep this theme. Discard changes restores your saved theme.</value>
   </data>
 
   <data name="Settings.Theme.Light" xml:space="preserve">
@@ -185,6 +185,10 @@
     <value>Receive supported updates by email.</value>
   </data>
   <data name="Settings.Notifications.Info" xml:space="preserve">
-    <value>These controls configure the page state only until notification preferences are connected to persistent storage and the notification service.</value>
+    <value>Select Save preferences to store these choices in your account. Delivery and category filtering are not connected yet.</value>
   </data>
+  <data name="Settings.Notifications.SecurityAlerts" xml:space="preserve"><value>Security alerts</value></data>
+  <data name="Settings.Notifications.SecurityAlertsDescription" xml:space="preserve"><value>Store your preference for account security alerts.</value></data>
+  <data name="Settings.Notifications.Push" xml:space="preserve"><value>Push notifications</value></data>
+  <data name="Settings.Notifications.PushDescription" xml:space="preserve"><value>Store your push preference; a delivery provider is not configured.</value></data>
 </root>

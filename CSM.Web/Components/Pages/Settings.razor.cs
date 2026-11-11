@@ -399,6 +399,11 @@ private async Task LoadPrivacyDataRequestsAsync()
         _privacyRequestsError =
             "Privacy request history could not be loaded. Please try again.";
     }
+    catch (Exception ex)
+    {
+        Logger.LogWarning(ex, "Privacy history response could not be processed.");
+        _privacyRequestsError = "Privacy request history could not be loaded. Please try again.";
+    }
     finally
     {
         _privacyRequestsLoading = false;
@@ -463,6 +468,15 @@ private async Task SubmitPrivacyDataRequestAsync()
     {
         _privacyRequestSubmitError =
             "Your privacy request could not be submitted. Please try again.";
+    }
+    catch (OperationCanceledException)
+    {
+        _privacyRequestSubmitError = "Privacy request could not be confirmed. Check history before trying again.";
+    }
+    catch (Exception ex)
+    {
+        Logger.LogWarning(ex, "Privacy request response could not be processed.");
+        _privacyRequestSubmitError = "Privacy request could not be confirmed. Check history before trying again.";
     }
     finally
     {

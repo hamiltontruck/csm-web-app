@@ -24,7 +24,7 @@ public sealed class CurrentUserProfileService
         await _authService.ApplyAuthenticationAsync(client);
 
         using var response = await client.GetAsync(
-            "auth/me",
+            "auth/me/profile",
             cancellationToken);
 
         response.EnsureSuccessStatusCode();

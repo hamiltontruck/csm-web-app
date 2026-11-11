@@ -95,6 +95,15 @@ private async Task SubmitPasswordChangeAsync()
         _passwordChangeError =
             "Password change failed. Check your current password and password requirements, then try again.";
     }
+    catch (OperationCanceledException)
+    {
+        _passwordChangeError = "Password change could not be confirmed. Try signing in with your new password before retrying.";
+    }
+    catch (Exception ex)
+    {
+        Logger.LogWarning(ex, "Password change response could not be processed.");
+        _passwordChangeError = "Password change could not be confirmed. Please try signing in again.";
+    }
     finally
     {
         _passwordChangeSubmitting = false;
@@ -186,6 +195,7 @@ private async Task LoadOrganizationMembershipAsync()
 
 private async Task LoadMyProfileForEditAsync()
 {
+    if (_myProfileSaving || _myProfileLoading) return;
     _myProfileLoading = true;
     _myProfileError = null;
     _myProfileSuccess = null;
@@ -285,6 +295,7 @@ private async Task SaveMyProfileAsync()
 
 private void CancelMyProfileEdit()
 {
+    if (_myProfileSaving) return;
     _myProfileLoaded = false;
     _myProfileError = null;
     _myProfileSuccess = null;

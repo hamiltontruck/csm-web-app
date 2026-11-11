@@ -94,6 +94,19 @@ public sealed class AccountSettingsTests
         Assert.Equal("Old", (await db.Users.SingleAsync()).FirstName);
     }
 
+    [Fact]
+    public async Task Self_profile_summary_reads_current_identity_and_roles_from_the_database()
+    {
+        using var db = Database(); var own = new User { FirstName = "Fresh", LastName = "Name", Email = "own@example.test", CompanyId = Guid.NewGuid() };
+        db.Users.Add(own); db.UserRoles.Add(new UserRole { UserId = own.Id, Role = new Role { Name = "ProcurementOfficer" } }); await db.SaveChangesAsync();
+        var response = await Service(db).GetProfileAsync(own.Id);
+        var json = System.Text.Json.JsonSerializer.SerializeToElement(response, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.True(json.TryGetProperty("name", out var name)); Assert.Equal("Fresh Name", name.GetString());
+        Assert.Equal("own@example.test", json.GetProperty("email").GetString());
+        Assert.Equal(own.CompanyId, json.GetProperty("companyId").GetGuid());
+        Assert.Equal("ProcurementOfficer", Assert.Single(json.GetProperty("roles").EnumerateArray()).GetString());
+    }
+
     private sealed class TestDb(DbContextOptions<ApplicationDbContext> options) : ApplicationDbContext(options)
     {
         public override Task<int> SaveChangesAsync(CancellationToken ct = default) => base.SaveChangesAsync(true, ct);

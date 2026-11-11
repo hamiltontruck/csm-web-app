@@ -97,10 +97,10 @@
     <value>Gabateewwanii fi kaardota daashboordii irratti qindaa'ina dhiphaa fayyadami.</value>
   </data>
   <data name="Settings.Appearance.ThemeInfo">
-    <value>Filannoon mata-duree yeroo ammaa haala filannoo fuula kanaa qofa jijjiira.</value>
+    <value>Bifa fuulota hojii deeggaraman irratti dursee ilaali.</value>
   </data>
   <data name="Settings.Appearance.ThemeInfoDetails">
-    <value>Mata-duree aplikeeshinii guutuu irratti hojiirra oolchuuf qindaa'ina waliigalaa waliin walitti hidhamiinsa barbaada.</value>
+    <value>Bifa kana kuusuuf Save preferences filadhu. Discard changes bifa duraan kuufame deebisa.</value>
   </data>
 
   <data name="Settings.Theme.Light">
@@ -183,6 +183,10 @@
     <value>Haaromsa deeggaraman imeeliin argadhu.</value>
   </data>
   <data name="Settings.Notifications.Info">
-    <value>To'annoon kun hanga filannoowwan beeksisaa kuusaa dhaabbataa fi tajaajila beeksisaa waliin walitti hidhamiinanitti haala fuulaa qofa qindeessa.</value>
+    <value>Save preferences yeroo filattu filannoowwan account kee irratti kuufamu. Ergaa dabarsuu fi akaakuun filachuu amma hin walitti hidhamne.</value>
   </data>
+  <data name="Settings.Notifications.SecurityAlerts" xml:space="preserve"><value>Beeksisa nageenyaa</value></data>
+  <data name="Settings.Notifications.SecurityAlertsDescription" xml:space="preserve"><value>Filannoo beeksisa nageenya account kuusi.</value></data>
+  <data name="Settings.Notifications.Push" xml:space="preserve"><value>Beeksisa push</value></data>
+  <data name="Settings.Notifications.PushDescription" xml:space="preserve"><value>Filannoo beeksisa push kuusi; tajaajilli ergaa hin qophoofne.</value></data>
 </root>

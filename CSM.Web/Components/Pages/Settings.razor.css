@@ -990,3 +990,5 @@
 
 /* Section labels carry the meaning without an external icon font. */
 .section-icon { display:none; }
+
+.settings-panel-fields,.settings-profile-fields { min-width:0; border:0; padding:0; margin:0; }

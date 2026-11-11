@@ -17,7 +17,7 @@ const path = require('path');
       let data, status=200;
       if(route==='/auth/login') data={accessToken:'local-fixture-only',refreshToken:'local-refresh-only',email:'qa@example.test',fullName:'Local Officer',roles:['ProcurementOfficer'],companyId:user};
       else if(route==='/auth/permissions') data=['Sites_View','Procurement_Inventory_View','Notifications_View'];
-      else if(route==='/auth/me') data={userId:user,name:'Local Officer',email:'qa@example.test',companyId:user,roles:['ProcurementOfficer']};
+      else if(route==='/auth/me' || route==='/auth/me/profile') data={userId:user,name:'Local Officer',email:'qa@example.test',companyId:user,roles:['ProcurementOfficer']};
       else if(route==='/user/preferences') {
         if(req.method==='PUT') { const input=JSON.parse(Buffer.concat(chunks).toString()); writes.push(input); if(failSave) status=503; else preferences={...input,userId:user}; }
         data=preferences;
@@ -77,6 +77,13 @@ const path = require('path');
       await page.getByRole('button',{name:'General',exact:true}).click();
       await page.locator('#language').selectOption('om');await page.getByRole('button',{name:'Save preferences',exact:true}).click();
       await expect(page.locator('html')).toHaveAttribute('lang','om');await expect(saved).toHaveText(/All changes saved/);
+      if(width===320) {
+        let navigations=0;const count=frame=>{if(frame===page.mainFrame())navigations++;};page.on('framenavigated',count);
+        await page.goto('http://127.0.0.1:5079/settings?culture=en&ui-culture=en',{waitUntil:'domcontentloaded'});
+        await expect(page.locator('html')).toHaveAttribute('lang','om',{timeout:5000});
+        await expect(saved).toHaveText(/All changes saved/);if(navigations>2) throw Error('Culture query caused repeated reloads');
+        page.off('framenavigated',count);
+      }
       const geometry=await page.evaluate(()=>({viewport:innerWidth,width:document.documentElement.scrollWidth,errors:document.querySelector('#blazor-error-ui')?.getBoundingClientRect().height || 0}));
       if(geometry.width>geometry.viewport+1 || geometry.errors>0 || errors.length) throw Error('Browser layout/circuit failure '+JSON.stringify({geometry,errors}));
       if(process.env.CSM_SCREENSHOT_DIR) {fs.mkdirSync(process.env.CSM_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.CSM_SCREENSHOT_DIR,`settings-${width}.png`),fullPage:true});}

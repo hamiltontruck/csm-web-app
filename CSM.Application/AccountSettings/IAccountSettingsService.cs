@@ -3,7 +3,15 @@ using CSM.Application.Users.Dtos;
 
 namespace CSM.Application.AccountSettings;
 
-public sealed record OwnProfileResponse(string FirstName, string LastName, string PhoneNumber, string JobTitle);
+public sealed record OwnProfileResponse(string FirstName, string LastName, string PhoneNumber, string JobTitle)
+{
+    public Guid UserId { get; init; }
+    public Guid? CompanyId { get; init; }
+    public string Email { get; init; } = "";
+    public string Name { get; init; } = "";
+    public IReadOnlyCollection<string> Roles { get; init; } = [];
+    public bool HasActiveSiteAccess { get; init; }
+}
 public sealed record MembershipResponse(Guid CompanyId, Guid SiteId, string SiteCode, string SiteName,
     string? Address, string? City, string? Region, string? Country, string SiteStatus, bool IsDefault);
 public sealed record LoginHistoryResponse(Guid Id, DateTime OccurredAtUtc, bool Succeeded,

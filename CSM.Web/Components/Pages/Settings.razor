@@ -148,6 +148,7 @@
                 </div>
             }
 
+            <fieldset class="settings-panel-fields" disabled="@_isSaving">
             @if (_activeTab == "general")
             {
                 <section>
@@ -538,7 +539,7 @@
                                     : "No roles returned")
                             </dd>
 
-                            <dt class="col-sm-4">Active site access</dt>
+                            <dt class="col-sm-4">Active site assignments</dt>
                             <dd class="col-sm-8">
                                 @(_currentUserProfile.HasActiveSiteAccess is true ? "Yes" : _currentUserProfile.HasActiveSiteAccess is false ? "No" : "Load organization membership below")
                             </dd>
@@ -558,7 +559,7 @@
     </div>
     <button class="btn btn-outline-primary"
             @onclick="LoadMyProfileForEditAsync"
-            disabled="@_myProfileLoading">
+            disabled="@(_myProfileLoading || _myProfileSaving)">
         @(_myProfileLoading
             ? "Loading profile..."
             : _myProfileLoaded
@@ -584,6 +585,7 @@
 @if (_myProfileLoaded)
 {
     <EditForm Model="_myProfileForm" OnValidSubmit="SaveMyProfileAsync">
+        <fieldset class="settings-profile-fields" disabled="@_myProfileSaving">
         <DataAnnotationsValidator />
         <ValidationSummary />
 
@@ -643,6 +645,7 @@
                 Cancel
             </button>
         </div>
+        </fieldset>
     </EditForm>
 }
 
@@ -885,7 +888,7 @@
                                     <table class="table table-sm align-middle">
                                         <thead>
                                             <tr>
-                                                <th>Date (UTC)</th>
+                                                <th>Date (@(_savedPreferences?.TimeZone ?? "UTC"))</th>
                                                 <th>Result</th>
                                                 <th>IP address</th>
                                                 <th>Device</th>
@@ -1120,7 +1123,7 @@ else if (_activeTab == "privacy")
                 <table class="table table-sm table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>Date (UTC)</th>
+                            <th>Date (@(_savedPreferences?.TimeZone ?? "UTC"))</th>
                             <th>User</th>
                             <th>Module</th>
                             <th>Action</th>
@@ -1131,7 +1134,7 @@ else if (_activeTab == "privacy")
                         @foreach (var log in _auditLogs)
                         {
                             <tr @key="log.Id">
-                                <td>@log.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@FormatTimestamp(log.CreatedAtUtc)</td>
                                 <td>@(log.UserName ?? "Unknown")</td>
                                 <td>@(log.Module ?? "—")</td>
                                 <td>@(log.Action ?? "—")</td>
@@ -1372,6 +1375,7 @@ else if (_activeTab == "privacy")
                 </section>
             }
 
+            </fieldset>
             <!-- Footer actions -->
 
 <div class="settings-footer">
