@@ -99,10 +99,10 @@
     <value>ለሰንጠረዦች እና ለዳሽቦርድ ካርዶች የተጠበበ አቀማመጥ ይጠቀሙ።</value>
   </data>
   <data name="Settings.Appearance.ThemeInfo" xml:space="preserve">
-    <value>የገጽታ ምርጫ በአሁኑ ጊዜ የዚህን ገጽ የምርጫ ሁኔታ ብቻ ይቀይራል።</value>
+    <value>በሚደገፉ የሥራ ቦታ መቆጣጠሪያዎች ላይ ገጽታውን አስቀድመው ይመልከቱ።</value>
   </data>
   <data name="Settings.Appearance.ThemeInfoDetails" xml:space="preserve">
-    <value>በመተግበሪያው ሁሉ የገጽታ ማስፈን ከጋራ አቀማመጥ ጋር ውህደት ይፈልጋል።</value>
+    <value>ገጽታውን ለማስቀመጥ Save preferences ይምረጡ። Discard changes የተቀመጠውን ገጽታ ይመልሳል።</value>
   </data>
 
   <data name="Settings.Theme.Light" xml:space="preserve">
@@ -185,6 +185,10 @@
     <value>የሚደገፉ ዝማኔዎችን በኢሜይል ይቀበሉ።</value>
   </data>
   <data name="Settings.Notifications.Info" xml:space="preserve">
-    <value>እነዚህ ቁጥጥሮች የማሳወቂያ ምርጫዎች ከቋሚ ማከማቻ እና ከማሳወቂያ አገልግሎቱ ጋር እስኪገናኙ ድረስ የገጹን ሁኔታ ብቻ ያዋቅራሉ።</value>
+    <value>Save preferences ሲመርጡ ምርጫዎችዎ በመለያዎ ይቀመጣሉ። የማሳወቂያ መላክ እና የምድብ ማጣሪያ ገና አልተገናኙም።</value>
   </data>
+  <data name="Settings.Notifications.SecurityAlerts" xml:space="preserve"><value>የደህንነት ማሳወቂያዎች</value></data>
+  <data name="Settings.Notifications.SecurityAlertsDescription" xml:space="preserve"><value>የመለያ ደህንነት ማሳወቂያ ምርጫዎችን አስቀምጥ።</value></data>
+  <data name="Settings.Notifications.Push" xml:space="preserve"><value>የፑሽ ማሳወቂያዎች</value></data>
+  <data name="Settings.Notifications.PushDescription" xml:space="preserve"><value>የፑሽ ማሳወቂያ ምርጫዎችን አስቀምጥ፤ የመላኪያ አገልግሎት አልተዋቀረም።</value></data>
 </root>

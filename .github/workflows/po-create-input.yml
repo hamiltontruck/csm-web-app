@@ -16,6 +16,9 @@ permissions:
 jobs:
   browser-input:
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -30,7 +33,6 @@ jobs:
       - name: Install browser test dependencies
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
-          npx playwright install --with-deps chromium
       - name: Verify typed Purchase Order inputs against local API fixture
         run: node scripts/qa/po-create-input.cjs
         env:

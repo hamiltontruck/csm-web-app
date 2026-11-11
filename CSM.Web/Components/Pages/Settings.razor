@@ -1,91 +1,1442 @@
 @page "/settings"
-@rendermode InteractiveServer
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @using CSM.Web.Services
-@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
-
-@inject ProtectedSessionStorage SessionStorage
+@using CSM.Web.Models.Security
+@using CSM.Web.Models.UserPreferences
+@using Microsoft.JSInterop
+@using Microsoft.Extensions.Localization
+@using CSM.Web
+@inject IStringLocalizer<SharedResource> L
 @inject IAuthService AuthService
+@inject ILogger<Settings> Logger
 @inject NavigationManager Navigation
 
-<PageTitle>Settings &amp; Privacy</PageTitle>
+@inject UserSessionsService SessionsService
+@inject LoginHistoryService LoginHistory
+@inject AuditHistoryService AuditService
+@inject PersonalDataExportService PersonalDataExport
+@inject PrivacyDataRequestService PrivacyDataRequests
+@inject PasswordChangeService PasswordChanges
+@inject CurrentUserProfileService CurrentUserProfileService
+@inject OrganizationMembershipService OrganizationMembership
+@inject MyProfileService MyProfileService
 
-<div class="container py-4">
-    <div class="mb-4">
-        <h2 class="mb-1">Settings &amp; Privacy</h2>
-        <p class="text-muted mb-0">Review your signed-in account and session.</p>
+<PageTitle>Settings &amp; Privacy | CSM</PageTitle>
+
+<div class="settings-page">
+
+    <!-- Header -->
+    <div class="settings-header">
+        <div>
+            <div class="settings-eyebrow">ACCOUNT CONTROL CENTER</div>
+            <h1>Settings &amp; Privacy</h1>
+            <p>Manage your preferences, account security, and privacy controls.</p>
+        </div>
+
+        <div class="settings-header-actions">
+            <button type="button" class="btn btn-outline-danger" @onclick="SignOutAsync">Sign Out</button>
+            <span class="settings-status @(SettingsStatusClass)" role="status" aria-live="polite">
+                <span class="status-dot" aria-hidden="true"></span>
+                @SettingsStatusText
+            </span>
+        </div>
     </div>
 
-    @if (_loading)
-    {
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
-    }
-    else
-    {
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-body p-4">
-                <h5 class="card-title">Account</h5>
+    <!-- Main layout -->
+    <div class="settings-layout">
 
-                <dl class="row mb-0">
-                    <dt class="col-sm-3">Name</dt>
-                    <dd class="col-sm-9">@ValueOrUnavailable(_userName)</dd>
+        <!-- Sidebar -->
+        <nav class="settings-sidebar" aria-label="Settings categories">
 
-                    <dt class="col-sm-3">Email</dt>
-                    <dd class="col-sm-9">@ValueOrUnavailable(_email)</dd>
+            <div class="settings-sidebar-title">PREFERENCES</div>
 
-                    <dt class="col-sm-3">Roles</dt>
-                    <dd class="col-sm-9">@ValueOrUnavailable(_roles)</dd>
-                </dl>
+            <button class="@TabClass("general")"
+                    aria-current="@(_activeTab == "general" ? "page" : null)"
+                    @onclick='() => SelectTab("general")'>
+                <i class="bi bi-sliders2"></i>
+                <span>General</span>
+                <i class="bi bi-chevron-right nav-chevron"></i>
+            </button>
+
+            <button class="@TabClass("appearance")"
+                    aria-current="@(_activeTab == "appearance" ? "page" : null)"
+                    @onclick='() => SelectTab("appearance")'>
+                <i class="bi bi-palette"></i>
+                <span>Appearance</span>
+                <i class="bi bi-chevron-right nav-chevron"></i>
+            </button>
+
+            <button class="@TabClass("notifications")"
+                    aria-current="@(_activeTab == "notifications" ? "page" : null)"
+                    @onclick='() => SelectTab("notifications")'>
+                <i class="bi bi-bell"></i>
+                <span>Notifications</span>
+                <i class="bi bi-chevron-right nav-chevron"></i>
+            </button>
+
+            <div class="settings-sidebar-title mt-4">ACCOUNT &amp; SECURITY</div>
+
+            <button class="@TabClass("account")"
+                    aria-current="@(_activeTab == "account" ? "page" : null)"
+                    @onclick='() => SelectTab("account")'>
+                <i class="bi bi-person-circle"></i>
+                <span>Account</span>
+                <i class="bi bi-chevron-right nav-chevron"></i>
+            </button>
+
+            <button class="@TabClass("security")"
+                    aria-current="@(_activeTab == "security" ? "page" : null)"
+                    @onclick='() => SelectTab("security")'>
+                <i class="bi bi-shield-lock"></i>
+                <span>Security</span>
+                <i class="bi bi-chevron-right nav-chevron"></i>
+            </button>
+
+            <button class="@TabClass("sessions")"
+                    aria-current="@(_activeTab == "sessions" ? "page" : null)"
+                    @onclick='() => SelectTab("sessions")'>
+                <i class="bi bi-pc-display"></i>
+                <span>Sessions &amp; Devices</span>
+                <i class="bi bi-chevron-right nav-chevron"></i>
+            </button>
+
+            <div class="settings-sidebar-title mt-4">PRIVACY &amp; DATA</div>
+
+            <button class="@TabClass("privacy")"
+                    aria-current="@(_activeTab == "privacy" ? "page" : null)"
+                    @onclick='() => SelectTab("privacy")'>
+                <i class="bi bi-shield-check"></i>
+                <span>Privacy Controls</span>
+                <i class="bi bi-chevron-right nav-chevron"></i>
+            </button>
+
+            <button class="@TabClass("data")"
+                    aria-current="@(_activeTab == "data" ? "page" : null)"
+                    @onclick='() => SelectTab("data")'>
+                <i class="bi bi-database-lock"></i>
+                <span>Data Management</span>
+                <i class="bi bi-chevron-right nav-chevron"></i>
+            </button>
+
+            <div class="settings-sidebar-footer">
+                <i class="bi bi-shield-check"></i>
+                <div>
+                    <strong>CSM Security</strong>
+                    <p>Manage your account responsibly.</p>
+                </div>
             </div>
-        </div>
 
-        <div class="card shadow-sm border-0">
-            <div class="card-body p-4">
-                <h5 class="card-title">Session</h5>
-                <p class="text-muted">
-                    Sign out on shared devices when you finish working.
-                </p>
-                <button class="btn btn-outline-danger" @onclick="SignOutAsync">
-                    Sign Out
-                </button>
-            </div>
-        </div>
-    }
+        </nav>
+
+        <!-- Content -->
+        <main class="settings-content" aria-label="Settings panel">
+
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <div class="settings-message @(_messageIsError ? "message-error" : "message-success")"
+                     role="@(_messageIsError ? "alert" : "status")"
+                     aria-live="@(_messageIsError ? "assertive" : "polite")">
+                    <i class="bi @(_messageIsError ? "bi-exclamation-circle" : "bi-check-circle")" aria-hidden="true"></i>
+                    @_message
+                    <button type="button"
+                            class="message-close"
+                            aria-label="Dismiss message"
+                            @onclick="ClearMessage">
+                        &times;
+                    </button>
+                </div>
+            }
+
+            <fieldset class="settings-panel-fields" disabled="@_isSaving">
+            @if (_activeTab == "general")
+            {
+                <section>
+                    <div class="section-heading">
+                        <div class="section-icon">
+                            <i class="bi bi-sliders2"></i>
+                        </div>
+                        <div>
+                            <h2>@L["Settings.General.Title"]</h2>
+                            <p>@L["Settings.General.Description"]</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h2>@L["Settings.General.WorkspaceTitle"]</h2>
+                            <p>@L["Settings.General.WorkspaceDescription"]</p>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <h2>@L["Settings.General.CompactInterface"]</h2>
+                                <p>@L["Settings.General.CompactInterfaceDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.General.CompactInterface"]"
+                                       id="compactMode" @bind="_compactMode"
+                                       @bind:after="ApplyCompactModeAsync" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <h2>@L["Settings.General.ConfirmationPrompts"]</h2>
+                                <p>@L["Settings.General.ConfirmationPromptsDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       @bind="_confirmActions"
+                                       aria-label="@L["Settings.General.ConfirmationPrompts"]" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <h2>@L["Settings.General.RememberNavigation"]</h2>
+                                <p>@L["Settings.General.RememberNavigationDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.General.RememberNavigation"]"
+                                       @bind="_rememberNavigation" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h3>@L["Settings.Regional.Title"]</h3>
+                            <p>@L["Settings.Regional.Description"]</p>
+                        </div>
+
+                        <div class="settings-form-grid">
+                            <div class="settings-field">
+                               <label for="language">@L["Settings.Regional.DisplayLanguage"]</label>
+                               <select id="language" class="form-select" @bind="_language">
+                                   <option value="en">@L["Settings.Language.English"]</option>
+                                   <option value="am">@L["Settings.Language.Amharic"]</option>
+                                   <option value="om">@L["Settings.Language.AfanOromo"]</option>
+                               </select>
+                               <small>@L["Settings.Regional.LanguageDescription"]</small>
+                            </div>
+
+                            <div class="settings-field">
+                                <label for="dateFormat">@L["Settings.Regional.DateFormat"]</label>
+                                <select id="dateFormat" class="form-select" @bind="_dateFormat">
+                                    <option value="dd/MM/yyyy">DD/MM/YYYY</option>
+                                    <option value="MM/dd/yyyy">MM/DD/YYYY</option>
+                                    <option value="yyyy-MM-dd">YYYY-MM-DD</option>
+                                </select>
+                            </div>
+
+                            <div class="settings-field">
+                                <label for="timeFormat">@L["Settings.Regional.TimeFormat"]</label>
+                                <select id="timeFormat" class="form-select" @bind="_timeFormat">
+                                   <option value="24">@L["Settings.TimeFormat.24Hour"]</option>
+                                   <option value="12">@L["Settings.TimeFormat.12Hour"]</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            }
+            else if (_activeTab == "appearance")
+            {
+                <section>
+                    <div class="section-heading">
+                        <div class="section-icon">
+                            <i class="bi bi-palette"></i>
+                        </div>
+                        <div>
+                            <h2>@L["Settings.Appearance.Title"]</h2>
+                            <p>@L["Settings.Appearance.Description"]</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h3>@L["Settings.Appearance.ThemeTitle"]</h3>
+                            <p>@L["Settings.Appearance.ThemeDescription"]</p>
+                        </div>
+
+                        <div class="theme-grid">
+                            <button type="button"
+                                    class="@($"theme-option {(_theme == "light" ? "theme-selected" : "")}")"
+                                    aria-pressed="@(_theme == "light")"
+                                    @onclick='() => SetThemeAsync("light")'>
+                                <div class="theme-preview theme-light">
+                                    <div class="theme-preview-sidebar"></div>
+                                    <div class="theme-preview-content">
+                                        <span></span><span></span><span></span>
+                                    </div>
+                                </div>
+                               <strong>@L["Settings.Theme.Light"]</strong>
+                               <small>@L["Settings.Theme.LightDescription"]</small>
+                            </button>
+
+                            <button type="button"
+                                    class="@($"theme-option {(_theme == "dark" ? "theme-selected" : "")}")"
+                                    aria-pressed="@(_theme == "dark")"
+                                    @onclick='() => SetThemeAsync("dark")'>
+                                <div class="theme-preview theme-dark">
+                                    <div class="theme-preview-sidebar"></div>
+                                    <div class="theme-preview-content">
+                                        <span></span><span></span><span></span>
+                                    </div>
+                                </div>
+                               <strong>@L["Settings.Theme.Dark"]</strong>
+                               <small>@L["Settings.Theme.DarkDescription"]</small>
+                            </button>
+
+                            <button type="button"
+                                    class="@($"theme-option {(_theme == "system" ? "theme-selected" : "")}")"
+                                    aria-pressed="@(_theme == "system")"
+                                    @onclick='() => SetThemeAsync("system")'>
+                                <div class="theme-preview theme-system">
+                                    <div class="theme-preview-sidebar"></div>
+                                    <div class="theme-preview-content">
+                                        <span></span><span></span><span></span>
+                                    </div>
+                                </div>
+                                <strong>@L["Settings.Theme.System"]</strong>
+                                <small>@L["Settings.Theme.SystemDescription"]</small>
+                            </button>
+                        </div>
+
+                        <div class="setting-row mt-4">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Appearance.CompactInterface"]</strong>
+                                <p>@L["Settings.Appearance.CompactInterfaceDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Appearance.CompactInterface"]"
+                                       id="compactMode" @bind="_compactMode"
+                                       @bind:after="ApplyCompactModeAsync" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-info">
+                        <i class="bi bi-info-circle"></i>
+                        @L["Settings.Appearance.ThemeInfo"]
+                        @L["Settings.Appearance.ThemeInfoDetails"]
+                    </div>
+                </section>
+            }
+            else if (_activeTab == "notifications")
+            {
+                <section>
+                    <div class="section-heading">
+                        <div class="section-icon">
+                            <i class="bi bi-bell"></i>
+                        </div>
+                        <div>
+                            <h2>@L["Settings.Notifications.Title"]</h2>
+                            <p>These preferences are stored. Delivery and category filtering are not connected to these controls yet; existing notifications remain available.</p>
+                            <p>@L["Settings.Notifications.Description"]</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h3>@L["Settings.Notifications.OperationalTitle"]</h3>
+                            <p>@L["Settings.Notifications.OperationalDescription"]</p>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Notifications.ProjectUpdates"]</strong>
+                                <p>@L["Settings.Notifications.ProjectUpdatesDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Notifications.ProjectUpdates"]"
+                                       @bind="_projectNotifications" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Notifications.ApprovalRequests"]</strong>
+                                <p>@L["Settings.Notifications.ApprovalRequestsDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Notifications.ApprovalRequests"]"
+                                       @bind="_approvalNotifications" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Notifications.InventoryAlerts"]</strong>
+                                <p>@L["Settings.Notifications.InventoryAlertsDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Notifications.InventoryAlerts"]"
+                                       @bind="_inventoryNotifications" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Notifications.HrAttendance"]</strong>
+                                <p>@L["Settings.Notifications.HrAttendanceDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Notifications.HrAttendance"]"
+                                       @bind="_hrNotifications" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Notifications.FinancialAlerts"]</strong>
+                                <p>@L["Settings.Notifications.FinancialAlertsDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Notifications.FinancialAlerts"]"
+                                       @bind="_financialNotifications" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Notifications.SecurityAlerts"]</strong>
+                                <p>@L["Settings.Notifications.SecurityAlertsDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Notifications.SecurityAlerts"]"
+                                       @bind="_securityAlerts" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h3>@L["Settings.Notifications.DeliveryChannelsTitle"]</h3>
+                            <p>@L["Settings.Notifications.DeliveryChannelsDescription"]</p>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Notifications.InApp"]</strong>
+                                <p>@L["Settings.Notifications.InAppDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Notifications.InApp"]"
+                                       @bind="_inAppNotifications" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Notifications.Email"]</strong>
+                                <p>@L["Settings.Notifications.EmailDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Notifications.Email"]"
+                                       @bind="_emailNotifications" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>@L["Settings.Notifications.Push"]</strong>
+                                <p>@L["Settings.Notifications.PushDescription"]</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="@L["Settings.Notifications.Push"]"
+                                       @bind="_pushNotifications" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-info">
+                        <i class="bi bi-info-circle"></i>
+                        @L["Settings.Notifications.Info"]
+                    </div>
+                </section>
+            }
+            else if (_activeTab == "account")
+            {
+                <section>
+                    <div class="section-heading">
+                        <div class="section-icon">
+                            <i class="bi bi-person-circle"></i>
+                        </div>
+                        <div>
+                            <h2>Account</h2>
+                            <p>Review account-related options and profile management.</p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <button class="btn btn-outline-primary"
+                                @onclick="LoadCurrentUserProfileAsync"
+                                disabled="@_currentUserProfileLoading">
+                            @(_currentUserProfileLoading
+                                ? "Loading account..."
+                                : _currentUserProfileLoaded
+                                    ? "Refresh account information"
+                                    : "Load account information")
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_currentUserProfileError))
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            @_currentUserProfileError
+                        </div>
+                    }
+
+                    @if (_currentUserProfile is not null)
+                    {
+                        <dl class="row">
+                            <dt class="col-sm-4">User ID</dt>
+                            <dd class="col-sm-8">@(_currentUserProfile.UserId ?? "Not available")</dd>
+
+                            <dt class="col-sm-4">Name</dt>
+                            <dd class="col-sm-8">@(_currentUserProfile.Name ?? "Not available")</dd>
+
+                            <dt class="col-sm-4">Email</dt>
+                            <dd class="col-sm-8">@(_currentUserProfile.Email ?? "Not available")</dd>
+
+                            <dt class="col-sm-4">Company ID</dt>
+                            <dd class="col-sm-8">@(_currentUserProfile.CompanyId ?? "Not available")</dd>
+
+                            <dt class="col-sm-4">Employee ID</dt>
+                            <dd class="col-sm-8">@(_currentUserProfile.EmployeeId ?? "Not available")</dd>
+
+                            <dt class="col-sm-4">Roles</dt>
+                            <dd class="col-sm-8">
+                                @( _currentUserProfile.Roles.Count > 0
+                                    ? string.Join(", ", _currentUserProfile.Roles)
+                                    : "No roles returned")
+                            </dd>
+
+                            <dt class="col-sm-4">Active site assignments</dt>
+                            <dd class="col-sm-8">
+                                @(_currentUserProfile.HasActiveSiteAccess is true ? "Yes" : _currentUserProfile.HasActiveSiteAccess is false ? "No" : "Load organization membership below")
+                            </dd>
+                        </dl>
+                    }
+
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h3>Account management</h3>
+                            <p>Manage your account through the application's authorized workflows.</p>
+                        </div>
+
+<div class="setting-row">
+    <div class="setting-description">
+        <strong>Profile management</strong>
+        <p>Update your name, phone number, and job title.</p>
+    </div>
+    <button class="btn btn-outline-primary"
+            @onclick="LoadMyProfileForEditAsync"
+            disabled="@(_myProfileLoading || _myProfileSaving)">
+        @(_myProfileLoading
+            ? "Loading profile..."
+            : _myProfileLoaded
+                ? "Refresh profile"
+                : "Edit profile")
+    </button>
 </div>
 
-@code {
-    private bool _loading = true;
-    private string? _userName;
-    private string? _email;
-    private string? _roles;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-            return;
-
-        var name = await SessionStorage.GetAsync<string>("userName");
-        var email = await SessionStorage.GetAsync<string>("email");
-        var roles = await SessionStorage.GetAsync<List<string>>("roles");
-
-        _userName = name.Success ? name.Value : null;
-        _email = email.Success ? email.Value : null;
-        _roles = roles.Success && roles.Value is not null
-            ? string.Join(", ", roles.Value)
-            : null;
-
-        _loading = false;
-        StateHasChanged();
-    }
-
-    private async Task SignOutAsync()
-    {
-        await AuthService.LogoutAsync();
-        Navigation.NavigateTo("/login", true);
-    }
-
-    private static string ValueOrUnavailable(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? "Not available" : value;
+@if (!string.IsNullOrWhiteSpace(_myProfileError))
+{
+    <div class="alert alert-danger mt-3" role="alert">
+        @_myProfileError
+    </div>
 }
+
+@if (!string.IsNullOrWhiteSpace(_myProfileSuccess))
+{
+    <div class="alert alert-success mt-3" role="status">
+        @_myProfileSuccess
+    </div>
+}
+
+@if (_myProfileLoaded)
+{
+    <EditForm Model="_myProfileForm" OnValidSubmit="SaveMyProfileAsync">
+        <fieldset class="settings-profile-fields" disabled="@_myProfileSaving">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="row g-3 mt-1">
+            <div class="col-md-6">
+                <label class="form-label" for="profileFirstName">
+                    First name
+                </label>
+                <InputText id="profileFirstName"
+                           class="form-control"
+                           @bind-Value="_myProfileForm.FirstName" />
+                <ValidationMessage For="@(() => _myProfileForm.FirstName)" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label" for="profileLastName">
+                    Last name
+                </label>
+                <InputText id="profileLastName"
+                           class="form-control"
+                           @bind-Value="_myProfileForm.LastName" />
+                <ValidationMessage For="@(() => _myProfileForm.LastName)" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label" for="profilePhoneNumber">
+                    Phone number
+                </label>
+                <InputText id="profilePhoneNumber"
+                           class="form-control"
+                           @bind-Value="_myProfileForm.PhoneNumber" />
+                <ValidationMessage For="@(() => _myProfileForm.PhoneNumber)" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label" for="profileJobTitle">
+                    Job title
+                </label>
+                <InputText id="profileJobTitle"
+                           class="form-control"
+                           @bind-Value="_myProfileForm.JobTitle" />
+                <ValidationMessage For="@(() => _myProfileForm.JobTitle)" />
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-3">
+            <button type="submit"
+                    class="btn btn-primary"
+                    disabled="@_myProfileSaving">
+                @(_myProfileSaving ? "Saving..." : "Save profile")
+            </button>
+
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    @onclick="CancelMyProfileEdit"
+                    disabled="@_myProfileSaving">
+                Cancel
+            </button>
+        </div>
+        </fieldset>
+    </EditForm>
+}
+
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>Organization membership</strong>
+                                <p>Review your company and assigned site access.</p>
+                            </div>
+                            <button class="btn btn-outline-primary"
+                                    @onclick="LoadOrganizationMembershipAsync"
+                                    disabled="@_organizationMembershipLoading">
+                                @(_organizationMembershipLoading
+                                    ? "Loading membership..."
+                                    : _organizationMembershipLoaded
+                                        ? "Refresh membership"
+                                        : "View membership")
+                            </button>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_organizationMembershipError))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @_organizationMembershipError
+                            </div>
+                        }
+
+                        @if (_organizationMembershipLoaded)
+                        {
+                            @if (_organizationMemberships.Count == 0)
+                            {
+                                <p class="text-muted">
+                                    No active site assignments were found for this account.
+                                </p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive mt-3">
+                                    <table class="table table-striped align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Site code</th>
+                                                <th>Site name</th>
+                                                <th>Location</th>
+                                                <th>Status</th>
+                                                <th>Assignment</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var membership in _organizationMemberships)
+                                            {
+                                                <tr>
+                                                    <td>@(membership.SiteCode ?? "—")</td>
+                                                    <td>@(membership.SiteName ?? "—")</td>
+                                                    <td>
+                                                        @string.Join(", ", new[]
+                                                        {
+                                                            membership.Address,
+                                                            membership.City,
+                                                            membership.Region,
+                                                            membership.Country
+                                                        }.Where(value =>
+                                                            !string.IsNullOrWhiteSpace(value)))
+                                                    </td>
+                                                    <td>@(membership.SiteStatus ?? "Unknown")</td>
+                                                    <td>
+                                                        @(membership.IsDefault ? "Default site" : "Assigned site")
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
+                    </div>
+                </section>
+            }
+            else if (_activeTab == "security")
+            {
+                <section>
+                    <div class="section-heading">
+                        <div class="section-icon">
+                            <i class="bi bi-shield-lock"></i>
+                        </div>
+                        <div>
+                            <h2>Security</h2>
+                            <p>Protect your CSM account and authentication credentials.</p>
+                        </div>
+                    </div>
+
+                    <div class="security-banner">
+                        <div class="security-banner-icon">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                        <div>
+                            <h3>Account security</h3>
+                            <p>
+                                Security operations must be handled by the existing authentication
+                                services. No password or authentication settings have been changed.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h3>Authentication</h3>
+                            <p>Available account protection options.</p>
+                        </div>
+
+
+<div class="setting-row">
+    <div class="setting-description">
+        <strong>Change password</strong>
+        <p>Update your password using your authenticated account.</p>
+    </div>
+    <button type="button"
+            class="btn btn-outline-primary btn-sm"
+            @onclick="OpenPasswordChange"
+            disabled="@_passwordChangeSubmitting">
+        Change password
+    </button>
+</div>
+
+@if (_showPasswordChange)
+{
+    <div class="mt-3 mb-4">
+        <div class="mb-3">
+            <label for="currentPassword" class="form-label">
+                Current password
+            </label>
+            <input id="currentPassword"
+                   type="password"
+                   class="form-control"
+                   autocomplete="current-password"
+                   @bind="_currentPassword"
+                   disabled="@_passwordChangeSubmitting" />
+        </div>
+
+        <div class="mb-3">
+            <label for="newPassword" class="form-label">
+                New password
+            </label>
+            <input id="newPassword"
+                   type="password"
+                   class="form-control"
+                   autocomplete="new-password"
+                   @bind="_newPassword"
+                   disabled="@_passwordChangeSubmitting" />
+        </div>
+
+        <div class="mb-3">
+            <label for="confirmNewPassword" class="form-label">
+                Confirm new password
+            </label>
+            <input id="confirmNewPassword"
+                   type="password"
+                   class="form-control"
+                   autocomplete="new-password"
+                   @bind="_confirmNewPassword"
+                   disabled="@_passwordChangeSubmitting" />
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_passwordChangeError))
+        {
+            <div class="alert alert-danger" role="alert">
+                @_passwordChangeError
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_passwordChangeSuccess))
+        {
+            <div class="alert alert-success" role="status">
+                @_passwordChangeSuccess
+            </div>
+        }
+
+        <button type="button"
+                class="btn btn-primary"
+                @onclick="SubmitPasswordChangeAsync"
+                disabled="@_passwordChangeSubmitting">
+            @(_passwordChangeSubmitting
+                ? "Updating..."
+                : "Update password")
+        </button>
+
+        <button type="button"
+                class="btn btn-outline-secondary ms-2"
+                @onclick="ClosePasswordChange"
+                disabled="@_passwordChangeSubmitting">
+            Cancel
+        </button>
+    </div>
+}
+
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>Multi-factor authentication</strong>
+                                <p>Add a second verification factor when supported by the identity system.</p>
+                            </div>
+                            <span class="badge bg-secondary">Integration pending</span>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>Login history</strong>
+                                <p>Review your recent sign-ins and security events.</p>
+                            </div>
+                            <button type="button"
+                                    class="btn btn-outline-primary btn-sm"
+                                    @onclick="LoadLoginHistoryAsync"
+                                    disabled="@_loginHistoryLoading">
+                                @(_loginHistoryLoading
+                                    ? "Loading..."
+                                    : _loginHistoryLoaded
+                                        ? "Refresh history"
+                                        : "View history")
+                            </button>
+                        </div>
+
+                        @if (_loginHistoryError is not null)
+                        {
+                            <div class="alert alert-danger mt-2">
+                                @_loginHistoryError
+                            </div>
+                        }
+
+                        @if (_loginHistoryLoaded)
+                        {
+                            @if (_loginHistory.Count == 0)
+                            {
+                                <p class="text-muted mt-2">
+                                    No login history is available yet.
+                                </p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive mt-3">
+                                    <table class="table table-sm align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Date (@(_savedPreferences?.TimeZone ?? "UTC"))</th>
+                                                <th>Result</th>
+                                                <th>IP address</th>
+                                                <th>Device</th>
+                                                <th>Details</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var entry in _loginHistory)
+                                            {
+                                                <tr>
+                                                    <td>@FormatTimestamp(entry.OccurredAtUtc)</td>
+                                                    <td>
+                                                        <span class="badge @(entry.Succeeded ? "bg-success" : "bg-danger")">
+                                                            @(entry.Succeeded ? "Successful" : "Failed")
+                                                        </span>
+                                                    </td>
+                                                    <td>@(entry.IpAddress ?? "Unknown")</td>
+                                                    <td>@(entry.DeviceName ?? "Unknown")</td>
+                                                    <td>@(entry.FailureReason ?? "—")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    <div class="settings-info">
+                        <i class="bi bi-lock"></i>
+                        Login history records new sign-in attempts from this release. Multi-factor authentication is not configured here.
+                    </div>
+                </section>
+            }
+
+        else if (_activeTab == "sessions")
+        {
+
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <p class="mb-0">
+        Revoke all authenticated sessions except this current device.
+    </p>
+
+    <button class="btn btn-danger"
+            disabled="@(_revokingOtherSessions || _sessionsLoading || !_sessions.Any(s => !s.IsCurrent))"
+            @onclick="RevokeOtherSessionsAsync">
+        @(_revokingOtherSessions
+            ? "Revoking other devices..."
+            : "Revoke all other devices")
+    </button>
+</div>
+
+
+
+@if (!string.IsNullOrWhiteSpace(_revokeOtherSessionsMessage))
+{
+    <div class="alert @(_revokeOtherSessionsSucceeded ? "alert-success" : "alert-warning")"
+         role="status">
+        @_revokeOtherSessionsMessage
+    </div>
+}
+
+
+@if (_sessionsLoading)
+{
+    <div class="settings-info">
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Loading sessions...
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(_sessionsError))
+{
+    <div class="alert alert-warning" role="alert">
+        @_sessionsError
+        <button class="btn btn-sm btn-outline-primary ms-2"
+                @onclick="LoadSessionsAsync">
+            Retry
+        </button>
+    </div>
+}
+else if (_sessions.Count == 0)
+{
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="bi bi-laptop"></i>
+        </div>
+        <h3>No active sessions found</h3>
+        <p>No active refresh-token sessions were returned by the authentication service.</p>
+    </div>
+}
+else
+{
+    @foreach (var session in _sessions)
+    {
+        <div class="setting-row" @key="session.Id">
+            <div class="setting-description">
+                <strong>
+                    @(string.IsNullOrWhiteSpace(session.DeviceName)
+                        ? "Unknown device"
+                        : session.DeviceName)
+                </strong>
+
+                @if (session.IsCurrent)
+                {
+                    <span class="badge bg-success ms-2">Current device</span>
+                }
+                <p>Created: @FormatTimestamp(session.CreatedAtUtc)</p>
+                <p>Expires: @FormatTimestamp(session.ExpiresAtUtc)</p>
+                @if (!string.IsNullOrWhiteSpace(session.CreatedByIp))
+                {
+                    <p>IP address: @session.CreatedByIp</p>
+                }
+            </div>
+
+
+        @if (!session.IsCurrent)
+        {
+            <button class="btn btn-outline-danger btn-sm"
+                    disabled="@(_revokingSessionId == session.Id)"
+                    @onclick="() => RevokeSessionAsync(session.Id)">
+                @(_revokingSessionId == session.Id ? "Revoking..." : "Revoke")
+            </button>
+        }
+        </div>
+    }
+}
+}
+else if (_activeTab == "privacy")
+{
+                <section>
+                    <div class="section-heading">
+                        <div class="section-icon">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                        <div>
+                            <h2>Privacy controls</h2>
+                            <p>Manage personal data preferences and access transparency.</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h3>Privacy preferences</h3>
+                            <p>Review the proposed privacy controls for your account.</p>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>Optional usage analytics</strong>
+                                <p>Preference for optional analytics, subject to the application's data policy.</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="Optional usage analytics"
+                                       @bind="_analyticsConsent" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>Optional product improvement data</strong>
+                                <p>Preference for optional product improvement data collection.</p>
+                            </div>
+                            <label class="settings-switch">
+                                <input type="checkbox"
+                                       aria-label="Optional product improvement data"
+                                       @bind="_productImprovementConsent" />
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="settings-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Privacy and consent.</strong>
+                            Your analytics and product-improvement consent preferences are saved
+                            to your account. Optional analytics and product-improvement tracking
+                            are not currently implemented in this application, so these preferences
+                            do not currently start or stop data collection. Security, authentication,
+                            and operational audit logging remain separate from these optional preferences.
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h3>Access transparency</h3>
+                            <p>Privacy depends on enforcing authorization throughout the application.</p>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>Company and site data isolation</strong>
+                                <p>Access should be limited by the user's tenant, role, permissions, and site assignments.</p>
+                            </div>
+                            <span class="badge bg-info text-dark">Backend enforced</span>
+                        </div>
+
+
+@if (CanViewAudit)
+{
+<div class="setting-row">
+    <div class="setting-description">
+        <strong>Audit trail</strong>
+        <p>Review recorded company activity. Available only to authorized user administrators.</p>
+
+        <div class="mt-3">
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm"
+                    disabled="@_auditLoading"
+                    @onclick="LoadAuditLogsAsync">
+                @(_auditLoading ? "Loading audit history..." :
+                    _auditLoaded ? "Refresh audit history" : "Load audit history")
+            </button>
+        </div>
+
+        @if (_auditLoading)
+        {
+            <p class="mt-3">Loading recorded activity...</p>
+        }
+        else if (!string.IsNullOrWhiteSpace(_auditError))
+        {
+            <p class="text-danger mt-3">@_auditError</p>
+        }
+        else if (_auditLoaded && _auditLogs.Count == 0)
+        {
+            <p class="mt-3">No audit records were found for your company.</p>
+        }
+        else if (_auditLogs.Count > 0)
+        {
+            <div class="table-responsive mt-3">
+                <table class="table table-sm table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Date (@(_savedPreferences?.TimeZone ?? "UTC"))</th>
+                            <th>User</th>
+                            <th>Module</th>
+                            <th>Action</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in _auditLogs)
+                        {
+                            <tr @key="log.Id">
+                                <td>@FormatTimestamp(log.CreatedAtUtc)</td>
+                                <td>@(log.UserName ?? "Unknown")</td>
+                                <td>@(log.Module ?? "—")</td>
+                                <td>@(log.Action ?? "—")</td>
+                                <td>
+                                    <div>@(log.Description ?? "—")</div>
+                                    @if (!string.IsNullOrWhiteSpace(log.EntityName))
+                                    {
+                                        <small class="text-muted">
+                                            Entity: @log.EntityName
+                                        </small>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+    <span class="badge bg-info text-dark">Permission controlled</span>
+</div>
+}
+
+                    </div>
+                </section>
+            }
+            else if (_activeTab == "data")
+            {
+                <section>
+                    <div class="section-heading">
+                        <div class="section-icon">
+                            <i class="bi bi-database-lock"></i>
+                        </div>
+                        <div>
+                            <h2>Data management</h2>
+                            <p>Review data access, export, and retention capabilities.</p>
+                        </div>
+                    </div>
+
+                    @if (_currentUserProfileLoaded && !HasCompany)
+                    { <p role="status">Your account has no company membership. Personal download is available; company privacy review requests need a company membership.</p> }
+                    <div class="settings-card">
+                        <div class="settings-card-heading">
+                            <h3>Your data</h3>
+                            <p>Data operations must respect company boundaries and authorization rules.</p>
+                        </div>
+
+                        
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>Export personal account data</strong>
+                                <p>Request an authorized export of personal account information.</p>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-2">
+                                @if (_dataExportLoading)
+                                {
+                                    <span class="text-muted small">Preparing...</span>
+                                }
+                                else
+                                {
+                                    <button type="button"
+                                            class="btn btn-outline-primary btn-sm"
+                                            @onclick="RequestPersonalDataExportAsync">
+                                        <i class="bi bi-download"></i>
+                                        Export my data
+                                    </button>
+                                }
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_dataExportError))
+                        {
+                            <div class="alert alert-danger mt-2 mb-0">
+                                @_dataExportError
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(_dataExportMessage))
+                        {
+                            <div class="alert alert-success mt-2 mb-0">
+                                @_dataExportMessage
+                            </div>
+                        }
+                        
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>Privacy and data request history</strong>
+                                <p>View the status and outcome of your privacy-related review requests.</p>
+                            </div>
+
+                            <button type="button"
+                                    class="btn btn-outline-primary btn-sm"
+                                    @onclick="LoadPrivacyDataRequestsAsync"
+                                    disabled="@_privacyRequestsLoading">
+                                @(_privacyRequestsLoading ? "Loading..." : "View history")
+                            </button>
+                        </div>
+
+                        @if (_privacyRequestsError is not null)
+                        {
+                            <div class="alert alert-danger mt-2">
+                                @_privacyRequestsError
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger ms-2"
+                                        @onclick="RetryPrivacyDataRequestsAsync">
+                                    Retry
+                                </button>
+                            </div>
+                        }
+
+                        @if (_privacyRequestsLoaded)
+                        {
+                            @if (_privacyDataRequests.Count == 0)
+                            {
+                                <p class="text-muted small mt-3">
+                                    No privacy requests have been recorded for your account.
+                                </p>
+                            }
+                            else
+                            {
+                                <div class="table-responsive mt-3">
+                                    <table class="table table-sm table-striped align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Request type</th>
+                                                <th>Status</th>
+                                                <th>Submitted</th>
+                                                <th>Completed</th>
+                                                <th>Description / outcome</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var request in _privacyDataRequests)
+                                            {
+                                                <tr @key="request.Id">
+                                                    <td>@request.RequestType</td>
+                                                    <td>@request.Status</td>
+                                                    <td>@FormatTimestamp(request.RequestedAtUtc)</td>
+                                                    <td>
+                                                        @(FormatTimestamp(request.CompletedAtUtc))
+                                                    </td>
+                                                    <td>
+                                                        @if (!string.IsNullOrWhiteSpace(request.Description))
+                                                        {
+                                                            <div>@request.Description</div>
+                                                        }
+                                                        @if (!string.IsNullOrWhiteSpace(request.ResolutionNotes))
+                                                        {
+                                                            <div class="text-muted small">
+                                                                @request.ResolutionNotes
+                                                            </div>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
+
+
+<div class="setting-row">
+    <div class="setting-description">
+        <strong>Submit a privacy request</strong>
+        <p>Submit a request concerning your personal data.</p>
+    </div>
+</div>
+
+<div class="mt-3 mb-4">
+    <div class="mb-3">
+        <label for="privacyRequestType" class="form-label">
+            Request type
+        </label>
+        <select id="privacyRequestType"
+                class="form-select"
+                @bind="_privacyRequestType"
+                disabled="@(_privacyRequestSubmitting || !HasCompany)">
+            <option value="DataAccess">Access my data</option>
+            <option value="DataCorrection">Correct my data</option>
+            <option value="DataDeletion">Delete my data</option>
+            <option value="PrivacyInquiry">Privacy inquiry</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="privacyRequestDescription" class="form-label">
+            Description (optional)
+        </label>
+        <textarea id="privacyRequestDescription"
+                  class="form-control"
+                  rows="3"
+                  maxlength="2000"
+                  @bind="_privacyRequestDescription"
+                  disabled="@(_privacyRequestSubmitting || !HasCompany)"
+                  placeholder="Describe your request..."></textarea>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_privacyRequestSubmitError))
+    {
+        <div class="alert alert-danger" role="alert">
+            @_privacyRequestSubmitError
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_privacyRequestSubmitSuccess))
+    {
+        <div class="alert alert-success" role="status">
+            @_privacyRequestSubmitSuccess
+        </div>
+    }
+
+    <button type="button"
+            class="btn btn-primary"
+            @onclick="SubmitPrivacyDataRequestAsync"
+            disabled="@(_privacyRequestSubmitting || !HasCompany)">
+        @(_privacyRequestSubmitting ? "Submitting..." : "Submit request")
+    </button>
+</div>
+
+
+                        <div class="setting-row">
+                            <div class="setting-description">
+                                <strong>Retention policies</strong>
+                                <p>Review applicable organizational data-retention policies.</p>
+                            </div>
+                            <span class="badge bg-secondary">Integration pending</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-info">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Privacy requests are submitted for review; they do not immediately delete your account.
+                        A personal download contains your own account information only.
+                    </div>
+                </section>
+            }
+
+            </fieldset>
+            <!-- Footer actions -->
+
+<div class="settings-footer">
+    <div class="settings-footer-note @(HasUnsavedChanges ? "settings-unsaved" : string.Empty)"
+         aria-live="polite">
+        @if (_isLoading)
+        {
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>Loading preferences...</span>
+        }
+        else if (!_preferencesLoaded)
+        {
+            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+            <span>Preferences are unavailable until they load successfully.</span>
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary"
+                    @onclick="LoadPreferencesAsync"
+                    disabled="@_isLoading">
+                Retry
+            </button>
+        }
+        else if (HasUnsavedChanges)
+        {
+            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+            <span>You have unsaved changes.</span>
+        }
+        else
+        {
+            <i class="bi bi-check-circle" aria-hidden="true"></i>
+            <span>All preferences are saved.</span>
+        }
+    </div>
+
+    <button type="button"
+            class="btn btn-outline-secondary"
+            @onclick="DiscardPreferenceChangesAsync"
+            disabled="@(_isLoading || _isSaving || !HasUnsavedChanges)">
+        Discard changes
+    </button>
+
+    <button type="button"
+            class="btn btn-outline-secondary"
+            @onclick="ResetPreferencesAsync"
+            disabled="@(_isLoading || _isSaving || !_preferencesLoaded)">
+        Restore defaults
+    </button>
+
+    <button type="button"
+            class="btn btn-primary settings-save-button"
+            @onclick="SavePreferencesAsync"
+            disabled="@(_isSaving || _isLoading || !_preferencesLoaded || !HasUnsavedChanges)">
+        <i class="bi bi-check2-circle me-2"></i>
+        @(_isSaving ? "Saving..." : "Save preferences")
+    </button>
+</div>
+
+
+        </main>
+    </div>
+</div>
+
+
+
+

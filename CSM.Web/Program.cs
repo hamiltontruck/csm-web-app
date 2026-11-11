@@ -82,6 +82,15 @@ builder.Services.AddScoped<
 
 builder.Services.AddScoped<IOfflineSyncApi, OfflineSyncApi>();
 
+builder.Services.AddLocalization();
+builder.Services.AddScoped<LoginHistoryService>();
+builder.Services.AddScoped<AuditHistoryService>();
+builder.Services.AddScoped<PersonalDataExportService>();
+builder.Services.AddScoped<PrivacyDataRequestService>();
+builder.Services.AddScoped<CurrentUserProfileService>();
+builder.Services.AddScoped<OrganizationMembershipService>();
+builder.Services.AddScoped<MyProfileService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -95,6 +104,13 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 
 app.UseHttpsRedirection();
 
+var localization = new RequestLocalizationOptions()
+    .SetDefaultCulture("en").AddSupportedCultures("en", "am", "om").AddSupportedUICultures("en", "am", "om");
+// A saved account culture must agree between the document and its interactive circuit.
+foreach (var provider in localization.RequestCultureProviders.OfType<Microsoft.AspNetCore.Localization.CookieRequestCultureProvider>().ToArray())
+    localization.RequestCultureProviders.Remove(provider);
+localization.RequestCultureProviders.Insert(0, new Microsoft.AspNetCore.Localization.CookieRequestCultureProvider());
+app.UseRequestLocalization(localization);
 app.UseAntiforgery();
 
 app.MapStaticAssets();

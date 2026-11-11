@@ -24,7 +24,7 @@ public sealed class CurrentUserProfileService
         await _authService.ApplyAuthenticationAsync(client);
 
         using var response = await client.GetAsync(
-            "auth/me",
+            "auth/me/profile",
             cancellationToken);
 
         response.EnsureSuccessStatusCode();
@@ -49,5 +49,5 @@ public sealed class CurrentUserProfile
 
     public List<string> Roles { get; set; } = [];
 
-    public bool HasActiveSiteAccess { get; set; }
+    public bool? HasActiveSiteAccess { get; set; }
 }

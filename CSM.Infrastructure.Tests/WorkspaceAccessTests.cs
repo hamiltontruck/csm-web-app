@@ -128,6 +128,8 @@ public sealed class WorkspaceAccessTests
         ((WorkspaceVisibilityTests.Auth)(object)auth).Role = "Supervisor";
         ((WorkspaceVisibilityTests.Auth)(object)auth).Permissions = [permission];
         context.Services.AddSingleton(auth);
+        context.Services.AddSingleton(new UserPreferencesService(new UnavailablePreferencesApi(),
+            DispatchProxy.Create<IAuthService, SettingsPrivacyUiTests.Auth>()));
         context.Services.AddSingleton(DispatchProxy.Create<INotificationApiService, NoNotifications>());
         context.Services.GetRequiredService<NavigationManager>().NavigateTo(route);
         var page = context.RenderComponent<WorkspaceRouteView>(p => p.Add(x => x.RouteData, new RouteData(typeof(Probe), new Dictionary<string, object>())));
@@ -135,6 +137,16 @@ public sealed class WorkspaceAccessTests
         else page.WaitForAssertion(() => Assert.Contains("You do not have permission", page.Markup));
         Assert.Equal(allowed ? 1 : 0, Probe.Starts);
         Assert.Equal(allowed, page.Markup.Contains("Protected record"));
+    }
+
+    private sealed class UnavailablePreferencesApi : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(new UnavailableHandler()) { BaseAddress = new Uri("https://test.invalid/api/") };
+        private sealed class UnavailableHandler : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+                Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable));
+        }
     }
 
     public sealed class Probe : ComponentBase

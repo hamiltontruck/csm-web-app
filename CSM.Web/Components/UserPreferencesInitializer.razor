@@ -1,0 +1,25 @@
+@inject CSM.Web.Services.UserPreferencesService Preferences
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject ILogger<UserPreferencesInitializer> Logger
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var saved = await Preferences.GetAsync();
+            await JS.InvokeVoidAsync("csmTheme.persist", saved.Theme);
+            await JS.InvokeVoidAsync("csmTheme.persistCompact", saved.CompactMode);
+            var culturePersisted = await JS.InvokeAsync<bool>("csmCulture.set", saved.Language);
+            if (culturePersisted && System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName != saved.Language)
+                Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            // A failed preferences lookup must not prevent navigation or imply a saved state.
+            Logger.LogWarning(ex, "Workspace display preferences could not be loaded.");
+        }
+    }
+}
