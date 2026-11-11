@@ -41,7 +41,16 @@ public sealed class UserPreferencesService : IUserPreferencesService
 
             _dbContext.Set<DomainUserPreferences>().Add(preferences);
 
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            try { await _dbContext.SaveChangesAsync(cancellationToken); }
+            catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
+                { SqlState: "23505", ConstraintName: "IX_UserPreferences_UserId" })
+            {
+                // Another first-load request created this same user's defaults.
+                _dbContext.Entry(preferences).State = EntityState.Detached;
+                preferences = await _dbContext.Set<DomainUserPreferences>().AsNoTracking()
+                    .SingleOrDefaultAsync(x => x.UserId == currentUserId && !x.IsDeleted, cancellationToken)
+                    ?? throw new UserManagementException("Preferences are unavailable. Please try again.");
+            }
         }
 
         return Map(preferences);
@@ -145,6 +154,17 @@ public sealed class UserPreferencesService : IUserPreferencesService
             throw new UserManagementException(
                 "Theme must be System, Light, or Dark.");
         }
+
+        if (!new[] { "en", "am", "om" }.Contains(request.Language.Trim(), StringComparer.Ordinal))
+            throw new UserManagementException("Language must be English, Amharic, or Afaan Oromo.");
+        if (!new[] { "dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd" }.Contains(request.DateFormat.Trim(), StringComparer.Ordinal))
+            throw new UserManagementException("Choose a supported date format.");
+        try { TimeZoneInfo.FindSystemTimeZoneById(request.TimeZone.Trim()); }
+        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
+        { throw new UserManagementException("Choose a valid time zone."); }
+        if (!System.Globalization.CultureInfo.GetCultures(System.Globalization.CultureTypes.AllCultures)
+            .Any(x => x.Name.Length > 0 && string.Equals(x.Name, request.NumberFormat.Trim(), StringComparison.OrdinalIgnoreCase)))
+            throw new UserManagementException("Choose a valid number format culture.");
 
         if (!new[] { "12h", "24h" }.Contains(
                 request.TimeFormat.Trim(),

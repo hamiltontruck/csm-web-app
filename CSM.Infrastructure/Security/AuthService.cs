@@ -55,8 +55,10 @@ public sealed class AuthService : IAuthService
 
         var utcNow = DateTime.UtcNow;
 
-        if (!user.IsActive)
+        if (!user.IsActive || user.IsDeleted)
         {
+            AddLoginHistory(user.Id, false, ipAddress, request.DeviceName, "Inactive account.", utcNow);
+            await _dbContext.SaveChangesAsync(cancellationToken);
             throw new AuthenticationException(
                 "This account is inactive.");
         }
@@ -64,6 +66,8 @@ public sealed class AuthService : IAuthService
         if (user.LockedUntilUtc.HasValue &&
             user.LockedUntilUtc.Value > utcNow)
         {
+            AddLoginHistory(user.Id, false, ipAddress, request.DeviceName, "Account temporarily locked.", utcNow);
+            await _dbContext.SaveChangesAsync(cancellationToken);
             throw new AuthenticationException(
                 "This account is temporarily locked.");
         }
@@ -72,6 +76,7 @@ public sealed class AuthService : IAuthService
                 request.Password,
                 user.PasswordHash))
         {
+            AddLoginHistory(user.Id, false, ipAddress, request.DeviceName, "Invalid credentials.", utcNow);
             user.FailedLoginAttempts++;
 
             if (user.FailedLoginAttempts >= MaxFailedLoginAttempts)
@@ -91,6 +96,7 @@ public sealed class AuthService : IAuthService
         user.FailedLoginAttempts = 0;
         user.LockedUntilUtc = null;
         user.LastLoginAtUtc = utcNow;
+        AddLoginHistory(user.Id, true, ipAddress, request.DeviceName, null, utcNow);
 
         var roles = GetRoles(user);
 
@@ -466,4 +472,13 @@ public sealed class AuthService : IAuthService
                                 "Password must contain at least one special character.");
                         }
                     }
-                }
+                    private void AddLoginHistory(Guid userId, bool success, string? ip, string? device, string? reason, DateTime now)
+    {
+        static string? Bound(string? value, int max) => value is null ? null : value[..Math.Min(value.Length, max)];
+        _dbContext.Set<LoginHistoryEntry>().Add(new LoginHistoryEntry
+        {
+            UserId = userId, Succeeded = success, OccurredAtUtc = now,
+            IpAddress = Bound(ip, 64), DeviceName = Bound(device, 256), FailureReason = Bound(reason, 200)
+        });
+    }
+}

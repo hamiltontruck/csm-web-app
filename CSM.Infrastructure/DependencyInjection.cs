@@ -127,6 +127,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<CSM.Application.AccountSettings.IAccountSettingsService, AccountSettingsService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<ICompanyService, CompanyService>();
         services.AddScoped<ISiteService, SiteService>();

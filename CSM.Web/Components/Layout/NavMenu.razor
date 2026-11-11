@@ -1,4 +1,6 @@
 @implements IDisposable
+@inject IServiceProvider Services
+@inject Microsoft.JSInterop.IJSRuntime JS
 @inject CSM.Web.Services.NotificationReadState NotificationReadState
 @inject CSM.Web.Services.INotificationApiService NotificationService
 @inject CSM.Web.Services.IAuthService AuthService
@@ -23,9 +25,8 @@
 
         <nav aria-label="Workspace navigation">
 
-            <div class="section-title">
-                Construction Management
-            </div>
+            <button type="button" class="section-title" aria-controls="construction-navigation" aria-expanded="@_constructionExpanded.ToString().ToLowerInvariant()" @onclick='() => ToggleGroupAsync("construction")'>Construction Management</button>
+            <div id="construction-navigation" hidden="@(!_constructionExpanded)">
 
             <!-- Dashboard -->
             <div class="nav-item">
@@ -85,12 +86,12 @@
                 </div>
             }
 
+            </div>
             <!-- Administration -->
             <hr class="my-2" />
 
-            <div class="section-title">
-                Administration
-            </div>
+            <button type="button" class="section-title" aria-controls="administration-navigation" aria-expanded="@_administrationExpanded.ToString().ToLowerInvariant()" @onclick='() => ToggleGroupAsync("administration")'>Administration</button>
+            <div id="administration-navigation" hidden="@(!_administrationExpanded)">
 
             @if (_access.CanVisit("/companies"))
             {
@@ -198,6 +199,7 @@
                 </NavLink>
             </div>
 
+            </div>
         </nav>
 
     <!-- Sign Out -->
@@ -217,6 +219,33 @@
 {
     private Microsoft.AspNetCore.Components.ElementReference _menuToggle;
     private bool _menuOpen;
+    private bool _constructionExpanded = true;
+    private bool _administrationExpanded = true;
+    private CSM.Web.Services.UserPreferencesService? _preferences;
+    private async Task ToggleGroupAsync(string group)
+    {
+        if (group == "construction") _constructionExpanded = !_constructionExpanded;
+        else _administrationExpanded = !_administrationExpanded;
+        var saved = _preferences?.Saved;
+        if (saved is null) return;
+        try { await JS.InvokeVoidAsync("csmNavigation.save", saved.UserId.ToString(), group,
+            group == "construction" ? _constructionExpanded : _administrationExpanded, saved.RememberNavigation); }
+        catch (Microsoft.JSInterop.JSException) { }
+    }
+    private void OnPreferencesChanged() { if (!_disposed) _ = InvokeAsync(LoadNavigationPreferencesAsync); }
+    private async Task LoadNavigationPreferencesAsync()
+    {
+        var saved = _preferences?.Saved;
+        if (saved is null) return;
+        try
+        {
+            _constructionExpanded = await JS.InvokeAsync<bool>("csmNavigation.load", saved.UserId.ToString(), "construction", saved.RememberNavigation);
+            _administrationExpanded = await JS.InvokeAsync<bool>("csmNavigation.load", saved.UserId.ToString(), "administration", saved.RememberNavigation);
+            if (!_disposed) StateHasChanged();
+        }
+        catch (Microsoft.JSInterop.JSException) { }
+    }
+    protected override Task OnAfterRenderAsync(bool firstRender) => firstRender ? LoadNavigationPreferencesAsync() : Task.CompletedTask;
     private void ToggleMenu() => _menuOpen = !_menuOpen;
     private void CloseMenu() => _menuOpen = false;
     private async Task HandleMenuKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs args)
@@ -234,6 +263,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _preferences = Services.GetService<CSM.Web.Services.UserPreferencesService>();
+        if (_preferences is not null) _preferences.Changed += OnPreferencesChanged;
         NotificationReadState.Changed += OnNotificationReadStateChangedAsync;
         try
         {
@@ -267,6 +298,7 @@
     public void Dispose()
     {
         _disposed = true;
+        if (_preferences is not null) _preferences.Changed -= OnPreferencesChanged;
         _unreadRefreshVersion++;
         NotificationReadState.Changed -= OnNotificationReadStateChangedAsync;
     }

@@ -38,6 +38,9 @@ public sealed class PrivacyDataRequestsController : ControllerBase
             return Forbid();
         }
 
+        if (!await _dbContext.Users.AsNoTracking().AnyAsync(x => x.Id == userId &&
+            x.CompanyId == companyId && x.IsActive && !x.IsDeleted, cancellationToken)) return Unauthorized();
+
         var requests = await _dbContext.Set<PrivacyDataRequest>()
             .AsNoTracking()
             .Where(request =>
@@ -112,7 +115,7 @@ public sealed class PrivacyDataRequestsController : ControllerBase
             .AnyAsync(user =>
                 user.Id == userId &&
                 user.CompanyId == companyId &&
-                !user.IsDeleted,
+                user.IsActive && !user.IsDeleted,
                 cancellationToken);
 
         if (!accountExists)

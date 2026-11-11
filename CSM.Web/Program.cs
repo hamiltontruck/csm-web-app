@@ -82,6 +82,15 @@ builder.Services.AddScoped<
 
 builder.Services.AddScoped<IOfflineSyncApi, OfflineSyncApi>();
 
+builder.Services.AddLocalization();
+builder.Services.AddScoped<LoginHistoryService>();
+builder.Services.AddScoped<AuditHistoryService>();
+builder.Services.AddScoped<PersonalDataExportService>();
+builder.Services.AddScoped<PrivacyDataRequestService>();
+builder.Services.AddScoped<CurrentUserProfileService>();
+builder.Services.AddScoped<OrganizationMembershipService>();
+builder.Services.AddScoped<MyProfileService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -95,6 +104,8 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 
 app.UseHttpsRedirection();
 
+app.UseRequestLocalization(new RequestLocalizationOptions()
+    .SetDefaultCulture("en").AddSupportedCultures("en", "am", "om").AddSupportedUICultures("en", "am", "om"));
 app.UseAntiforgery();
 
 app.MapStaticAssets();

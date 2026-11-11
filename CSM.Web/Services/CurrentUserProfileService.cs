@@ -49,5 +49,5 @@ public sealed class CurrentUserProfile
 
     public List<string> Roles { get; set; } = [];
 
-    public bool HasActiveSiteAccess { get; set; }
+    public bool? HasActiveSiteAccess { get; set; }
 }

@@ -12,6 +12,20 @@ namespace CSM.Infrastructure.Tests;
 public sealed class WorkspaceNavigationTests
 {
     [Fact]
+    public void Navigation_groups_collapse_without_closing_the_mobile_menu()
+    {
+        using var context = Context(); var menu = context.RenderComponent<NavMenu>();
+        menu.Find(".navbar-toggler").Click();
+        var heading = menu.Find("button[aria-controls='construction-navigation']");
+        Assert.Equal("true", heading.GetAttribute("aria-expanded")); heading.Click();
+        Assert.Equal("false", menu.Find("button[aria-controls='construction-navigation']").GetAttribute("aria-expanded"));
+        Assert.True(menu.Find("#construction-navigation").HasAttribute("hidden"));
+        Assert.Equal("true", menu.Find(".navbar-toggler").GetAttribute("aria-expanded"));
+        menu.Find("a[href='/settings']").Click();
+        Assert.Equal("false", menu.Find(".navbar-toggler").GetAttribute("aria-expanded"));
+    }
+
+    [Fact]
     public void Tapping_a_section_heading_does_not_dismiss_navigation()
     {
         using var context = Context();

@@ -34,3 +34,8 @@ nav hr { border: 0; border-top: 1px solid #ffffff20; margin: 10px 14px 0 !import
     .nav-item ::deep .nav-link { min-height: 44px; font-size: 14px; }
     .workspace-caption { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
 }
+
+button.section-title { border:0; background:transparent; text-align:left; width:100%; cursor:pointer; min-height:40px; }
+button.section-title:focus-visible { outline:2px solid #e4bc65; outline-offset:-2px; }
+button.section-title::after { content:' −'; float:right; }
+button.section-title[aria-expanded="false"]::after { content:' +'; }

@@ -35,7 +35,7 @@
     <value>Confirmation prompts</value>
   </data>
   <data name="Settings.General.ConfirmationPromptsDescription" xml:space="preserve">
-    <value>Show additional confirmation before performing actions that may be destructive.</value>
+    <value>Confirm session revocation actions in Settings.</value>
   </data>
   <data name="Settings.General.RememberNavigation" xml:space="preserve">
     <value>Remember expanded navigation</value>
@@ -48,13 +48,13 @@
     <value>Regional preferences</value>
   </data>
   <data name="Settings.Regional.Description" xml:space="preserve">
-    <value>Choose how dates, times, and numbers appear.</value>
+    <value>Choose how dates and times appear in Settings history.</value>
   </data>
   <data name="Settings.Regional.DisplayLanguage" xml:space="preserve">
     <value>Display language</value>
   </data>
   <data name="Settings.Regional.LanguageDescription" xml:space="preserve">
-    <value>Choose the language used throughout CSM.</value>
+    <value>Choose the language used on supported CSM screens.</value>
   </data>
   <data name="Settings.Regional.DateFormat" xml:space="preserve">
     <value>Date format</value>

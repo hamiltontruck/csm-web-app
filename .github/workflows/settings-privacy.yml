@@ -1,0 +1,34 @@
+name: Settings and Privacy browser regression
+on:
+  pull_request:
+    paths: ['CSM.Web/**', 'scripts/qa/settings*', '.github/workflows/settings-privacy.yml']
+  push:
+    branches: [main]
+    paths: ['CSM.Web/**', 'scripts/qa/settings*', '.github/workflows/settings-privacy.yml']
+permissions:
+  contents: read
+jobs:
+  settings-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: dotnet build CSM.Web/CSM.Web.csproj --configuration Release
+      - run: npm install --no-save --no-package-lock playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/qa/settings-preferences.test.cjs
+      - run: node scripts/qa/settings-privacy.cjs
+        env:
+          CSM_SCREENSHOT_DIR: artifacts/settings-privacy
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settings-privacy-browser
+          path: artifacts/settings-privacy
+          if-no-files-found: ignore
