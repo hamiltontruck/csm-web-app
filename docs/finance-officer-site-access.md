@@ -10,11 +10,13 @@ Create User loads actual assignable server roles through its own Create/Edit-aut
 
 Supported FinanceOfficer defaults are seeded when its role is first created; a later administrator revocation is not restored on every restart. Unsupported stale grants are rejected by the runtime role ceiling.
 
+Cost-code Activate/Deactivate controls require both a supported corporate role and Finance_CostCode_Manage, on site and company lists. Rejected changes show a local error and retain the previous status. Total Expenses counts recorded, non-cancelled expense amounts including tax; Total Expenditure counts completed outgoing payments plus petty-cash CashOut. An approved expense can therefore appear in Total Expenses before cash expenditure is recorded. Reports explain this distinction without changing the formulas.
+
 ## Verification
 
-- Full .NET/PostgreSQL suite: 2,042 passing after the independent review fix pass.
+- Full .NET/PostgreSQL suite: 2,053 passing, including 11 cost-code UI regressions for readers, authorized managers and rejected changes.
 - Real PostgreSQL: seeded role, budget approval, invoice issue, payment complete/reverse with persisted invoice/balance changes, expense approval, petty cash, assignment revocation, and denied cross-site payment/cash mutations without side effects.
-- Real Blazor/local fixture browser: Create User live FinanceOfficer option with Users_Create and no Users_View; assigned-site navigation/forms, budget submit/approve/activate, payment save/complete/reverse, expense submit/approve/paid at 320/390/1280; no eager HR/procurement/project API requests or outer overflow.
+- Real Blazor/local fixture browser: Create User live FinanceOfficer option with Users_Create and no Users_View; read-only cost-code controls, assigned-site navigation/forms, budget submit/approve/activate, payment save/complete/reverse, expense submit/approve/paid at 320/390/1280; no eager HR/procurement/project API requests or outer overflow.
 - EF model: no changes since the existing migration. No schema migration or migration-flag change is required.
 
 Browser fixtures create no production accounts or business transactions. Production account creation and authenticated persistence still require the user's manual confirmation after release.
