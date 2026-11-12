@@ -6,6 +6,8 @@ public sealed class FinancialSummaryResponse
     public decimal TotalExpenses { get; set; }
     public decimal TotalExpenditure { get; set; }
     public decimal Balance { get; set; }
+    public decimal CashBalance => Balance;
+    public decimal BudgetRemaining => TotalBudget - TotalExpenses;
 
     public decimal TotalInvoices { get; set; }
     public decimal TotalCompletedPayments { get; set; }

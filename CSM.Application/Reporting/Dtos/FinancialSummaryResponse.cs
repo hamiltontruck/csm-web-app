@@ -21,4 +21,9 @@ public sealed record FinancialSummaryResponse(
 
     decimal CompanyPettyCashBalance,
     int CompanyPettyCashAccounts
-);
+)
+{
+    // Balance remains on the wire for existing clients, with cash-only semantics.
+    public decimal CashBalance => Balance;
+    public decimal BudgetRemaining => TotalBudget - TotalExpenses;
+}

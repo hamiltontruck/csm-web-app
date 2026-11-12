@@ -24,6 +24,9 @@ const path = require('path');
     else if(route==='/users/role-options') data=['Accountant','FinanceOfficer','Storekeeper'];
     else if(route==='/auth/me'||route==='/auth/me/profile') data={userId:id,name:'Local Finance Officer',email:'finance@example.test',companyId:id,roles:adminMode?['CompanyAdmin']:mixedMode?['FinanceOfficer','Accountant']:roles};
     else if(route==='/user/preferences') data={userId:id,theme:'System',language:'en',timeZone:'Africa/Addis_Ababa',dateFormat:'dd/MM/yyyy',timeFormat:'24h',numberFormat:'en-US',confirmActions:true,rememberNavigation:true};
+    else if(route.startsWith('/reports/')&&route.includes('executive-dashboard')) data={totalSites:1,totalProjects:1,sitesByStatus:{Planning:1},projectsByStatus:{Active:1}};
+    else if(route==='/reports/financial-summary/all') {const financial={totalBudget:1000,totalExpenses:1050,totalExpenditure:160,totalCompletedPayments:200,balance:40,cashBalance:40,budgetRemaining:-50,netCashFlow:40,pettyCashBalance:40,totalPettyCashOut:160,activePettyCashAccounts:1};data={company:null,total:financial,sites:[{siteId:site,siteCode:'ASSIGNED',siteName:constructionSite.name,financial}]};}
+    else if(route===`/reports/site/${site}/financial-summary`) data={totalBudget:1000,totalExpenses:1050,totalExpenditure:160,totalCompletedPayments:200,balance:40,cashBalance:40,budgetRemaining:-50,netCashFlow:40,pettyCashBalance:40,totalPettyCashOut:160,activePettyCashAccounts:1};
     else if(route.includes('dashboard')) data={generatedAtUtc:new Date().toISOString(),today:'2026-11-11',currencyCode:'ETB',totalBudget:10,totalExpenses:1};
     else if(route==='/sites') data=[constructionSite];
     else if(route===`/sites/${site}`) data=constructionSite;
@@ -79,6 +82,17 @@ const path = require('path');
       const creation=writes.find(x=>x.route==='/payments'&&x.method==='POST');if(!creation||creation.body.constructionSiteId!==site||creation.body.payrollRecordId) throw Error('Payment lost assigned site or included payroll');
       await visit(`/finance/sites/${site}/payments/${paymentId}`);await page.getByRole('button',{name:'Complete Payment',exact:true}).click();await expect(page.getByRole('button',{name:'Reverse Payment',exact:true})).toBeVisible();await page.getByRole('button',{name:'Reverse Payment',exact:true}).click();await expect(page.getByText('Reversed',{exact:true})).toBeVisible();await geometry();
       await visit(`/finance/sites/${site}/expenses/${expenseId}`);for(const name of ['Submit Expense','Approve Expense','Mark as Paid']) await page.getByRole('button',{name,exact:true}).click();await expect(page.locator('.badge').filter({hasText:/^Paid$/})).toBeVisible();await geometry();
+      if(!mixed){
+        await visit('/reports');
+        const verifyBalances=async()=>{
+          const cashLabels=page.locator('.text-muted.small').filter({hasText:/^Cash Balance$/});await expect(cashLabels.first()).toBeVisible();
+          for(let i=0;i<await cashLabels.count();i++){await expect(cashLabels.nth(i).locator('..')).toContainText('40.00');await expect(cashLabels.nth(i).locator('..').locator('.fw-bold')).toHaveClass(/text-success/);}
+          const budgetLabels=page.locator('.text-muted.small').filter({hasText:/^Budget Remaining$/});await expect(budgetLabels.first()).toBeVisible();
+          for(let i=0;i<await budgetLabels.count();i++){await expect(budgetLabels.nth(i).locator('..')).toContainText('-50.00');await expect(budgetLabels.nth(i).locator('..').locator('.fw-bold')).toHaveClass(/text-danger/);}
+          await expect(page.getByText('1,040.00',{exact:true})).toHaveCount(0);await geometry();
+        };
+        await verifyBalances();await page.locator('select').first().selectOption('Site');await page.locator('select').nth(1).selectOption(site);await verifyBalances();
+      }
       const budgetStatuses=writes.filter(x=>x.route===`/budgets/${budgetId}/status`).map(x=>x.body.status);if(JSON.stringify(budgetStatuses)!=='[2,3,4]') throw Error('Budget lifecycle did not submit/approve/activate');
       const statuses=writes.filter(x=>x.route===`/expenses/${expenseId}/status`).map(x=>x.body.status);if(JSON.stringify(statuses)!=='[2,3,5]') throw Error('Expense lifecycle did not submit/approve/pay');
       if(reads.some(x=>x.includes('payroll')||x==='/vendors'||x.includes('/projects'))) throw Error('Officer loaded unrelated HR/procurement/project endpoints');
