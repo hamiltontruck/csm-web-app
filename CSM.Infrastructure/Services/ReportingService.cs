@@ -287,10 +287,8 @@ public sealed class ReportingService : IReportingService
         var totalExpenditure =
             completedOutgoingPayments + pettyCashCashOut;
 
-        var balance =
-            totalBudget +
-            totalCashIn -
-            totalExpenditure;
+        // A spending plan is not a cash receipt.
+        var balance = totalCashIn - totalExpenditure;
 
         var netCashFlow =
             completedIncomingPayments -
@@ -510,11 +508,6 @@ public sealed class ReportingService : IReportingService
                 0m,
                 vendorBills - completedOutgoingPayments);
 
-        var remainingBudget =
-            Math.Max(
-                0m,
-                totalBudget - totalExpenses);
-
         var pettyCashCashIn =
             await scope.Transactions
                 .AsNoTracking()
@@ -548,10 +541,8 @@ public sealed class ReportingService : IReportingService
         var totalExpenditure =
             completedOutgoingPayments + pettyCashCashOut;
 
-        var balance =
-            totalBudget +
-            totalCashIn -
-            totalExpenditure;
+        // A spending plan is not a cash receipt.
+        var balance = totalCashIn - totalExpenditure;
 
         var netCashFlow =
             completedIncomingPayments -
@@ -845,10 +836,8 @@ public sealed class ReportingService : IReportingService
         var totalExpenditure =
             completedOutgoingPayments + pettyCashCashOut;
 
-        var balance =
-            totalBudget +
-            totalCashIn -
-            totalExpenditure;
+        // A spending plan is not a cash receipt.
+        var balance = totalCashIn - totalExpenditure;
 
         // ------------------------------------------------------------
         // Net cash flow

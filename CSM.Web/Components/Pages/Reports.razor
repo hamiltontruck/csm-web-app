@@ -66,6 +66,9 @@
         <p class="text-muted small">
             Total Expenses includes recorded expenses and tax, excluding cancelled entries.
             Total Expenditure includes completed outgoing payments and petty cash outflows.
+            Cash Balance is recorded Cash In minus Total Expenditure; budget is not a cash receipt.
+            Budget Remaining is budget minus Total Expenses and can be negative.
+            Opening petty cash balances are included in Petty Cash Balance, not in recorded cash flows.
         </p>
 
         <!-- Executive Summary -->
@@ -198,11 +201,20 @@
                     <div class="col-md-6 col-lg-4">
                         <div class="card h-100 border">
                             <div class="card-body">
-                                <div class="text-muted small">
-                                    Balance
+                                <div class="text-muted small">Cash Balance</div>
+                                <div class="fs-5 fw-bold @BalanceColor(_financial?.CashBalance)">
+                                    @_financial?.CashBalance.ToString("N2")
                                 </div>
-                                <div class="fs-5 fw-bold text-success">
-                                    @_financial?.Balance.ToString("N2")
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Budget Remaining</div>
+                                <div class="fs-5 fw-bold @BalanceColor(_financial?.BudgetRemaining)">
+                                    @_financial?.BudgetRemaining.ToString("N2")
                                 </div>
                             </div>
                         </div>
@@ -415,9 +427,20 @@
                     <div class="col-md-6 col-xl-4">
                         <div class="card h-100 border">
                             <div class="card-body">
-                                <div class="text-muted small">Balance</div>
-                                <div class="fs-5 fw-bold text-success">
-                                    @_financial?.Balance.ToString("N2")
+                                <div class="text-muted small">Cash Balance</div>
+                                <div class="fs-5 fw-bold @BalanceColor(_financial?.CashBalance)">
+                                    @_financial?.CashBalance.ToString("N2")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 col-xl-4">
+                        <div class="card h-100 border">
+                            <div class="card-body">
+                                <div class="text-muted small">Budget Remaining</div>
+                                <div class="fs-5 fw-bold @BalanceColor(_financial?.BudgetRemaining)">
+                                    @_financial?.BudgetRemaining.ToString("N2")
                                 </div>
                             </div>
                         </div>
@@ -564,9 +587,20 @@
                                 <div class="col-md-6 col-xl-4">
                                     <div class="card h-100 border">
                                         <div class="card-body">
-                                            <div class="text-muted small">Balance</div>
-                                            <div class="fs-5 fw-bold text-success">
-                                                @_allFinancialSummary.Company.Balance.ToString("N2")
+                                            <div class="text-muted small">Cash Balance</div>
+                                            <div class="fs-5 fw-bold @BalanceColor(_allFinancialSummary.Company.CashBalance)">
+                                                @_allFinancialSummary.Company.CashBalance.ToString("N2")
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Budget Remaining</div>
+                                            <div class="fs-5 fw-bold @BalanceColor(_allFinancialSummary.Company.BudgetRemaining)">
+                                                @_allFinancialSummary.Company.BudgetRemaining.ToString("N2")
                                             </div>
                                         </div>
                                     </div>
@@ -629,7 +663,8 @@
                                                 <th class="text-end">Receivables</th>
                                                 <th class="text-end">Cash In</th>
                                                 <th class="text-end">Total Expenditure</th>
-                                                <th class="text-end">Balance</th>
+                                                <th class="text-end">Cash Balance</th>
+                                                <th class="text-end">Budget Remaining</th>
                                                 <th class="text-end">Petty Cash</th>
                                                 <th class="text-end">Petty Cash Out</th>
                                                 <th class="text-end">Accounts</th>
@@ -671,8 +706,11 @@
                                                         @site.Financial.TotalExpenditure.ToString("N2")
                                                     </td>
 
-                                                    <td class="text-end text-success">
-                                                        @site.Financial.Balance.ToString("N2")
+                                                    <td class="text-end @BalanceColor(site.Financial.CashBalance)">
+                                                        @site.Financial.CashBalance.ToString("N2")
+                                                    </td>
+                                                    <td class="text-end @BalanceColor(site.Financial.BudgetRemaining)">
+                                                        @site.Financial.BudgetRemaining.ToString("N2")
                                                     </td>
 
                                                     <td class="text-end">
@@ -761,11 +799,20 @@
                                 <div class="col-md-6 col-xl-4">
                                     <div class="card h-100 border">
                                         <div class="card-body">
-                                            <div class="text-muted small">
-                                                Balance
+                                            <div class="text-muted small">Cash Balance</div>
+                                            <div class="fs-5 fw-bold @BalanceColor(_allFinancialSummary.Total.CashBalance)">
+                                                @_allFinancialSummary.Total.CashBalance.ToString("N2")
                                             </div>
-                                            <div class="fs-5 fw-bold text-success">
-                                                @_allFinancialSummary.Total.Balance.ToString("N2")
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6 col-xl-4">
+                                    <div class="card h-100 border">
+                                        <div class="card-body">
+                                            <div class="text-muted small">Budget Remaining</div>
+                                            <div class="fs-5 fw-bold @BalanceColor(_allFinancialSummary.Total.BudgetRemaining)">
+                                                @_allFinancialSummary.Total.BudgetRemaining.ToString("N2")
                                             </div>
                                         </div>
                                     </div>
@@ -932,6 +979,7 @@
 </div>
 
 @code {
+    private static string BalanceColor(decimal? value) => value < 0 ? "text-danger" : "text-success";
 
     private ExecutiveDashboardResponse? _executive;
     private FinancialSummaryResponse? _financial;
