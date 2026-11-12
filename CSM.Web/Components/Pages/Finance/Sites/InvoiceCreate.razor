@@ -30,12 +30,13 @@
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="alert alert-danger">
+        <div class="alert alert-danger" role="alert">
             @_error
         </div>
     }
 
     <EditForm Model="_invoice" OnValidSubmit="Save">
+        <fieldset disabled="@(!_ready || _saving)">
 
         <DataAnnotationsValidator/>
 
@@ -193,11 +194,14 @@
 
         </div>
 
+            </fieldset>
     </EditForm>
 
 </div>
 
 @code {
+    [CascadingParameter] private WorkspaceAccess FormAccess { get; set; } = WorkspaceAccess.None;
+
 
     [Parameter] public Guid SiteId { get; set; }
 
@@ -207,6 +211,7 @@
     private string _siteName = "";
 
     private bool _loaded;
+    private bool _ready, _saving;
 
     private List<InvoiceVendorOption> _vendors = new();
 
@@ -224,12 +229,26 @@
         _invoice.Type = 2;
         _invoice.ExchangeRate = 1;
 
-        var sites = await ProjectService.GetSitesAsync();
-        _siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? "";
+        try
+        {
+        if (FormAccess.NeedsFinanceFormOptions)
+        {
+            var options = await FinanceService.GetSiteFormOptionsAsync(SiteId, "invoice");
+            _siteName = options.SiteName;
+            _projects = options.Projects;
+            _vendors = options.Vendors.Select(x => new InvoiceVendorOption(x.Id, x.VendorCode, x.Name)).ToList();
+        }
+        else
+        {
+            var sites = await ProjectService.GetSitesAsync();
+            _siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? "";
+            _projects = await ProjectService.GetProjectsBySiteAsync(SiteId);
+            _vendors = (await FinanceService.GetInvoiceVendorOptionsAsync()).ToList();
+        }
 
-        // Loads ONLY projects belonging to the selected site
-        _projects = await ProjectService.GetProjectsBySiteAsync(SiteId);
-        _vendors = (await FinanceService.GetInvoiceVendorOptionsAsync()).ToList();
+            _ready = true;
+        }
+        catch { _error = "Unable to load invoice options. Reload this page to try again."; }
 
         StateHasChanged();
     }
@@ -255,6 +274,8 @@
 
     private async Task Save()
     {
+        if (!_ready || _saving) return;
+        _saving = true;
         try
         {
             if (_invoice.ProjectId == Guid.Empty)
@@ -281,6 +302,7 @@
         {
             _error = ex.Message;
         }
+        finally { _saving = false; }
     }
 
     private void Back()

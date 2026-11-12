@@ -30,7 +30,7 @@
         <div class="mb-3">
             <label for="user-company">Company</label>
             <select id="user-company" class="form-select" value="@model.CompanyId"
-                    @onchange="CompanyChanged" disabled="@(saving || initializing)">
+                    @onchange="CompanyChanged" disabled="@(saving || initializing || !optionsLoaded)">
                 <option value="">-- Select Company --</option>
                 @foreach (var company in companies)
                 {
@@ -85,6 +85,11 @@
 
     <h5>Roles</h5>
 
+    @if (!initializing && !optionsLoaded)
+    {
+        <button type="button" class="btn btn-outline-secondary" data-retry-role-options @onclick="LoadOptionsAsync">Retry loading options</button>
+    }
+
     @foreach (var role in Roles)
     {
         <div class="form-check">
@@ -135,7 +140,7 @@
 
     <div class="mt-4">
         <button class="btn btn-primary"
-                disabled="@(saving || initializing)">
+                disabled="@(saving || initializing || !optionsLoaded)">
             Create User
         </button>
 
@@ -163,27 +168,8 @@
 
     private List<SiteResponse> Sites = [];
 
-    private readonly string[] Roles =
-    {
-        // Official roles
-        "Administrator",
-        "ProjectManager",
-        "SiteEngineer",
-        "Storekeeper",
-        "ProcurementOfficer",
-        "FinanceOfficer",
-        "HrOfficer",
-        "EquipmentManager",
-        "SafetyOfficer",
-
-        // Legacy roles retained for compatibility
-        "CompanyAdmin",
-        "SiteManager",
-        "Supervisor",
-        "Accountant",
-        "HROfficer",
-        "Employee"
-    };
+    private List<string> Roles = [];
+    private bool optionsLoaded;
 
     private IEnumerable<SiteResponse> SelectedSites =>
         CompanySites.Where(x => model.SiteIds.Contains(x.Id));
@@ -191,9 +177,18 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
+        await LoadOptionsAsync();
+    }
+
+    private async Task LoadOptionsAsync()
+    {
+        initializing = true;
+        optionsLoaded = false;
+        errorMessage = null;
         try
         {
-            model.CompanyId = await AuthService.GetCurrentCompanyIdAsync();
+            Roles = await UserService.GetAssignableRolesAsync();
+            model.CompanyId ??= await AuthService.GetCurrentCompanyIdAsync();
             canSelectCompany = !model.CompanyId.HasValue || model.CompanyId == Guid.Empty;
             if (canSelectCompany)
             {
@@ -201,6 +196,8 @@
                 if (companies.Count == 1) model.CompanyId = companies[0].Id;
             }
             Sites = await ProjectService.GetSitesAsync();
+            optionsLoaded = Roles.Count > 0;
+            if (!optionsLoaded) errorMessage = "Unable to load assignable roles. Retry loading options.";
         }
         catch (Exception)
         {
@@ -255,7 +252,7 @@
 
     private async Task SaveAsync()
     {
-        if (saving || initializing) return;
+        if (saving || initializing || !optionsLoaded) return;
         saving = true;
         errorMessage = null;
 

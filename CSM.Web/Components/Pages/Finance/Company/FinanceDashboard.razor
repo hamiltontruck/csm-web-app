@@ -16,6 +16,18 @@
         </div>
     </div>
 
+    @if (Access.IsIn("FinanceOfficer"))
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h4">Assigned site finance</h2>
+                <p>Manage budgets, invoices, payments, expenses and petty cash for your assigned construction sites.</p>
+                <a class="btn btn-primary" href="/finance/sites">Open assigned sites</a>
+                <a class="btn btn-outline-primary ms-2" href="/finance/summary">Financial summary</a>
+            </div>
+        </div>
+    }
+
     <!-- Finance Modules -->
     <div class="row g-3 mb-4">
 
@@ -117,6 +129,8 @@
 
     </div>
 
+    @if (AccessLoaded && !Access.IsIn("FinanceOfficer"))
+    {
     <!-- Overview -->
     <div class="card border-0 shadow-sm">
         <div class="card-body p-4">
@@ -156,6 +170,8 @@
 
         </div>
     </div>
+
+    }
 
 </div>
 

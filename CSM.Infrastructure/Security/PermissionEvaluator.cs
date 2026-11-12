@@ -29,11 +29,13 @@ public sealed class PermissionEvaluator : IPermissionEvaluator
         }
 
         var officerAllowed = RolePermissionRules.Allows(AppRoles.ProcurementOfficer, parsedPermission.ToString());
+        var financeAllowed = FinanceOfficerPermissionRules.Allows(AppRoles.FinanceOfficer, parsedPermission.ToString());
         var accountantAllowed = AccountantPermissionRules.Allows(AppRoles.Accountant, parsedPermission.ToString());
         return await _db.UserRoles
             .AsNoTracking()
             .Where(x => x.UserId == userId && !x.IsDeleted &&
                 x.User.IsActive && !x.User.IsDeleted && !x.Role.IsDeleted)
+            .Where(x => x.Role.Name.ToUpper() != "FINANCEOFFICER" || financeAllowed)
             .Where(x => x.Role.Name != AppRoles.Accountant || accountantAllowed)
             .Where(x => x.Role.Name != AppRoles.ProcurementOfficer || officerAllowed)
             .SelectMany(x => x.Role.GranularPermissions)

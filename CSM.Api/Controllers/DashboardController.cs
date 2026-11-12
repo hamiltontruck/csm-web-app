@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CSM.Application.Dashboard;
 using CSM.Application.CompanySettings;
 using CSM.Domain.Constants;
@@ -49,11 +50,13 @@ public sealed class DashboardController : ControllerBase
             });
         }
 
-        var dashboard = await _dashboardService.GetAsync(
-            companyId.Value,
-            cancellationToken);
-
-        return Ok(dashboard);
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId)) actorId = Guid.Empty;
+        try
+        {
+            var dashboard = await _dashboardService.GetForActorAsync(actorId, companyId.Value, cancellationToken);
+            return Ok(dashboard);
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
     }
 
     private Guid? GetCompanyId()

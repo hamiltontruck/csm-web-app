@@ -139,6 +139,8 @@ public sealed class UserCreationFormTests
         public JsonElement? Payload { get; private set; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.EndsWith("/users/role-options"))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new[] { "Storekeeper", "FinanceOfficer" }) };
             Payload = JsonSerializer.Deserialize<JsonElement>(await request.Content!.ReadAsStringAsync(cancellationToken));
             return new HttpResponseMessage(Status) { Content = JsonContent.Create(new { message = "Temporary password is not strong enough." }) };
         }

@@ -26,13 +26,14 @@ public sealed class InvoiceService : IInvoiceService
         Guid? invoiceId = null,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
         EnsureCanModify(actor);
         Guid companyId;
         if (invoiceId.HasValue)
         {
             var invoice = await GetInvoiceAsync(invoiceId.Value, cancellationToken);
             EnsureCompanyAccess(actor, invoice.CompanyId);
+            await EnsureSiteScopeAsync(actor, invoice.ConstructionSiteId, cancellationToken);
             companyId = invoice.CompanyId;
         }
         else
@@ -41,6 +42,8 @@ public sealed class InvoiceService : IInvoiceService
             companyId = GetActorCompanyId(actor);
         }
 
+        if (FinanceOfficerScope.IsOfficer(actor) && !await new FinancialReadScope(_dbContext, actor, companyId).Sites.AnyAsync(cancellationToken))
+            throw new InvoiceManagementException("An active assigned site is required for invoice vendor options.");
         return await _dbContext.Vendors.AsNoTracking()
             .Where(x => x.CompanyId == companyId && !x.IsDeleted)
             .OrderBy(x => x.VendorCode)
@@ -53,17 +56,15 @@ public sealed class InvoiceService : IInvoiceService
         Guid siteId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanRead(actor);
 
+        await EnsureSiteScopeAsync(actor, siteId, cancellationToken);
         IQueryable<Invoice> query = _dbContext.Invoices
             .AsNoTracking()
             .Include(x => x.Project)
-            .Where(x => x.Project != null &&
-                        x.Project.ConstructionSiteId == siteId);
+            .Where(x => x.ConstructionSiteId == siteId && !x.IsDeleted);
 
         if (!IsSuperAdmin(actor))
         {
@@ -72,13 +73,14 @@ public sealed class InvoiceService : IInvoiceService
             query = query.Where(x => x.CompanyId == companyId);
         }
 
+        if (SiteFinanceScope.IsSiteLimited(actor)) query = query.Include(x => x.Payments);
         var invoices = await query
             .OrderByDescending(x => x.InvoiceDate)
             .ThenBy(x => x.InvoiceNumber)
             .ToListAsync(cancellationToken);
 
         return invoices
-            .Select(invoice => Map(invoice))
+            .Select(invoice => MapForActor(actor, invoice))
             .ToArray();
     }
 
@@ -86,8 +88,9 @@ public sealed class InvoiceService : IInvoiceService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
         EnsureCanRead(actor);
+        await EnsureSiteScopeAsync(actor, null, cancellationToken);
         var companyId = GetActorCompanyId(actor);
 
         var invoices = await _dbContext.Invoices
@@ -102,7 +105,7 @@ public sealed class InvoiceService : IInvoiceService
             .ToListAsync(cancellationToken);
 
         return invoices
-            .Select(i => Map(i))
+            .Select(i => MapForActor(actor, i))
             .ToList();
     }
 
@@ -111,9 +114,7 @@ public sealed class InvoiceService : IInvoiceService
         Guid invoiceId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanRead(actor);
 
@@ -124,12 +125,9 @@ public sealed class InvoiceService : IInvoiceService
         EnsureCompanyAccess(
             actor,
             invoice.CompanyId);
+        await EnsureSiteScopeAsync(actor, invoice.ConstructionSiteId, cancellationToken);
 
-        var paidAmount = invoice.Payments
-            .Where(p => p.CompanyId == invoice.CompanyId && !p.IsDeleted && p.Status == PaymentStatus.Completed)
-            .Sum(p => p.Amount);
-
-        return Map(invoice, paidAmount);
+        return MapForActor(actor, invoice);
     }
 
     public async Task<InvoiceResponse> CreateAsync(
@@ -137,11 +135,10 @@ public sealed class InvoiceService : IInvoiceService
         CreateInvoiceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanModify(actor);
+        await EnsureSiteScopeAsync(actor, request.ConstructionSiteId, cancellationToken);
 
         var companyId = GetActorCompanyId(actor);
 
@@ -158,6 +155,7 @@ public sealed class InvoiceService : IInvoiceService
             request.ExchangeRate,
             request.Type);
 
+        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, request.ConstructionSiteId, request.ProjectId, null, cancellationToken, message => new InvoiceManagementException(message));
         await EnsureReferencesBelongToCompanyAsync(
             companyId,
             request.ConstructionSiteId,
@@ -208,7 +206,7 @@ public sealed class InvoiceService : IInvoiceService
         await _dbContext.SaveChangesAsync(
             cancellationToken);
 
-        return Map(invoice);
+        return MapForActor(actor, invoice);
     }
 
     public async Task<InvoiceResponse> UpdateAsync(
@@ -217,9 +215,7 @@ public sealed class InvoiceService : IInvoiceService
         UpdateInvoiceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanModify(actor);
 
@@ -230,8 +226,10 @@ public sealed class InvoiceService : IInvoiceService
         EnsureCompanyAccess(
             actor,
             invoice.CompanyId);
+        await EnsureSiteScopeAsync(actor, invoice.ConstructionSiteId, cancellationToken);
 
         EnsureEditable(invoice);
+        await EnsureSiteScopeAsync(actor, request.ConstructionSiteId, cancellationToken);
 
         ValidateInvoice(
             request.InvoiceDate,
@@ -242,6 +240,7 @@ public sealed class InvoiceService : IInvoiceService
             request.ExchangeRate,
             request.Type);
 
+        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, request.ConstructionSiteId, request.ProjectId, null, cancellationToken, message => new InvoiceManagementException(message));
         await EnsureReferencesBelongToCompanyAsync(
             invoice.CompanyId,
             request.ConstructionSiteId,
@@ -281,7 +280,7 @@ public sealed class InvoiceService : IInvoiceService
         await _dbContext.SaveChangesAsync(
             cancellationToken);
 
-        return Map(invoice);
+        return MapForActor(actor, invoice);
     }
 
     public async Task<InvoiceResponse> ChangeStatusAsync(
@@ -290,9 +289,7 @@ public sealed class InvoiceService : IInvoiceService
         ChangeInvoiceStatusRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanModify(actor);
 
@@ -303,6 +300,7 @@ public sealed class InvoiceService : IInvoiceService
         EnsureCompanyAccess(
             actor,
             invoice.CompanyId);
+        await EnsureSiteScopeAsync(actor, invoice.ConstructionSiteId, cancellationToken);
 
         EnsureValidTransition(
             invoice.Status,
@@ -313,13 +311,23 @@ public sealed class InvoiceService : IInvoiceService
         await _dbContext.SaveChangesAsync(
             cancellationToken);
 
-        return Map(invoice);
+        return MapForActor(actor, invoice);
+    }
+
+    private async Task EnsureSiteScopeAsync(User actor, Guid? siteId, CancellationToken cancellationToken)
+    {
+        if (SiteFinanceScope.IsSiteLimited(actor) && !await SiteFinanceScope.HasSiteAsync(_dbContext, actor, siteId, cancellationToken))
+            throw new InvoiceManagementException("Invoice site is unavailable or outside your assigned scope.");
     }
 
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GranularPermission action = GranularPermission.Finance_Invoice_View)
     {
+        var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
+            cancellationToken, message => new InvoiceManagementException(message), supportedIndependentRoles: ["SuperAdmin", "CompanyAdmin", "Accountant"]);
+        if (scopedActor is not null) return scopedActor;
         var actor = await _dbContext.Users
             .AsNoTracking()
             .Include(x => x.UserRoles)
@@ -340,7 +348,7 @@ public sealed class InvoiceService : IInvoiceService
     private static void EnsureCanRead(
         User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {
@@ -354,7 +362,7 @@ public sealed class InvoiceService : IInvoiceService
     private static void EnsureCanModify(
         User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {
@@ -499,9 +507,7 @@ public sealed class InvoiceService : IInvoiceService
         Guid invoiceId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanModify(actor);
 
@@ -510,6 +516,7 @@ public sealed class InvoiceService : IInvoiceService
             cancellationToken);
 
         EnsureCompanyAccess(actor, invoice.CompanyId);
+        await EnsureSiteScopeAsync(actor, invoice.ConstructionSiteId, cancellationToken);
 
         if (invoice.Status != InvoiceStatus.Draft)
             throw new InvoiceManagementException(
@@ -520,12 +527,7 @@ public sealed class InvoiceService : IInvoiceService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var paid = await GetPaidAmountAsync(
-            invoice.Id,
-            invoice.CompanyId,
-            cancellationToken);
-
-        return Map(invoice, paid);
+        return MapForActor(actor, invoice);
     }
 
     public async Task<InvoiceResponse> CancelAsync(
@@ -533,13 +535,14 @@ public sealed class InvoiceService : IInvoiceService
         Guid invoiceId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanModify(actor);
 
         var invoice = await GetInvoiceAsync(invoiceId, cancellationToken);
 
         EnsureCompanyAccess(actor, invoice.CompanyId);
+        await EnsureSiteScopeAsync(actor, invoice.ConstructionSiteId, cancellationToken);
 
         var paid = await GetPaidAmountAsync(invoice.Id, invoice.CompanyId, cancellationToken);
 
@@ -556,7 +559,7 @@ public sealed class InvoiceService : IInvoiceService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return Map(invoice, paid);
+        return MapForActor(actor, invoice);
     }
 
     private static void EnsureEditable(
@@ -745,13 +748,11 @@ public sealed class InvoiceService : IInvoiceService
 
 
 
-    private static InvoiceResponse Map(Invoice invoice)
+    private static InvoiceResponse MapForActor(User actor, Invoice invoice)
     {
-        var paidAmount = invoice.Payments?
-            .Where(p => p.CompanyId == invoice.CompanyId && !p.IsDeleted && p.Status == PaymentStatus.Completed)
-            .Sum(p => p.Amount) ?? 0m;
-
-        return Map(invoice, paidAmount);
+        var visiblePayments = invoice.Payments.Where(p => p.CompanyId == invoice.CompanyId && !p.IsDeleted &&
+            (!SiteFinanceScope.IsSiteLimited(actor) || p.ConstructionSiteId == invoice.ConstructionSiteId)).ToArray();
+        return Map(invoice, visiblePayments.Where(p => p.Status == PaymentStatus.Completed).Sum(p => p.Amount), visiblePayments);
     }
     private static PaymentResponse MapPayment(Payment payment)
     {
@@ -781,7 +782,8 @@ public sealed class InvoiceService : IInvoiceService
 
     private static InvoiceResponse Map(
         Invoice invoice,
-        decimal paidAmount)
+        decimal paidAmount,
+        IEnumerable<Payment>? visiblePayments = null)
     {
         return new InvoiceResponse(
             invoice.Id,
@@ -806,7 +808,7 @@ public sealed class InvoiceService : IInvoiceService
             invoice.CreatedAtUtc,
             invoice.UpdatedAtUtc,   // ← comma required
 
-            invoice.Payments
+            (visiblePayments ?? invoice.Payments)
                 .Where(p => p.CompanyId == invoice.CompanyId && !p.IsDeleted)
                 .OrderByDescending(p => p.PaymentDate)
                 .Select(MapPayment)

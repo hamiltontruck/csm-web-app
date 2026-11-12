@@ -22,7 +22,7 @@ else if (_payment is null)
 {
     <div class="container py-4">
         <div class="alert alert-danger">
-            Payment not found.
+            @(_error ?? "Payment not found.")
         </div>
     </div>
 }
@@ -30,12 +30,16 @@ else
 {
     <div class="container py-4">
 
-        <button class="btn btn-outline-secondary mb-3"
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
+        <button disabled="@_saving" class="btn btn-outline-secondary mb-3"
                 @onclick="Back">
             ← Payments
         </button>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
             <div>
                 <h2>@_payment.PaymentNumber</h2>
                 <div class="text-muted">
@@ -67,25 +71,25 @@ else
             }
         </div>
 
-        <div class="d-flex gap-2 mb-4">
+        <div class="d-flex flex-wrap gap-2 mb-4">
 
             @if (_payment.Status == "Pending")
             {
-                <button class="btn btn-success" @onclick="CompletePayment">
+                <button disabled="@_saving" class="btn btn-success" @onclick="CompletePayment">
                     Complete Payment
                 </button>
             }
 
             @if (_payment.Status == "Completed")
             {
-                <button class="btn btn-outline-danger"
+                <button disabled="@_saving" class="btn btn-outline-danger"
                         @onclick="ReversePayment">
                     Reverse Payment
                 </button>
             }
 
             <WorkspaceAction Route="/finance/sites/{SiteId.Value}/payments/{Id}/edit">
-                <button class="btn btn-primary"
+                <button disabled="@_saving" class="btn btn-primary"
                     @onclick="EditPayment">
                 Edit Payment
             </button>
@@ -94,8 +98,8 @@ else
             @if (_payment.Status == "Pending")
             {
                 <WorkspaceAction Route="/finance/sites/{SiteId.Value}/payments">
-                    <WorkspaceAction Route="/finance/company/payments" Permission="Finance_Payment_Manage" Roles="SuperAdmin,CompanyAdmin,Accountant">
-<button class="btn btn-outline-danger"
+                    <WorkspaceAction Route="@($"/finance/sites/{_payment.ConstructionSiteId}/payments")" Permission="Finance_Payment_Manage" Roles="SuperAdmin,CompanyAdmin,Accountant,FinanceOfficer">
+<button disabled="@_saving" class="btn btn-outline-danger"
                         @onclick="DeletePayment">
                     Delete Payment
                 </button>
@@ -103,7 +107,7 @@ else
             </WorkspaceAction>
             }
 
-            <button class="btn btn-outline-dark"
+            <button disabled="@_saving" class="btn btn-outline-dark"
                     @onclick="PrintReceipt">
                 <i class="bi bi-printer"></i> Print Receipt
             </button>
@@ -177,38 +181,55 @@ else
     private PaymentResponse? _payment;
 
     private bool _loading = true;
-    private bool _loaded;
+    private bool _loaded, _saving;
+    private string? _error;
+    private Guid? _contextId, _contextSite;
+    private long _loadVersion;
+
+    protected override void OnParametersSet()
+    {
+        if (_contextId == Id && _contextSite == SiteId) return;
+        _contextId = Id; _contextSite = SiteId;
+        _loadVersion++;
+        _loaded = _saving = false;
+        _loading = true;
+        _error = null;
+        _payment = null;
+    }
+
+    private bool IsCurrent(Guid requestId, long version) => Id == requestId && _loadVersion == version;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _loaded)
-            return;
-
+        if (_loaded) return;
         _loaded = true;
-
-        _payment = await FinanceService.GetPaymentAsync(Id);
-
-        _loading = false;
-
-        StateHasChanged();
+        var requestId = Id;
+        var version = _loadVersion;
+        try
+        {
+            var payment = await FinanceService.GetPaymentAsync(requestId);
+            if (IsCurrent(requestId, version)) _payment = payment;
+        }
+        catch { if (IsCurrent(requestId, version)) _error = "Unable to load this payment. Refresh and try again."; }
+        finally { if (IsCurrent(requestId, version)) { _loading = false; StateHasChanged(); } }
     }
 
-    private async Task CompletePayment()
+    private Task CompletePayment() => UpdatePaymentAsync(id => FinanceService.ChangePaymentStatusAsync(id, 2));
+    private Task ReversePayment() => UpdatePaymentAsync(id => FinanceService.ReversePaymentAsync(id));
+
+    private async Task UpdatePaymentAsync(Func<Guid, Task> update)
     {
-        await FinanceService.ChangePaymentStatusAsync(Id, 2);
-
-        _payment = await FinanceService.GetPaymentAsync(Id);
-
-        StateHasChanged();
-    }
-
-    private async Task ReversePayment()
-    {
-        await FinanceService.ReversePaymentAsync(Id);
-
-        _payment = await FinanceService.GetPaymentAsync(Id);
-
-        StateHasChanged();
+        if (_loading || _saving || _payment?.Id != Id) return;
+        var requestId = Id; var version = _loadVersion;
+        _saving = true; _error = null;
+        try
+        {
+            await update(requestId);
+            var payment = await FinanceService.GetPaymentAsync(requestId);
+            if (IsCurrent(requestId, version)) _payment = payment;
+        }
+        catch { if (IsCurrent(requestId, version)) _error = "Unable to update this payment. Refresh and try again."; }
+        finally { if (IsCurrent(requestId, version)) _saving = false; }
     }
 
     private void EditPayment()

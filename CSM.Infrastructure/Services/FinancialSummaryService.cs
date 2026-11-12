@@ -24,6 +24,8 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
             .Include(x => x.UserRoles).ThenInclude(x => x.Role)
             .SingleOrDefaultAsync(x => x.Id == currentUserId && x.IsActive && !x.IsDeleted, cancellationToken)
             ?? throw new UnauthorizedAccessException();
+        actor = await CSM.Infrastructure.Security.FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, GranularPermission.Reports_FinancialSummary_View,
+            cancellationToken, message => new UnauthorizedAccessException(message)) ?? actor;
         if (!await new CSM.Infrastructure.Security.PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Reports_FinancialSummary_View", cancellationToken))
             throw new UnauthorizedAccessException("You are not authorized to view this financial summary.");
 
@@ -370,6 +372,8 @@ public sealed class FinancialSummaryService : IFinancialSummaryService
             .Include(x => x.UserRoles).ThenInclude(x => x.Role)
             .SingleOrDefaultAsync(x => x.Id == currentUserId && x.IsActive && !x.IsDeleted, cancellationToken)
             ?? throw new UnauthorizedAccessException();
+        actor = await CSM.Infrastructure.Security.FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, GranularPermission.Reports_FinancialSummary_View,
+            cancellationToken, message => new UnauthorizedAccessException(message)) ?? actor;
         if (!await new CSM.Infrastructure.Security.PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Reports_FinancialSummary_View", cancellationToken))
             throw new UnauthorizedAccessException("You are not authorized to view this financial summary.");
 

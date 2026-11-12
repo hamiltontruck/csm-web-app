@@ -22,7 +22,7 @@ internal sealed class FinancialReadScope(ApplicationDbContext db, User actor, Gu
                 return operationalScope.Filter(db.ConstructionSites.AsNoTracking().Where(x => !x.IsDeleted && x.IsActive),
                     x => x.CompanyId, x => (Guid?)x.Id);
             var companyScope = IncludesCompany;
-            return db.ConstructionSites.AsNoTracking().Where(x => x.CompanyId == companyId && !x.IsDeleted &&
+            return db.ConstructionSites.AsNoTracking().Where(x => x.CompanyId == companyId && !x.IsDeleted && (!FinanceOfficerScope.IsOfficer(actor) || x.IsActive) &&
                 (companyScope || db.UserSiteAccesses.Any(a => a.UserId == actor.Id && a.CompanyId == companyId && a.SiteId == x.Id && a.IsActive && !a.IsDeleted)));
         }
     }

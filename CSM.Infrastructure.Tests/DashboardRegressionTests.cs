@@ -73,6 +73,7 @@ public sealed class DashboardRegressionTests
     private sealed class DashboardApiStub : CSM.Application.Dashboard.IExecutiveDashboardService
     {
         public Guid? CompanyId { get; private set; }
+        public Task<ExecutiveDashboardResponse> GetForActorAsync(Guid actorId, Guid companyId, CancellationToken cancellationToken = default) => GetAsync(companyId, cancellationToken);
         public Task<ExecutiveDashboardResponse> GetAsync(Guid companyId, CancellationToken cancellationToken = default)
         {
             CompanyId = companyId;

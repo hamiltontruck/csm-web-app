@@ -158,6 +158,7 @@ public sealed class CostCodesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _costCodeService.GetBySiteAsync(
+            GetCurrentUserId(),
             siteId,
             cancellationToken);
 

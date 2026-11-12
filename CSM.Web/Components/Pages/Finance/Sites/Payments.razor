@@ -34,6 +34,9 @@ else
             </div>
         </div>
 
+        <WorkspaceAction Route="/finance/sites/{siteId}/payments/create">
+            <button class="btn btn-primary mb-3" @onclick='() => Navigation.NavigateTo($"/finance/sites/{SiteId}/payments/create")'>New Payment</button>
+        </WorkspaceAction>
         <div class="card shadow-sm border-0">
 
             <div class="table-responsive">
@@ -94,7 +97,7 @@ else
                                 </td>
 
                                 <td class="text-center">
-                                    <WorkspaceAction Route="/finance/company/payments" Permission="Finance_Payment_Manage" Roles="SuperAdmin,CompanyAdmin,Accountant">
+                                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/payments")" Permission="Finance_Payment_Manage" Roles="SuperAdmin,CompanyAdmin,Accountant,FinanceOfficer">
 <button class="btn btn-sm btn-outline-danger"
                                             @onclick:stopPropagation="true"
                                             @onclick="() => Delete(item.Id)">

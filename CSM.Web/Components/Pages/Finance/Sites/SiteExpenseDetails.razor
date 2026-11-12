@@ -37,13 +37,17 @@ else if (_expense is null)
 else
 {
     <div class="container-fluid py-4">
+        @if (!string.IsNullOrWhiteSpace(_actionError))
+        {
+            <div class="alert alert-danger" role="alert">@_actionError</div>
+        }
         @if (_relatedDataUnavailable)
         {
             <div class="alert alert-info" role="status">Some related names are unavailable. Expense details are shown below.</div>
         }
 
         <!-- Header -->
-        <div class="d-flex justify-content-between align-items-start mb-4">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-4">
 
             <div>
                 <button class="btn btn-outline-secondary mb-3"
@@ -272,7 +276,7 @@ else
                     <div class="col-md-4 mt-3">
                         @if (_expense.Status == "Draft")
                         {
-                            <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Submit">
+                            <WorkspaceAction Route="@($"/finance/sites/{SiteId}/expenses")" Permission="Finance_Expense_Submit">
 <button class="btn btn-primary"
                                     @onclick="SubmitExpense"
                                     disabled="@_saving">
@@ -288,7 +292,7 @@ else
 
                     @if (_expense.Status == "Submitted")
                     {
-                        <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Approve">
+                        <WorkspaceAction Route="@($"/finance/sites/{SiteId}/expenses")" Permission="Finance_Expense_Approve">
 <button class="btn btn-success"
                                 @onclick="ApproveExpense"
                                 disabled="@_saving">
@@ -303,7 +307,7 @@ else
 
                     @if (_expense.Status == "Approved")
                     {
-                        <WorkspaceAction Route="/finance/company/expenses" Permission="Finance_Expense_Approve" Roles="SuperAdmin,CompanyAdmin,Accountant">
+                        <WorkspaceAction Route="@($"/finance/sites/{SiteId}/expenses")" Permission="Finance_Expense_Approve" Roles="SuperAdmin,CompanyAdmin,Accountant,FinanceOfficer">
 <button class="btn btn-success"
                                 @onclick="MarkExpenseAsPaid"
                                 disabled="@_saving">
@@ -358,6 +362,8 @@ else
 }
 
 @code {
+    [CascadingParameter] private WorkspaceAccess FormAccess { get; set; } = WorkspaceAccess.None;
+
     [Parameter]
     public Guid SiteId { get; set; }
 
@@ -377,52 +383,26 @@ else
 
 
     private bool _saving;
+    private string? _actionError;
 
-    private async Task SubmitExpense()
+    private Task SubmitExpense() => UpdateExpenseStatusAsync(2);
+    private Task ApproveExpense() => UpdateExpenseStatusAsync(3);
+    private Task MarkExpenseAsPaid() => UpdateExpenseStatusAsync(5);
+
+    private async Task UpdateExpenseStatusAsync(int status)
     {
+        if (_saving || _expense?.Id != ExpenseId) return;
+        var requestId = ExpenseId;
         _saving = true;
-
+        _actionError = null;
         try
         {
-            await FinanceService.GetExpenseAsync(ExpenseId);
-            _expense = await FinanceService.GetExpenseAsync(ExpenseId);
-
+            await FinanceService.ChangeExpenseStatusAsync(requestId, status);
+            var updated = await FinanceService.GetExpenseAsync(requestId);
+            if (ExpenseId == requestId) _expense = updated;
         }
-        finally
-        {
-            _saving = false;
-        }
-    }
-
-    private async Task ApproveExpense()
-    {
-        _saving = true;
-
-        try
-        {
-            await FinanceService.ChangeExpenseStatusAsync(ExpenseId, 3);
-            _expense = await FinanceService.GetExpenseAsync(ExpenseId);
-        }
-        finally
-        {
-            _saving = false;
-        }
-    }
-
-    private async Task MarkExpenseAsPaid()
-    {
-        _saving = true;
-
-        try
-        {
-            await FinanceService.ChangeExpenseStatusAsync(ExpenseId, 5);
-            _expense = await FinanceService.GetExpenseAsync(ExpenseId);
-
-        }
-        finally
-        {
-            _saving = false;
-        }
+        catch { if (ExpenseId == requestId) _actionError = "Unable to update this expense. Refresh and try again."; }
+        finally { _saving = false; }
     }
 
     private string ConstructionSiteDisplay =>
@@ -455,12 +435,23 @@ else
                 _expense = null;
                 return;
             }
+            if (FormAccess.NeedsFinanceFormOptions)
+            {
+                var options = await LoadRelatedAsync(() => FinanceService.GetSiteFormOptionsAsync(SiteId, "expense"), new FinanceSiteOptions());
+                _sites = options.SiteId == Guid.Empty ? [] : [new SiteResponse { Id = options.SiteId, CompanyId = options.CompanyId, SiteCode = options.SiteCode, Name = options.SiteName, IsActive = true }];
+                _projects = options.Projects;
+                _vendors = options.Vendors;
+                _costCodes = options.CostCodes;
+            }
+            else
+            {
             _sites = await LoadRelatedAsync(() => ProjectService.GetSitesAsync(), new List<SiteResponse>());
             _projects = _expense.ProjectId.HasValue
                 ? await LoadRelatedAsync(() => ProjectService.GetProjectsBySiteAsync(SiteId), new List<ProjectResponse>())
                 : new List<ProjectResponse>();
             _vendors = await LoadRelatedAsync(() => VendorService.GetVendorsAsync(), new List<VendorResponse>());
             _costCodes = await LoadRelatedAsync<IReadOnlyList<CostCodeResponse>>(() => FinanceService.GetActiveCostCodesAsync(), []);
+            }
         }
         catch (HttpRequestException ex)
         {

@@ -25,9 +25,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
         Guid invoiceId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanRead(actor);
 
@@ -38,6 +36,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
         EnsureCompanyAccess(
             actor,
             invoice.CompanyId);
+        await EnsureParentScopeAsync(actor, invoice, cancellationToken);
 
         var lines = await _dbContext.InvoiceLines
             .AsNoTracking()
@@ -55,9 +54,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
         Guid invoiceLineId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanRead(actor);
 
@@ -68,6 +65,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
         EnsureCompanyAccess(
             actor,
             line.CompanyId);
+        await EnsureParentScopeAsync(actor, await GetInvoiceAsync(line.InvoiceId, cancellationToken), cancellationToken);
 
         return Map(line);
     }
@@ -78,9 +76,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
         CreateInvoiceLineRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanModify(actor);
 
@@ -91,6 +87,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
         EnsureCompanyAccess(
             actor,
             invoice.CompanyId);
+        await EnsureParentScopeAsync(actor, invoice, cancellationToken);
 
         EnsureInvoiceEditable(invoice);
 
@@ -100,6 +97,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
             request.UnitPrice,
             request.TaxAmount);
 
+        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, invoice.ConstructionSiteId, null, request.CostCodeId, cancellationToken, message => new InvoiceLineManagementException(message));
         await EnsureCostCodeAsync(
             invoice.CompanyId,
             request.CostCodeId,
@@ -144,9 +142,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
         UpdateInvoiceLineRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanModify(actor);
 
@@ -157,12 +153,14 @@ public sealed class InvoiceLineService : IInvoiceLineService
         EnsureCompanyAccess(
             actor,
             line.CompanyId);
+        await EnsureParentScopeAsync(actor, await GetInvoiceAsync(line.InvoiceId, cancellationToken), cancellationToken);
 
         var invoice = await GetInvoiceAsync(
             line.InvoiceId,
             cancellationToken);
 
         EnsureCompanyAccess(actor, invoice.CompanyId);
+        await EnsureParentScopeAsync(actor, invoice, cancellationToken);
         EnsureInvoiceEditable(invoice);
 
         ValidateLine(
@@ -171,6 +169,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
             request.UnitPrice,
             request.TaxAmount);
 
+        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, invoice.ConstructionSiteId, null, request.CostCodeId, cancellationToken, message => new InvoiceLineManagementException(message));
         await EnsureCostCodeAsync(
             invoice.CompanyId,
             request.CostCodeId,
@@ -203,9 +202,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
         Guid invoiceLineId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
 
         EnsureCanModify(actor);
 
@@ -216,12 +213,14 @@ public sealed class InvoiceLineService : IInvoiceLineService
         EnsureCompanyAccess(
             actor,
             line.CompanyId);
+        await EnsureParentScopeAsync(actor, await GetInvoiceAsync(line.InvoiceId, cancellationToken), cancellationToken);
 
         var invoice = await GetInvoiceAsync(
             line.InvoiceId,
             cancellationToken);
 
         EnsureCompanyAccess(actor, invoice.CompanyId);
+        await EnsureParentScopeAsync(actor, invoice, cancellationToken);
         EnsureInvoiceEditable(invoice);
 
         line.IsDeleted = true;
@@ -234,10 +233,21 @@ public sealed class InvoiceLineService : IInvoiceLineService
             cancellationToken);
     }
 
+    private async Task EnsureParentScopeAsync(User actor, Invoice parent, CancellationToken cancellationToken)
+    {
+        EnsureCompanyAccess(actor, parent.CompanyId);
+        if (SiteFinanceScope.IsSiteLimited(actor) && !await SiteFinanceScope.HasSiteAsync(_dbContext, actor, parent.ConstructionSiteId, cancellationToken))
+            throw new InvoiceLineManagementException("Parent site is unavailable or outside your assigned scope.");
+    }
+
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GranularPermission action = GranularPermission.Finance_Invoice_View)
     {
+        var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
+            cancellationToken, message => new InvoiceLineManagementException(message), supportedIndependentRoles: ["SuperAdmin", "CompanyAdmin", "Accountant"]);
+        if (scopedActor is not null) return scopedActor;
         var actor = await _dbContext.Users
             .AsNoTracking()
             .Include(x => x.UserRoles)
@@ -258,7 +268,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
     private static void EnsureCanRead(
         User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {
@@ -272,7 +282,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
     private static void EnsureCanModify(
         User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {
