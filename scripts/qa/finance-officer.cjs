@@ -28,6 +28,7 @@ const path = require('path');
     else if(route==='/sites') data=[constructionSite];
     else if(route===`/sites/${site}`) data=constructionSite;
     else if(route===`/finance/sites/${site}/options`) data=options;
+    else if(route===`/constructionsites/${site}/cost-codes`) data=[{id:code,companyId:id,constructionSiteId:site,code:'HBG-BUD-001',name:'General Construction',isActive:true},{id:project,companyId:id,constructionSiteId:site,code:'INACTIVE',name:'Inactive code',isActive:false}];
     else if(route===`/budgets/${budgetId}/status`){budget.status=({1:'Draft',2:'PendingApproval',3:'Approved',4:'Active',5:'Closed',6:'Cancelled'})[body.status];data=budget;}
     else if(route===`/budgets/${budgetId}`) data=budget;
     else if(route===`/budgetlines/budget/${budgetId}`) data=[];
@@ -68,6 +69,7 @@ const path = require('path');
       await visit('/login');await page.locator('#csm-email').fill(mixed?'mixed@example.test':'finance@example.test');await page.locator('#csm-password').fill('Local-Fixture-Password-123!');await page.locator('button[type=submit]').click();await page.waitForURL('**/dashboard');
       await visit('/finance');await expect(page.getByRole('link',{name:'Open assigned sites',exact:true})).toBeVisible();await expect(page.getByText('Finance Overview',{exact:true})).toHaveCount(0);await geometry();
       await page.getByRole('link',{name:'Open assigned sites',exact:true}).click();await expect(page.getByText(constructionSite.name,{exact:true})).toBeVisible();
+      await visit(`/finance/sites/${site}/cost-codes`);await expect(page.getByRole('cell',{name:'General Construction',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:/^(Activate|Deactivate|Edit|Delete|New Cost Code)$/})).toHaveCount(0);
       for(const form of ['budgets','invoices','expenses']){await visit(`/finance/sites/${site}/${form}/create`);await expect(page.locator('select').filter({hasText:'Assigned project'})).toHaveCount(1);await geometry();}
       await visit(`/finance/sites/${site}/invoices/${invoiceId}`);await expect(page.getByRole('button',{name:'Issue Invoice',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'+ Add Line',exact:true})).toBeVisible();await geometry();
       await visit(`/finance/sites/${site}/budgets/${budgetId}`);for(const name of ['Submit for Approval','Approve','Activate']) await page.getByRole('button',{name,exact:true}).click();await expect(page.getByText('Active',{exact:true})).toBeVisible();await geometry();

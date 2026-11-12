@@ -37,6 +37,11 @@
             </WorkspaceAction>
     </div>
 
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+
     @if (_loading)
     {
         <div class="text-center py-5">
@@ -102,10 +107,12 @@
                                     </button>
             </WorkspaceAction>
 
-                                    <button class="btn btn-sm btn-outline-warning"
-                                            @onclick="() => Toggle(item)">
+                                    <WorkspaceAction Route="/finance/company/cost-codes" Permission="Finance_CostCode_Manage" Roles="SuperAdmin,CompanyAdmin,Accountant">
+                            <button class="btn btn-sm btn-outline-warning"
+                                            @onclick="() => Toggle(item)" disabled="@_changingStatus">
                                         @(item.IsActive ? "Deactivate" : "Activate")
                                     </button>
+                        </WorkspaceAction>
 
                                 </td>
 
@@ -124,6 +131,8 @@
 @code {
 
     private bool _loading = true;
+    private bool _changingStatus;
+    private string? _error;
 
     private List<CostCodeResponse> _items = new();
 
@@ -151,41 +160,55 @@
 
     private async Task Toggle(CostCodeResponse item)
     {
-        var isActive = !item.IsActive;
-
-        var isOnline =
-            await OfflineSyncService.IsOnlineAsync();
-
-        if (isOnline)
+        if (_changingStatus) return;
+        _error = null;
+        _changingStatus = true;
+        try
         {
-            await FinanceService.ChangeCostCodeStatusAsync(
-                item.Id,
-                isActive);
+            var isActive = !item.IsActive;
+
+            var isOnline =
+                await OfflineSyncService.IsOnlineAsync();
+
+            if (isOnline)
+            {
+                await FinanceService.ChangeCostCodeStatusAsync(
+                    item.Id,
+                    isActive);
+            }
+            else
+            {
+                var operation =
+                    new CSM.Web.Models.OfflineSync.OfflineSyncOperation
+                    {
+                        OperationType =
+                            CSM.Web.Models.OfflineSync.OfflineSyncOperationType.ChangeStatus,
+
+                        EntityType = "CostCode",
+
+                        EntityId = item.Id.ToString(),
+
+                        PayloadJson =
+                            JsonSerializer.Serialize(
+                                new
+                                {
+                                    IsActive = isActive
+                                })
+                    };
+
+                await OfflineSyncService.QueueAsync(operation);
+            }
+
+            item.IsActive = isActive;
         }
-        else
+        catch (Exception ex)
         {
-            var operation =
-                new CSM.Web.Models.OfflineSync.OfflineSyncOperation
-                {
-                    OperationType =
-                        CSM.Web.Models.OfflineSync.OfflineSyncOperationType.ChangeStatus,
-
-                    EntityType = "CostCode",
-
-                    EntityId = item.Id.ToString(),
-
-                    PayloadJson =
-                        JsonSerializer.Serialize(
-                            new
-                            {
-                                IsActive = isActive
-                            })
-                };
-
-            await OfflineSyncService.QueueAsync(operation);
+            _error = ex.Message;
         }
-
-        item.IsActive = isActive;
+        finally
+        {
+            _changingStatus = false;
+        }
     }
 
 }
