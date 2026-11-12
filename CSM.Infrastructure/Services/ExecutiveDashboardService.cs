@@ -30,8 +30,8 @@ public sealed class ExecutiveDashboardService
             cancellationToken, message => new UnauthorizedAccessException(message)) ?? actor;
         var superAdmin = actor.UserRoles.Any(x => !x.IsDeleted && !x.Role.IsDeleted && x.Role.Name == "SuperAdmin");
         if (!superAdmin && actor.CompanyId != companyId) throw new UnauthorizedAccessException("Company is outside your scope.");
-        if (!FinanceOfficerScope.IsOfficer(actor)) return await GetAsync(companyId, cancellationToken);
         var scope = new FinancialReadScope(_context, actor, companyId);
+        if (scope.IncludesCompany) return await GetAsync(companyId, cancellationToken);
         var budget = await scope.Finance(_context.Budgets).SumAsync(x => (decimal?)x.TotalAmount, cancellationToken) ?? 0m;
         var expenses = await scope.Finance(_context.Expenses).SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m;
         return new ExecutiveDashboardResponse(0, 0, budget, expenses, budget == 0 ? 0 : Math.Round(expenses / budget * 100, 2), 0, 0, 0, 0, DateTime.UtcNow);

@@ -4,6 +4,7 @@ namespace CSM.Web.Services;
 
 public interface IFinanceService
 {
+    Task<FinanceActionCapabilities> GetActionCapabilitiesAsync(string purpose);
     Task<FinanceSiteOptions> GetSiteFormOptionsAsync(Guid siteId, string purpose);
     Task<IReadOnlyList<CostCodeResponse>> GetCostCodesAsync();
     Task<IReadOnlyList<PettyCashCostCodeOption>> GetPettyCashCostCodeOptionsAsync(Guid accountId);

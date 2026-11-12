@@ -133,12 +133,9 @@ public sealed class FinanceOfficerAuthorityTests
         Assert.False(await SiteFinanceScope.HasSiteAsync(db, actor, null, default));
     }
 
-    private static async Task<User?> Resolve(ApplicationDbContext db, Guid actorId, GranularPermission permission)
-    {
-        var type = typeof(ApplicationDbContext).Assembly.GetType("CSM.Infrastructure.Security.FinanceOfficerScope"); Assert.NotNull(type);
-        var method = type.GetMethod("ResolveActorAsync", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic); Assert.NotNull(method);
-        return await (Task<User?>)method.Invoke(null, [db, actorId, permission, CancellationToken.None, (Func<string, Exception>)(message => new UserManagementException(message))])!;
-    }
+    private static Task<User?> Resolve(ApplicationDbContext db, Guid actorId, GranularPermission permission) =>
+        CSM.Infrastructure.Security.FinanceOfficerScope.ResolveActorAsync(db, actorId, permission, CancellationToken.None,
+            message => new UserManagementException(message));
     internal static User Actor() => new() { CompanyId = Guid.NewGuid(), Email = "finance@example.test", NormalizedEmail = "FINANCE@EXAMPLE.TEST", UserRoles = [new() { Role = Role("FinanceOfficer", Defaults) }] };
     internal static Role Role(string name, params GranularPermission[] grants) => new() { Name = name, NormalizedName = name.ToUpperInvariant(), GranularPermissions = grants.Select(p => new RoleGranularPermission { Permission = p }).ToList() };
     private static async Task Seed(ApplicationDbContext db, string method) => await (Task)typeof(DatabaseInitializer).GetMethod(method, BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [db, CancellationToken.None])!;

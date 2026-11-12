@@ -69,6 +69,9 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_PettyCash_View);
 
+        if (SiteFinanceScope.IsSiteLimited(actor) && !await SiteFinanceScope.HasSiteAsync(_dbContext, actor, siteId, cancellationToken))
+            throw new PettyCashManagementException("The site is unavailable or outside your assigned scope.");
+
         var site = await _dbContext.ConstructionSites
             .AsNoTracking()
             .SingleOrDefaultAsync(
@@ -363,7 +366,7 @@ public sealed class PettyCashAccountService : IPettyCashAccountService
         GranularPermission action = GranularPermission.Finance_PettyCash_View)
     {
         var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
-            cancellationToken, message => new PettyCashManagementException(message));
+            cancellationToken, message => new PettyCashManagementException(message), supportedIndependentRoles: action == GranularPermission.Finance_PettyCash_Manage ? ["SuperAdmin", "CompanyAdmin", "Accountant"] : ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager"]);
         if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)

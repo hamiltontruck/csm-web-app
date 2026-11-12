@@ -342,7 +342,7 @@ public sealed class ExpenseService : IExpenseService
         GranularPermission action = GranularPermission.Finance_Expense_View)
     {
         var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
-            cancellationToken, message => new ExpenseManagementException(message));
+            cancellationToken, message => new ExpenseManagementException(message), supportedIndependentRoles: action == GranularPermission.Finance_Expense_Approve ? ["SuperAdmin", "CompanyAdmin", "Accountant"] : ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager"]);
         if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)

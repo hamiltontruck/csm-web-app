@@ -142,6 +142,7 @@ public sealed class FinanceOfficerUiTests
         public int OptionCalls;
         public string? FailOperation;
         public bool EchoIds;
+        public FinanceActionCapabilities ActionCapabilities = new(false, false);
         public UpdatePaymentRequest? PaymentUpdate;
         public string ExpenseStatus = "Draft";
         public List<int> ExpenseActions = [];
@@ -154,6 +155,10 @@ public sealed class FinanceOfficerUiTests
             if (m.Name == "ChangeExpenseStatusAsync") { var status = (int)a![1]!; ExpenseActions.Add(status); ExpenseStatus = status switch { 2 => "Submitted", 3 => "Approved", 5 => "Paid", _ => throw new InvalidOperationException() }; return Task.CompletedTask; }
             if (m.Name == "UpdatePaymentAsync") { PaymentUpdate = (UpdatePaymentRequest)a![1]!; return Task.CompletedTask; }
             return m.Name switch {
+                "GetActionCapabilitiesAsync" => Task.FromResult(ActionCapabilities),
+                "CreatePettyCashAccountAsync" => Task.FromResult(Guid.NewGuid()),
+                "GetPettyCashAccountAsync" => Task.FromResult(new PettyCashAccountResponse((Guid)a![0]!, Guid.NewGuid(), Site, "Assigned site", "OWN", "Own cash", 10m, 10m, true)),
+                "GetPettyCashTransactionsAsync" => Task.FromResult(new List<PettyCashTransactionResponse>()),
                 "GetExpenseAsync" => Task.FromResult(new ExpenseResponse((Guid)a![0]!, Guid.NewGuid(), Site, null, Guid.NewGuid(), null, "E-1", new(2026,11,11), "Expense", 1m, 0m, "ETB", 1m, null, null, ExpenseStatus, null, null, null, DateTime.UtcNow, null)),
                 "GetPaymentAsync" => Task.FromResult(new PaymentResponse { Id = (Guid)a![0]!, ConstructionSiteId = Site, PaymentNumber = EchoIds ? ((Guid)a![0]!).ToString() : "P-1", Amount = 1m, ExchangeRate = 1m, CurrencyCode = "ETB", Direction = "Outgoing", Status = "Pending", PaymentDate = new(2026,11,11) }),
                 "GetInvoiceAsync" => Task.FromResult<InvoiceResponse?>(new() { Id = (Guid)a![0]!, ConstructionSiteId = Site, InvoiceNumber = EchoIds ? ((Guid)a![0]!).ToString() : "INV-OFFICER", Status = "Draft", InvoiceDate = new(2026,11,11) }),

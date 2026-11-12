@@ -58,15 +58,15 @@ else
                                          disabled="@_saving"
                                          @bind-Value="_paymentSource"
                                          @bind-Value:after="PaymentSourceChanged">
-                                @if (!FormAccess.IsSiteFinanceOfficer || InvoiceId.HasValue)
+                                @if (_canUsePayroll || InvoiceId.HasValue)
                                 {
                                     <option value="Invoice">Invoice</option>
                                 }
-                                @if (!FormAccess.IsSiteFinanceOfficer)
+                                @if (_canUsePayroll)
                                 {
                                     <option value="Payroll">Payroll</option>
                                 }
-                                @if (FormAccess.IsSiteFinanceOfficer && SiteId.HasValue && !InvoiceId.HasValue)
+                                @if (!InvoiceId.HasValue && SiteId.HasValue)
                                 {
                                     <option value="Direct">Direct site payment</option>
                                 }
@@ -250,6 +250,7 @@ else
     private string? _error;
     private bool _loading = true, _ready, _saving;
     private int _contextVersion;
+    private bool _canUsePayroll = true;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -269,11 +270,18 @@ else
         if (query.TryGetValue("invoiceId", out var value) && Guid.TryParse(value.ToString(), out var id))
             InvoiceId = id;
 
-        _paymentSource = InvoiceId.HasValue ? "Invoice" : FormAccess.IsSiteFinanceOfficer ? "Direct" : "Payroll";
         try
         {
+            _canUsePayroll = !FormAccess.IsIn("FinanceOfficer");
+            if (FormAccess.IsIn("FinanceOfficer"))
+            {
+                var capability = await FinanceService.GetActionCapabilitiesAsync("payment");
+                if (version != _contextVersion) return;
+                _canUsePayroll = capability.CanUsePayroll;
+            }
+            _paymentSource = InvoiceId.HasValue ? "Invoice" : _canUsePayroll ? "Payroll" : "Direct";
             if (InvoiceId.HasValue) await LoadInvoice(version);
-            else if (FormAccess.IsSiteFinanceOfficer) await LoadDirectSite(version);
+            else if (_paymentSource == "Direct") await LoadDirectSite(version);
             else await LoadApprovedPayrolls(version);
         }
         catch (Exception ex)
@@ -336,7 +344,7 @@ else
 
     private async Task LoadApprovedPayrolls(int version)
     {
-        if (FormAccess.IsSiteFinanceOfficer) throw new InvalidOperationException("Payroll payments require separate payroll authority.");
+        if (!_canUsePayroll) throw new InvalidOperationException("Payroll payments require separate payroll authority.");
         var payrolls = await PayrollService.GetAllAsync();
         if (version != _contextVersion) return;
         _approvedPayrolls = payrolls
@@ -360,7 +368,7 @@ else
         try
         {
             if (_paymentSource == "Invoice") await LoadInvoice(version);
-            else if (FormAccess.IsSiteFinanceOfficer) await LoadDirectSite(version);
+            else if (_paymentSource == "Direct") await LoadDirectSite(version);
             else await LoadApprovedPayrolls(version);
         }
         catch (Exception ex)
@@ -386,7 +394,7 @@ else
     {
         if (_loading || !_ready || _saving) return;
         _error = null;
-        if (FormAccess.IsSiteFinanceOfficer && (_paymentSource == "Payroll" || !SiteId.HasValue))
+        if ((_paymentSource == "Payroll" && !_canUsePayroll) || (_paymentSource == "Direct" && !SiteId.HasValue))
         {
             _error = "Open an assigned finance site to record a payment.";
             return;

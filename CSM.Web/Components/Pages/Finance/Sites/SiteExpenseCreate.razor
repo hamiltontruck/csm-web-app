@@ -246,7 +246,7 @@
     {
         try
         {
-            if (FormAccess.IsSiteFinanceOfficer)
+            if (FormAccess.NeedsFinanceFormOptions)
             {
                 var options = await FinanceService.GetSiteFormOptionsAsync(SiteId, "expense");
                 _site = new SiteResponse { Id = options.SiteId, CompanyId = options.CompanyId, SiteCode = options.SiteCode, Name = options.SiteName, IsActive = true };

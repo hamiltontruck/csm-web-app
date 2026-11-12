@@ -246,7 +246,7 @@ public sealed class InvoiceLineService : IInvoiceLineService
         GranularPermission action = GranularPermission.Finance_Invoice_View)
     {
         var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
-            cancellationToken, message => new InvoiceLineManagementException(message));
+            cancellationToken, message => new InvoiceLineManagementException(message), supportedIndependentRoles: ["SuperAdmin", "CompanyAdmin", "Accountant"]);
         if (scopedActor is not null) return scopedActor;
         var actor = await _dbContext.Users
             .AsNoTracking()

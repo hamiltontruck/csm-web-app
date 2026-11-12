@@ -39,7 +39,6 @@ public sealed class WorkspaceDashboardService(ApplicationDbContext db) : IWorksp
         var hrReader = IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor", "HrOfficer", "HROfficer");
         var hrCompany = IsIn("SuperAdmin", "CompanyAdmin", "HrOfficer", "HROfficer");
         var financeReader = IsIn("SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "FinanceOfficer");
-        var financeCompany = IsIn("SuperAdmin", "CompanyAdmin", "Accountant");
         var todayUtc = DateTime.UtcNow;
         var zone = TimeZoneInfo.TryFindSystemTimeZoneById(company.TimeZone, out var configured) ? configured : TimeZoneInfo.Utc;
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(todayUtc, zone));
@@ -96,20 +95,14 @@ public sealed class WorkspaceDashboardService(ApplicationDbContext db) : IWorksp
         {
             var budgetActor = await FinanceOfficerScope.ResolveActorAsync(db, actorId, GranularPermission.Finance_Budget_View,
                 cancellationToken, message => new UnauthorizedAccessException(message)) ?? actor;
-            var budgets = FinanceOfficerScope.IsOfficer(budgetActor)
-                ? new FinancialReadScope(db, budgetActor, company.Id).Finance(db.Budgets.AsNoTracking())
-                : db.Budgets.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted &&
-                    (financeCompany || (x.ConstructionSiteId.HasValue && sites.Contains(x.ConstructionSiteId.Value))));
+            var budgets = new FinancialReadScope(db, budgetActor, company.Id).Finance(db.Budgets.AsNoTracking());
             result.TotalBudget = await budgets.Where(x => x.CurrencyCode == result.CurrencyCode).SumAsync(x => (decimal?)x.TotalAmount, cancellationToken) ?? 0;
         }
         if (financeReader && Has(GranularPermission.Finance_Expense_View))
         {
             var expenseActor = await FinanceOfficerScope.ResolveActorAsync(db, actorId, GranularPermission.Finance_Expense_View,
                 cancellationToken, message => new UnauthorizedAccessException(message)) ?? actor;
-            var expenses = FinanceOfficerScope.IsOfficer(expenseActor)
-                ? new FinancialReadScope(db, expenseActor, company.Id).Finance(db.Expenses.AsNoTracking())
-                : db.Expenses.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted &&
-                    (financeCompany || (x.ConstructionSiteId.HasValue && sites.Contains(x.ConstructionSiteId.Value))));
+            var expenses = new FinancialReadScope(db, expenseActor, company.Id).Finance(db.Expenses.AsNoTracking());
             result.TotalExpenses = await expenses.Where(x => x.CurrencyCode == result.CurrencyCode).SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0;
         }
         if (result.TotalBudget.HasValue && result.TotalExpenses.HasValue && Has(GranularPermission.Reports_View) && Has(GranularPermission.Reports_FinancialSummary_View))

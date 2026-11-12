@@ -11,17 +11,18 @@ const path = require('path');
   const constructionSite={id:site,companyId:id,siteCode:'ASSIGNED',name:'Assigned finance site',status:'Planning',isActive:true,country:'Ethiopia'};
   const options={siteId:site,companyId:id,siteCode:'ASSIGNED',siteName:constructionSite.name,projects:[{id:project,projectCode:'P-1',name:'Assigned project',constructionSiteId:site}],costCodes:[{id:code,code:'SHARED',name:'Shared code',isActive:true}],vendors:[]};
   const invoice={id:invoiceId,companyId:id,constructionSiteId:site,invoiceNumber:'INV-LOCAL',type:'ClientInvoice',status:'Draft',invoiceDate:'2026-11-11',subtotal:1,taxAmount:0,totalAmount:1,paidAmount:0,currencyCode:'ETB',exchangeRate:1};
-  let reads=[],writes=[],payment,expense,budget,adminMode=false;
+  let reads=[],writes=[],payment,expense,budget,adminMode=false,mixedMode=false;
   function reset(){reads=[];writes=[];budget={id:budgetId,companyId:id,constructionSiteId:site,budgetNumber:'LOCAL-BUDGET',name:'Site budget',constructionSiteName:constructionSite.name,totalAmount:10,currencyCode:'ETB',effectiveFrom:'2026-11-11',status:'Draft'};payment={id:paymentId,companyId:id,constructionSiteId:site,paymentNumber:'LOCAL-PAY',paymentDate:'2026-11-11',amount:1,currencyCode:'ETB',exchangeRate:1,direction:'Outgoing',status:'Pending',paymentMethod:'Cash'};expense={id:expenseId,companyId:id,constructionSiteId:site,costCodeId:code,expenseNumber:'LOCAL-EXPENSE',expenseDate:'2026-11-11',description:'Local expense',amount:1,taxAmount:0,currencyCode:'ETB',exchangeRate:1,status:'Draft',createdAtUtc:'2026-11-11T00:00:00Z'};}
   reset();
   const api=http.createServer((req,res)=>{const chunks=[];req.on('data',b=>chunks.push(b));req.on('end',()=>{
     const route=new URL(req.url,'http://fixture').pathname.toLowerCase();const body=chunks.length?JSON.parse(Buffer.concat(chunks).toString()):null;
     if(req.method==='GET') reads.push(route);else writes.push({route,method:req.method,body});
     let data,status=200;
-    if(route==='/auth/login'){adminMode=body.email==='admin@example.test';data={accessToken:'local-finance-fixture',refreshToken:'local-refresh-fixture',email:'finance@example.test',fullName:adminMode?'Local Administrator':'Local Finance Officer',roles:adminMode?['CompanyAdmin']:roles,companyId:id};}
-    else if(route==='/auth/permissions') data=adminMode?['Users_Create','Sites_View']:permissions;
+    if(route==='/auth/login'){adminMode=body.email==='admin@example.test';mixedMode=body.email==='mixed@example.test';data={accessToken:'local-finance-fixture',refreshToken:'local-refresh-fixture',email:'finance@example.test',fullName:adminMode?'Local Administrator':'Local Finance Officer',roles:adminMode?['CompanyAdmin']:mixedMode?['FinanceOfficer','Accountant']:roles,companyId:id};}
+    else if(route==='/auth/permissions') data=adminMode?['Users_Create','Sites_View']:mixedMode?[...permissions,'HRM_Payroll_View']:permissions;
+    else if(route==='/finance/action-capabilities') data={includesCompany:false,canUsePayroll:false};
     else if(route==='/users/role-options') data=['Accountant','FinanceOfficer','Storekeeper'];
-    else if(route==='/auth/me'||route==='/auth/me/profile') data={userId:id,name:'Local Finance Officer',email:'finance@example.test',companyId:id,roles:adminMode?['CompanyAdmin']:roles};
+    else if(route==='/auth/me'||route==='/auth/me/profile') data={userId:id,name:'Local Finance Officer',email:'finance@example.test',companyId:id,roles:adminMode?['CompanyAdmin']:mixedMode?['FinanceOfficer','Accountant']:roles};
     else if(route==='/user/preferences') data={userId:id,theme:'System',language:'en',timeZone:'Africa/Addis_Ababa',dateFormat:'dd/MM/yyyy',timeFormat:'24h',numberFormat:'en-US',confirmActions:true,rememberNavigation:true};
     else if(route.includes('dashboard')) data={generatedAtUtc:new Date().toISOString(),today:'2026-11-11',currencyCode:'ETB',totalBudget:10,totalExpenses:1};
     else if(route==='/sites') data=[constructionSite];
@@ -59,12 +60,12 @@ const path = require('path');
     if(!reads.includes('/users/role-options')||reads.includes('/roles')) throw Error('Create User did not use its authorized live role-options endpoint');
     if(writes.some(x=>x.route==='/users')) throw Error('Role-options browser check unexpectedly created an account');
     console.log('PASS Create User live FinanceOfficer role options with Users_Create and no Users_View');await admin.close();adminMode=false;
-    for(const width of [320,390,1280]){
+    for(const [width,mixed] of [[320,false],[390,false],[1280,false],[390,true]]){
       reset();const context=await browser.newContext({viewport:{width,height:1000},isMobile:width<500,hasTouch:width<500});const page=await context.newPage(),errors=[];activePage=page;page.on('pageerror',e=>errors.push(e.message));
       const visit=async route=>{await page.goto('http://127.0.0.1:5081'+route);};
       const geometry=async()=>{const g=await page.evaluate(()=>({viewport:innerWidth,width:document.documentElement.scrollWidth,error:document.querySelector('#blazor-error-ui')?.getBoundingClientRect().height||0}));if(g.width>width+1||g.error||errors.length) throw Error('Layout/circuit failure '+JSON.stringify({g,errors}));};
       const field=label=>page.locator('label').filter({hasText:new RegExp('^'+label+'(?: \\*)?$')}).locator('..').locator('input,select,textarea').first();
-      await visit('/login');await page.locator('#csm-email').fill('finance@example.test');await page.locator('#csm-password').fill('Local-Fixture-Password-123!');await page.locator('button[type=submit]').click();await page.waitForURL('**/dashboard');
+      await visit('/login');await page.locator('#csm-email').fill(mixed?'mixed@example.test':'finance@example.test');await page.locator('#csm-password').fill('Local-Fixture-Password-123!');await page.locator('button[type=submit]').click();await page.waitForURL('**/dashboard');
       await visit('/finance');await expect(page.getByRole('link',{name:'Open assigned sites',exact:true})).toBeVisible();await expect(page.getByText('Finance Overview',{exact:true})).toHaveCount(0);await geometry();
       await page.getByRole('link',{name:'Open assigned sites',exact:true}).click();await expect(page.getByText(constructionSite.name,{exact:true})).toBeVisible();
       for(const form of ['budgets','invoices','expenses']){await visit(`/finance/sites/${site}/${form}/create`);await expect(page.locator('select').filter({hasText:'Assigned project'})).toHaveCount(1);await geometry();}
@@ -79,7 +80,7 @@ const path = require('path');
       const statuses=writes.filter(x=>x.route===`/expenses/${expenseId}/status`).map(x=>x.body.status);if(JSON.stringify(statuses)!=='[2,3,5]') throw Error('Expense lifecycle did not submit/approve/pay');
       if(reads.some(x=>x.includes('payroll')||x==='/vendors'||x.includes('/projects'))) throw Error('Officer loaded unrelated HR/procurement/project endpoints');
       if(process.env.CSM_SCREENSHOT_DIR){fs.mkdirSync(process.env.CSM_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.CSM_SCREENSHOT_DIR,`finance-officer-${width}.png`),fullPage:true});}
-      console.log('PASS FinanceOfficer assigned-site forms/payment/expense/actions/no unrelated lookups',width);await context.close();
+      console.log('PASS FinanceOfficer assigned-site forms/payment/expense/actions/no unrelated lookups',width,mixed?'mixed corporate reader':'officer only');await context.close();
     }
   } catch(error) {
     if(activePage && !activePage.isClosed()) {

@@ -30,6 +30,7 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
            permission is "Procurement_PurchaseOrder_Manage" or "Procurement_PurchaseOrder_Approve" or "Reports_Export")));
     public bool IsIn(params string[] roles) => roles.Any(_roles.Contains);
     public bool IsSiteFinanceOfficer => IsIn("FinanceOfficer") && !IsIn("SuperAdmin", "CompanyAdmin", "Accountant");
+    public bool NeedsFinanceFormOptions => IsIn("FinanceOfficer") && (!CanVisit("/projects") || !CanVisit("/vendors"));
     public bool CanViewExecutive => Has("Reports_View") && Has("Reports_FinancialSummary_View");
     public bool CanApproveAttendance => IsIn(Managers) && Has("HRM_Attendance_Approve");
     public bool CanReviewLeave => IsIn(HrReaders.Where(r => r != "Supervisor").ToArray()) && Has("HRM_Leave_Approve");

@@ -124,6 +124,7 @@
 </div>
 
 @code {
+    [CascadingParameter] private WorkspaceAccess FormAccess { get; set; } = WorkspaceAccess.None;
     [Parameter]
     public Guid AccountId { get; set; }
 
@@ -149,6 +150,8 @@
 
     private void Back()
     {
-        Navigation.NavigateTo("/finance/petty-cash");
+        Navigation.NavigateTo(FormAccess.IsIn("FinanceOfficer")
+            ? _account?.ConstructionSiteId is Guid site ? $"/finance/petty-cash/site/{site}" : "/finance/sites"
+            : "/finance/petty-cash");
     }
 }

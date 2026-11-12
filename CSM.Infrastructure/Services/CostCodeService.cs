@@ -272,7 +272,7 @@ public sealed class CostCodeService : ICostCodeService
         GranularPermission action = GranularPermission.Finance_CostCode_View)
     {
         var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
-            cancellationToken, message => new CostCodeManagementException(message));
+            cancellationToken, message => new CostCodeManagementException(message), supportedIndependentRoles: ["SuperAdmin", "CompanyAdmin", "Accountant"]);
         if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)

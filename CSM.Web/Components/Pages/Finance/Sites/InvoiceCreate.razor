@@ -231,7 +231,7 @@
 
         try
         {
-        if (FormAccess.IsSiteFinanceOfficer)
+        if (FormAccess.NeedsFinanceFormOptions)
         {
             var options = await FinanceService.GetSiteFormOptionsAsync(SiteId, "invoice");
             _siteName = options.SiteName;

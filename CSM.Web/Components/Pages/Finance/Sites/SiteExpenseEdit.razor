@@ -317,7 +317,7 @@ else
             }
 
             FinanceSiteOptions? options = null;
-            if (FormAccess.IsSiteFinanceOfficer)
+            if (FormAccess.NeedsFinanceFormOptions)
             {
                 options = await FinanceService.GetSiteFormOptionsAsync(SiteId, "expense");
                 _sites = [new SiteResponse { Id = options.SiteId, CompanyId = options.CompanyId, SiteCode = options.SiteCode, Name = options.SiteName, IsActive = true }];

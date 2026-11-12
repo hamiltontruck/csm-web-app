@@ -29,11 +29,12 @@ public sealed class SiteService : ISiteService
             cancellationToken);
 
         actor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, actor.Id, GranularPermission.Sites_View,
-            cancellationToken, message => new SiteManagementException(message)) ?? actor;
+            cancellationToken, message => new SiteManagementException(message),
+            supportedIndependentRoles: ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "Supervisor", "Storekeeper", "HrOfficer", "HROfficer", "ProcurementOfficer"]) ?? actor;
         var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
             GranularPermission.Sites_View, cancellationToken,
             message => new SiteManagementException(message),
-            ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "Supervisor", "Storekeeper", "HrOfficer", "HROfficer"]);
+            ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "Supervisor", "Storekeeper", "HrOfficer", "HROfficer", "FinanceOfficer"]);
         actor = scope.For(actor);
 
         IQueryable<ConstructionSite> query =
@@ -112,11 +113,12 @@ public sealed class SiteService : ISiteService
             cancellationToken);
 
         actor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, actor.Id, GranularPermission.Sites_View,
-            cancellationToken, message => new SiteManagementException(message)) ?? actor;
+            cancellationToken, message => new SiteManagementException(message),
+            supportedIndependentRoles: ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "Supervisor", "Storekeeper", "HrOfficer", "HROfficer", "ProcurementOfficer"]) ?? actor;
         var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
             GranularPermission.Sites_View, cancellationToken,
             message => new SiteManagementException(message),
-            ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "Supervisor", "Storekeeper", "HrOfficer", "HROfficer"]);
+            ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "Supervisor", "Storekeeper", "HrOfficer", "HROfficer", "FinanceOfficer"]);
         actor = scope.For(actor);
 
         var site = await GetSiteAsync(

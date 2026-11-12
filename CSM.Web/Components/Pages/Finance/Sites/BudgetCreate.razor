@@ -116,7 +116,7 @@
         _model.ConstructionSiteId = SiteId;
         try
         {
-            _projects = FormAccess.IsSiteFinanceOfficer
+            _projects = FormAccess.NeedsFinanceFormOptions
                 ? (await FinanceService.GetSiteFormOptionsAsync(SiteId, "budget")).Projects
                 : await ProjectService.GetProjectsBySiteAsync(SiteId);
             _ready = true;

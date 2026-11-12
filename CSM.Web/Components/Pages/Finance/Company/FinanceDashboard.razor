@@ -16,7 +16,7 @@
         </div>
     </div>
 
-    @if (Access.IsSiteFinanceOfficer)
+    @if (Access.IsIn("FinanceOfficer"))
     {
         <div class="card shadow-sm mb-4">
             <div class="card-body">
@@ -129,7 +129,7 @@
 
     </div>
 
-    @if (AccessLoaded && !Access.IsSiteFinanceOfficer)
+    @if (AccessLoaded && !Access.IsIn("FinanceOfficer"))
     {
     <!-- Overview -->
     <div class="card border-0 shadow-sm">

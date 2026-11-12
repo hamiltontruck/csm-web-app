@@ -379,7 +379,7 @@ public sealed class PaymentService : IPaymentService
         GranularPermission action = GranularPermission.Finance_Payment_View)
     {
         var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
-            cancellationToken, message => new PaymentManagementException(message));
+            cancellationToken, message => new PaymentManagementException(message), supportedIndependentRoles: action == GranularPermission.Finance_Payment_Manage ? ["SuperAdmin", "CompanyAdmin", "Accountant"] : ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager"]);
         if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)

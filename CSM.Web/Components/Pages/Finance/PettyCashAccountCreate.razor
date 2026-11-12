@@ -24,6 +24,14 @@
         </div>
     </div>
 
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+        @if (!_ready)
+        {
+            <button type="button" class="btn btn-outline-secondary mb-3" @onclick="LoadOptionsAsync" disabled="@_loading">Retry loading sites</button>
+        }
+    }
     @if (_loading)
     {
         <p>Loading construction sites...</p>
@@ -31,6 +39,7 @@
     else
     {
         <EditForm Model="_form" OnValidSubmit="Save">
+            <fieldset disabled="@(!_ready || _saving)">
 
             <DataAnnotationsValidator />
 
@@ -42,7 +51,7 @@
                     <select class="form-select"
                             @bind="_form.ConstructionSiteId">
 
-                        <option value="">@(FormAccess.IsSiteFinanceOfficer ? "-- Select assigned site --" : "-- Company Level --")</option>
+                        <option value="">@(_requiresSite ? "-- Select assigned site --" : "-- Company Level --")</option>
 
                         @foreach (var site in _sites)
                         {
@@ -54,7 +63,7 @@
                     </select>
 
                     <div class="form-text">
-                        @(FormAccess.IsSiteFinanceOfficer ? "Choose an assigned construction site." : "Leave as Company Level for a company-wide petty cash account.")
+                        @(_requiresSite ? "Choose an assigned construction site." : "Leave as Company Level for a company-wide petty cash account.")
                     </div>
                 </div>
 
@@ -97,6 +106,7 @@
 
             </div>
 
+            </fieldset>
         </EditForm>
     }
 </div>
@@ -111,6 +121,8 @@
 
 
     private bool _loading = true;
+    private bool _ready, _saving, _requiresSite;
+    private string? _error;
 
     private sealed class PettyCashAccountForm
     {
@@ -122,32 +134,53 @@
 
     private readonly PettyCashAccountForm _form = new();
 
-    protected override async Task OnInitializedAsync()
-    {
-        _sites = await ProjectService.GetSitesAsync();
-        if (FormAccess.IsSiteFinanceOfficer && _sites.Count == 1) _form.ConstructionSiteId = _sites[0].Id;
+    protected override Task OnInitializedAsync() => LoadOptionsAsync();
 
-        _loading = false;
+    private async Task LoadOptionsAsync()
+    {
+        _loading = true; _ready = false; _error = null;
+        try
+        {
+            _requiresSite = FormAccess.IsIn("FinanceOfficer") &&
+                !(await FinanceService.GetActionCapabilitiesAsync("petty-cash")).IncludesCompany;
+            _sites = await ProjectService.GetSitesAsync();
+            if (_requiresSite && _sites.Count == 1) _form.ConstructionSiteId = _sites[0].Id;
+            if (_form.ConstructionSiteId.HasValue && !_sites.Any(x => x.Id == _form.ConstructionSiteId))
+                _form.ConstructionSiteId = null;
+            _ready = true;
+        }
+        catch { _error = "Unable to load petty cash options. Retry loading sites."; }
+        finally { _loading = false; }
     }
 
     private async Task Save()
     {
-        var request = new CreatePettyCashAccountRequest(
-            _form.ConstructionSiteId,
-            _form.AccountCode.Trim(),
-            _form.AccountName.Trim(),
-            _form.OpeningBalance);
-
-        await FinanceService.CreatePettyCashAccountAsync(request);
-
-        Navigation.NavigateTo(FormAccess.IsSiteFinanceOfficer
-            ? _form.ConstructionSiteId is Guid site ? $"/finance/petty-cash/site/{site}" : "/finance/sites"
-            : "/finance/petty-cash");
+        if (_saving || !_ready) return;
+        _error = null;
+        if (_requiresSite && (!_form.ConstructionSiteId.HasValue || !_sites.Any(x => x.Id == _form.ConstructionSiteId)))
+        {
+            _error = "Choose an assigned construction site.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_form.AccountCode) || string.IsNullOrWhiteSpace(_form.AccountName))
+        {
+            _error = "Enter an account code and account name.";
+            return;
+        }
+        _saving = true;
+        try
+        {
+            var request = new CreatePettyCashAccountRequest(_form.ConstructionSiteId, _form.AccountCode.Trim(), _form.AccountName.Trim(), _form.OpeningBalance);
+            await FinanceService.CreatePettyCashAccountAsync(request);
+            Back();
+        }
+        catch { _error = "Unable to create this petty cash account. Check the account code and site, then try again."; }
+        finally { _saving = false; }
     }
 
     private void Back()
     {
-        Navigation.NavigateTo(FormAccess.IsSiteFinanceOfficer
+        Navigation.NavigateTo(_requiresSite
             ? _form.ConstructionSiteId is Guid site ? $"/finance/petty-cash/site/{site}" : "/finance/sites"
             : "/finance/petty-cash");
     }

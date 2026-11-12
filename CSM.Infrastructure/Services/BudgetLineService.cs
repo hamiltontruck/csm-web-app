@@ -241,7 +241,7 @@ public sealed class BudgetLineService : IBudgetLineService
         GranularPermission action = GranularPermission.Finance_Budget_View)
     {
         var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
-            cancellationToken, message => new BudgetLineManagementException(message));
+            cancellationToken, message => new BudgetLineManagementException(message), supportedIndependentRoles: ["SuperAdmin", "CompanyAdmin", "Accountant"]);
         if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)

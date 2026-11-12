@@ -9,6 +9,30 @@ namespace CSM.Infrastructure.Services;
 /// <summary>Minimal finance references authorized by the action being prepared, without granting project or procurement access.</summary>
 public sealed class FinanceSiteOptionsService(ApplicationDbContext db) : IFinanceSiteOptionsService
 {
+    public async Task<FinanceActionCapabilities> GetActionCapabilitiesAsync(Guid actorId, string purpose, CancellationToken cancellationToken = default)
+    {
+        var action = purpose switch
+        {
+            "payment" => GranularPermission.Finance_Payment_Manage,
+            "petty-cash" => GranularPermission.Finance_PettyCash_Manage,
+            _ => throw new ArgumentException("Unknown finance action.", nameof(purpose))
+        };
+        var permissions = new PermissionEvaluator(db);
+        if (!await permissions.HasPermissionAsync(actorId, action.ToString(), cancellationToken))
+            throw new UnauthorizedAccessException("The finance action is not permitted.");
+        var actor = await FinanceOfficerScope.ResolveActorAsync(db, actorId, action, cancellationToken,
+            message => new UnauthorizedAccessException(message), supportedIndependentRoles: ["SuperAdmin", "CompanyAdmin", "Accountant"])
+            ?? await db.Users.AsNoTracking().Include(x => x.UserRoles).ThenInclude(x => x.Role).ThenInclude(x => x.GranularPermissions)
+                .SingleOrDefaultAsync(x => x.Id == actorId && x.IsActive && !x.IsDeleted, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Authenticated user was not found.");
+        var corporate = actor.CompanyId.HasValue && actor.CompanyId != Guid.Empty && actor.UserRoles.Any(x => !x.IsDeleted && !x.Role.IsDeleted &&
+            (x.Role.Name is "SuperAdmin" or "CompanyAdmin" or "Accountant") && x.Role.GranularPermissions.Any(g => g.Permission == action));
+        var officer = FinanceOfficerScope.IsOfficer(actor);
+        if (!corporate && !officer) throw new UnauthorizedAccessException("The finance action is not permitted.");
+        return new(corporate, corporate && purpose == "payment" &&
+            await permissions.HasPermissionAsync(actorId, "HRM_Payroll_View", cancellationToken));
+    }
+
     public async Task<FinanceSiteOptionsResponse> GetAsync(Guid actorId, Guid siteId, string purpose, CancellationToken cancellationToken = default)
     {
         var action = purpose switch {
@@ -21,7 +45,8 @@ public sealed class FinanceSiteOptionsService(ApplicationDbContext db) : IFinanc
         if (!await new PermissionEvaluator(db).HasPermissionAsync(actorId, action.ToString(), cancellationToken))
             throw new UnauthorizedAccessException("This finance action is not permitted.");
         var actor = await FinanceOfficerScope.ResolveActorAsync(db, actorId, action, cancellationToken,
-            message => new UnauthorizedAccessException(message)) ?? await db.Users.AsNoTracking()
+            message => new UnauthorizedAccessException(message), supportedIndependentRoles: purpose == "budget" ? null :
+                purpose == "expense" ? ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager"] : ["SuperAdmin", "CompanyAdmin", "Accountant"]) ?? await db.Users.AsNoTracking()
                 .Include(x => x.UserRoles).ThenInclude(x => x.Role)
                 .SingleOrDefaultAsync(x => x.Id == actorId && x.IsActive && !x.IsDeleted, cancellationToken)
                 ?? throw new UnauthorizedAccessException("Authenticated user was not found.");

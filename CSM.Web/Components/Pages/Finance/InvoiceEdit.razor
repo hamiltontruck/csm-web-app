@@ -231,7 +231,7 @@ else
 
             var vendors = (await FinanceService.GetInvoiceVendorOptionsAsync(requestId)).ToList();
             var projects = data.ConstructionSiteId.HasValue
-                ? FormAccess.IsSiteFinanceOfficer
+                ? FormAccess.NeedsFinanceFormOptions
                     ? (await FinanceService.GetSiteFormOptionsAsync(data.ConstructionSiteId.Value, "invoice")).Projects
                     : await ProjectService.GetProjectsBySiteAsync(data.ConstructionSiteId.Value)
                 : new List<ProjectResponse>();

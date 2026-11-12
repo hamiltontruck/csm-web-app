@@ -187,7 +187,7 @@ public sealed class PettyCashTransactionService
         GranularPermission action = GranularPermission.Finance_PettyCash_View)
     {
         var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
-            cancellationToken, message => new PettyCashManagementException(message));
+            cancellationToken, message => new PettyCashManagementException(message), supportedIndependentRoles: action == GranularPermission.Finance_PettyCash_Manage ? ["SuperAdmin", "CompanyAdmin", "Accountant"] : ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager"]);
         if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)

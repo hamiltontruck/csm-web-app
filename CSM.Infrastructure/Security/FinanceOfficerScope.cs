@@ -15,7 +15,8 @@ internal static class FinanceOfficerScope
         string.Equals(x.Role.Name, AppRoles.FinanceOfficer, StringComparison.OrdinalIgnoreCase));
 
     public static async Task<User?> ResolveActorAsync(ApplicationDbContext db, Guid actorId,
-        GranularPermission action, CancellationToken ct, Func<string, Exception> error)
+        GranularPermission action, CancellationToken ct, Func<string, Exception> error,
+        IReadOnlyCollection<string>? supportedIndependentRoles = null)
     {
         var actor = await db.Users.IgnoreQueryFilters().AsNoTracking()
             .Include(x => x.UserRoles).ThenInclude(x => x.Role).ThenInclude(x => x.GranularPermissions)
@@ -28,7 +29,8 @@ internal static class FinanceOfficerScope
         var live = actor.UserRoles.Where(x => !x.IsDeleted && !x.Role.IsDeleted).ToArray();
         bool Grants(UserRole link) => RolePermissionRules.Allows(link.Role.Name, action.ToString()) &&
             link.Role.GranularPermissions.Any(p => p.Permission == action);
-        var independent = live.Where(x => !string.Equals(x.Role.Name, AppRoles.FinanceOfficer, StringComparison.OrdinalIgnoreCase) && Grants(x)).ToArray();
+        var independent = live.Where(x => !string.Equals(x.Role.Name, AppRoles.FinanceOfficer, StringComparison.OrdinalIgnoreCase) && Grants(x) &&
+            (supportedIndependentRoles is null || supportedIndependentRoles.Contains(x.Role.Name, StringComparer.OrdinalIgnoreCase))).ToArray();
         if (independent.Length > 0)
         {
             actor.UserRoles = independent;

@@ -19,6 +19,13 @@ public class FinanceService : IFinanceService
         _storage = storage;
     }
 
+    public async Task<FinanceActionCapabilities> GetActionCapabilitiesAsync(string purpose)
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<FinanceActionCapabilities>($"finance/action-capabilities?purpose={Uri.EscapeDataString(purpose)}")
+            ?? throw new HttpRequestException("Finance action capabilities are unavailable.");
+    }
+
     public async Task<FinanceSiteOptions> GetSiteFormOptionsAsync(Guid siteId, string purpose)
     {
         var client = await ClientAsync();
