@@ -10,7 +10,7 @@ const path = require('path');
   const roles=['FinanceOfficer'], permissions=['Sites_View','Finance_CostCode_View','Finance_Budget_View','Finance_Budget_Manage','Finance_Expense_View','Finance_Expense_Submit','Finance_Expense_Approve','Finance_Invoice_View','Finance_Payment_View','Finance_Payment_Manage','Finance_PettyCash_View','Finance_PettyCash_Manage','Reports_View','Reports_FinancialSummary_View'];
   const constructionSite={id:site,companyId:id,siteCode:'ASSIGNED',name:'Assigned finance site',status:'Planning',isActive:true,country:'Ethiopia'};
   const options={siteId:site,companyId:id,siteCode:'ASSIGNED',siteName:constructionSite.name,projects:[{id:project,projectCode:'P-1',name:'Assigned project',constructionSiteId:site}],costCodes:[{id:code,code:'SHARED',name:'Shared code',isActive:true}],vendors:[]};
-  const invoice={id:invoiceId,companyId:id,constructionSiteId:site,invoiceNumber:'INV-LOCAL',type:'ClientInvoice',status:'Draft',invoiceDate:'2026-11-11',subtotal:1,taxAmount:0,totalAmount:1,paidAmount:0,currencyCode:'ETB',exchangeRate:1};
+  const invoice={id:invoiceId,companyId:id,constructionSiteId:site,vendorId:project,invoiceNumber:'INV-LOCAL',type:'VendorBill',status:'Draft',invoiceDate:'2026-11-11',subtotal:1,taxAmount:0,totalAmount:1,paidAmount:0,currencyCode:'ETB',exchangeRate:1};
   let reads=[],writes=[],payment,expense,budget,adminMode=false,mixedMode=false;
   function reset(){reads=[];writes=[];budget={id:budgetId,companyId:id,constructionSiteId:site,budgetNumber:'LOCAL-BUDGET',name:'Site budget',constructionSiteName:constructionSite.name,totalAmount:10,currencyCode:'ETB',effectiveFrom:'2026-11-11',status:'Draft'};payment={id:paymentId,companyId:id,constructionSiteId:site,paymentNumber:'LOCAL-PAY',paymentDate:'2026-11-11',amount:1,currencyCode:'ETB',exchangeRate:1,direction:'Outgoing',status:'Pending',paymentMethod:'Cash'};expense={id:expenseId,companyId:id,constructionSiteId:site,costCodeId:code,expenseNumber:'LOCAL-EXPENSE',expenseDate:'2026-11-11',description:'Local expense',amount:1,taxAmount:0,currencyCode:'ETB',exchangeRate:1,status:'Draft',createdAtUtc:'2026-11-11T00:00:00Z'};}
   reset();
@@ -33,6 +33,7 @@ const path = require('path');
     else if(route===`/budgets/${budgetId}`) data=budget;
     else if(route===`/budgetlines/budget/${budgetId}`) data=[];
     else if(route===`/invoices/${invoiceId}`) data=invoice;
+    else if(route==='/invoices/vendor-options') data=[{id:project,vendorCode:'VEN-001',name:'Local invoice vendor'}];
     else if(route===`/invoicelines/invoice/${invoiceId}`) data=[];
     else if(route==='/invoices') data=[invoice];
     else if(route==='/payments'&&req.method==='POST'){payment={...payment,...body,id:paymentId,status:'Pending',direction:body.direction===1?'Incoming':'Outgoing'};data=payment;}
@@ -71,7 +72,7 @@ const path = require('path');
       await page.getByRole('link',{name:'Open assigned sites',exact:true}).click();await expect(page.getByText(constructionSite.name,{exact:true})).toBeVisible();
       await visit(`/finance/sites/${site}/cost-codes`);await expect(page.getByRole('cell',{name:'General Construction',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:/^(Activate|Deactivate|Edit|Delete|New Cost Code)$/})).toHaveCount(0);
       for(const form of ['budgets','invoices','expenses']){await visit(`/finance/sites/${site}/${form}/create`);await expect(page.locator('select').filter({hasText:'Assigned project'})).toHaveCount(1);await geometry();}
-      await visit(`/finance/sites/${site}/invoices/${invoiceId}`);await expect(page.getByRole('button',{name:'Issue Invoice',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'+ Add Line',exact:true})).toBeVisible();await geometry();
+      await visit(`/finance/sites/${site}/invoices/${invoiceId}`);await expect(page.getByText('Local invoice vendor',{exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Issue Invoice',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'+ Add Line',exact:true})).toBeVisible();await geometry();
       await visit(`/finance/sites/${site}/budgets/${budgetId}`);for(const name of ['Submit for Approval','Approve','Activate']) await page.getByRole('button',{name,exact:true}).click();await expect(page.getByText('Active',{exact:true})).toBeVisible();await geometry();
       await visit(`/finance/sites/${site}/payments/create`);await expect(page.getByText('Loading payment information...',{exact:true})).toHaveCount(0);await expect(page.locator('option[value=Payroll]')).toHaveCount(0);
       await field('Payment Number').fill('LOCAL-PAY-'+width);await field('Amount').fill('1');await page.getByRole('button',{name:/Save Payment|Record Payment/}).click();await page.waitForURL(`**/finance/sites/${site}/payments/${paymentId}`);

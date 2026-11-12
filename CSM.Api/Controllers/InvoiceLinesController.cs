@@ -10,7 +10,7 @@ namespace CSM.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "SuperAdmin,CompanyAdmin,Accountant")]
+[Authorize(Roles = "SuperAdmin,CompanyAdmin,Accountant,FinanceOfficer")]
 [Authorize(Policy = "Finance.Invoice.View")]
 public sealed class InvoiceLinesController : ControllerBase
 {

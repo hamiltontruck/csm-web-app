@@ -32,9 +32,9 @@ public sealed class RemainingActionPermissionTests
     [InlineData("CompanyAdmin", true)]
     [InlineData("Accountant", true)]
     [InlineData("Administrator", false)]
-    [InlineData("FinanceOfficer", false)]
+    [InlineData("FinanceOfficer", true)]
     [InlineData("Supervisor", false)]
-    public async Task Invoice_line_API_matches_existing_invoice_service_roles(string role, bool allowed)
+    public async Task Invoice_line_API_matches_supported_invoice_service_roles(string role, bool allowed)
     {
         var registration = new ServiceCollection().AddLogging().AddGrantedBackendPermissions(role, [GranularPermission.Finance_Invoice_View]);
         registration.AddAuthorization(options => options.AddPolicy(AppPolicies.FinanceManagement, p => p.RequireRole(AppPolicies.FinanceManagementRoles)));
