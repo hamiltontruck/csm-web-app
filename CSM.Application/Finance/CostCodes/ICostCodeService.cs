@@ -40,6 +40,7 @@ public interface ICostCodeService
         CancellationToken cancellationToken = default);
 
     Task<List<CostCodeResponse>> GetBySiteAsync(
+         Guid currentUserId,
          Guid siteId,
          CancellationToken cancellationToken = default);
 

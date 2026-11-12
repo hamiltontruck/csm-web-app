@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.Payments;
 using CSM.Application.Finance.Payments.Dtos;
@@ -23,9 +24,7 @@ public sealed class PaymentService : IPaymentService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_View);
 
         EnsureCanRead(actor);
 
@@ -58,9 +57,7 @@ public sealed class PaymentService : IPaymentService
         Guid paymentId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_View);
 
         EnsureCanRead(actor);
 
@@ -71,6 +68,7 @@ public sealed class PaymentService : IPaymentService
         EnsureCompanyAccess(
             actor,
             payment.CompanyId);
+        await EnsureSiteAccess(actor, payment.ConstructionSiteId, cancellationToken);
 
         await EnsureSiteAccess(
             actor,
@@ -85,13 +83,17 @@ public sealed class PaymentService : IPaymentService
         CreatePaymentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_Manage);
 
         EnsureCanModify(actor);
 
         var companyId = GetActorCompanyId(actor);
+        if (FinanceOfficerScope.IsOfficer(actor))
+        {
+            await EnsureOfficerReferencesAsync(actor, companyId, request.ConstructionSiteId, request.ProjectId, request.InvoiceId, request.PayrollRecordId, cancellationToken);
+            ValidatePayment(request.PaymentDate, request.Amount, request.ExchangeRate, request.Direction);
+            await EnsureReferencesAsync(companyId, request.ConstructionSiteId, request.ProjectId, request.InvoiceId, request.VendorId, request.PayrollRecordId, request.Direction, cancellationToken);
+        }
 
         // Read existing PAY-5-### numbers (including soft-deleted)
         var existingNumbers = await _dbContext.Payments
@@ -180,9 +182,7 @@ public sealed class PaymentService : IPaymentService
         UpdatePaymentRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_Manage);
 
         EnsureCanModify(actor);
 
@@ -193,8 +193,12 @@ public sealed class PaymentService : IPaymentService
         EnsureCompanyAccess(
             actor,
             payment.CompanyId);
+        await EnsureSiteAccess(actor, payment.ConstructionSiteId, cancellationToken);
+        await EnsureOfficerReferencesAsync(actor, payment.CompanyId, payment.ConstructionSiteId, payment.ProjectId, payment.InvoiceId, payment.PayrollRecordId, cancellationToken);
 
         EnsureEditable(payment);
+        await EnsureSiteAccess(actor, request.ConstructionSiteId, cancellationToken);
+        await EnsureOfficerReferencesAsync(actor, payment.CompanyId, request.ConstructionSiteId, request.ProjectId, request.InvoiceId, request.PayrollRecordId, cancellationToken);
 
         ValidatePayment(
             request.PaymentDate,
@@ -248,9 +252,7 @@ public sealed class PaymentService : IPaymentService
         ChangePaymentStatusRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_Manage);
 
         EnsureCanModify(actor);
 
@@ -261,6 +263,8 @@ public sealed class PaymentService : IPaymentService
         EnsureCompanyAccess(
             actor,
             payment.CompanyId);
+        await EnsureSiteAccess(actor, payment.ConstructionSiteId, cancellationToken);
+        await EnsureOfficerReferencesAsync(actor, payment.CompanyId, payment.ConstructionSiteId, payment.ProjectId, payment.InvoiceId, payment.PayrollRecordId, cancellationToken);
 
         EnsureValidTransition(
             payment.Status,
@@ -356,10 +360,27 @@ public sealed class PaymentService : IPaymentService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    private async Task EnsureOfficerReferencesAsync(User actor, Guid companyId, Guid? siteId, Guid? projectId, Guid? invoiceId, Guid? payrollId, CancellationToken cancellationToken)
+    {
+        if (!FinanceOfficerScope.IsOfficer(actor)) return;
+        if (actor.CompanyId != companyId || !await SiteFinanceScope.HasSiteAsync(_dbContext, actor, siteId, cancellationToken))
+            throw new PaymentManagementException("Payment site is unavailable or outside your assigned scope.");
+        if (payrollId.HasValue)
+            throw new PaymentManagementException("Payroll payments require separate payroll authority.");
+        if (projectId.HasValue && !await _dbContext.Projects.AnyAsync(x => x.Id == projectId && x.CompanyId == companyId && x.ConstructionSiteId == siteId && !x.IsDeleted, cancellationToken))
+            throw new PaymentManagementException("Payment project is outside the selected site's scope.");
+        if (invoiceId.HasValue && !await _dbContext.Invoices.AnyAsync(x => x.Id == invoiceId && x.CompanyId == companyId && x.ConstructionSiteId == siteId && !x.IsDeleted, cancellationToken))
+            throw new PaymentManagementException("Payment invoice is outside the selected site's scope.");
+    }
+
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GranularPermission action = GranularPermission.Finance_Payment_View)
     {
+        var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
+            cancellationToken, message => new PaymentManagementException(message));
+        if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)
@@ -375,9 +396,7 @@ public sealed class PaymentService : IPaymentService
         Guid paymentId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_Manage);
 
         EnsureCanModify(actor);
 
@@ -388,6 +407,8 @@ public sealed class PaymentService : IPaymentService
         EnsureCompanyAccess(
             actor,
             payment.CompanyId);
+        await EnsureSiteAccess(actor, payment.ConstructionSiteId, cancellationToken);
+        await EnsureOfficerReferencesAsync(actor, payment.CompanyId, payment.ConstructionSiteId, payment.ProjectId, payment.InvoiceId, payment.PayrollRecordId, cancellationToken);
 
         EnsureValidTransition(
             payment.Status,
@@ -419,9 +440,7 @@ public sealed class PaymentService : IPaymentService
         Guid paymentId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_Manage);
 
         EnsureCanModify(actor);
 
@@ -432,6 +451,8 @@ public sealed class PaymentService : IPaymentService
         EnsureCompanyAccess(
             actor,
             payment.CompanyId);
+        await EnsureSiteAccess(actor, payment.ConstructionSiteId, cancellationToken);
+        await EnsureOfficerReferencesAsync(actor, payment.CompanyId, payment.ConstructionSiteId, payment.ProjectId, payment.InvoiceId, payment.PayrollRecordId, cancellationToken);
 
         EnsureValidTransition(
             payment.Status,
@@ -454,13 +475,15 @@ public sealed class PaymentService : IPaymentService
         Guid paymentId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_Manage);
 
         EnsureCanModify(actor);
 
         var payment = await GetPaymentAsync(paymentId, cancellationToken);
 
         EnsureCompanyAccess(actor, payment.CompanyId);
+        await EnsureSiteAccess(actor, payment.ConstructionSiteId, cancellationToken);
+        await EnsureOfficerReferencesAsync(actor, payment.CompanyId, payment.ConstructionSiteId, payment.ProjectId, payment.InvoiceId, payment.PayrollRecordId, cancellationToken);
 
         if (payment.Status != PaymentStatus.Pending)
         {
@@ -485,7 +508,7 @@ public sealed class PaymentService : IPaymentService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_View);
         EnsureCanRead(actor);
         await EnsureSiteAccess(actor, null, cancellationToken);
         var companyId = GetActorCompanyId(actor);
@@ -507,7 +530,7 @@ public sealed class PaymentService : IPaymentService
 
     private static void EnsureCanRead(User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant) ||
             HasRole(actor, AppRoles.SiteManager))
@@ -522,7 +545,7 @@ public sealed class PaymentService : IPaymentService
     private static void EnsureCanModify(
         User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {

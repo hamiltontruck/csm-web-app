@@ -201,6 +201,8 @@ else
 }
 
 @code {
+    [CascadingParameter] private WorkspaceAccess FormAccess { get; set; } = WorkspaceAccess.None;
+
     [Parameter] public Guid? SiteId { get; set; }
     [Parameter] public Guid Id { get; set; }
 
@@ -229,7 +231,9 @@ else
 
             var vendors = (await FinanceService.GetInvoiceVendorOptionsAsync(requestId)).ToList();
             var projects = data.ConstructionSiteId.HasValue
-                ? await ProjectService.GetProjectsBySiteAsync(data.ConstructionSiteId.Value)
+                ? FormAccess.IsSiteFinanceOfficer
+                    ? (await FinanceService.GetSiteFormOptionsAsync(data.ConstructionSiteId.Value, "invoice")).Projects
+                    : await ProjectService.GetProjectsBySiteAsync(data.ConstructionSiteId.Value)
                 : new List<ProjectResponse>();
             if (!IsCurrent(requestId, version)) return;
 

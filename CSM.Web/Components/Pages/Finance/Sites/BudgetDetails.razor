@@ -26,7 +26,7 @@ else
             ← Budgets
         </button>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
             <div>
                 <h2>@_budget.BudgetNumber</h2>
                 <div class="text-muted">@_budget.Name</div>
@@ -98,14 +98,14 @@ else
             <div class="d-flex gap-2 flex-wrap mb-3">
                 @if (_budget.Status == "Draft")
                 {
-                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-primary"
                             @onclick="() => ChangeStatus(2)">
                         Submit for Approval
                     </button>
 </WorkspaceAction>
 
-                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-outline-danger"
                             @onclick="() => ChangeStatus(6)">
                         Cancel
@@ -114,21 +114,21 @@ else
                 }
                 else if (_budget.Status == "PendingApproval")
                 {
-                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-success"
                             @onclick="() => ChangeStatus(3)">
                         Approve
                     </button>
 </WorkspaceAction>
 
-                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-warning"
                             @onclick="() => ChangeStatus(1)">
                         Return to Draft
                     </button>
 </WorkspaceAction>
 
-                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-outline-danger"
                             @onclick="() => ChangeStatus(6)">
                         Cancel
@@ -137,14 +137,14 @@ else
                 }
                 else if (_budget.Status == "Approved")
                 {
-                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-primary"
                             @onclick="() => ChangeStatus(4)">
                         Activate
                     </button>
 </WorkspaceAction>
 
-                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-outline-danger"
                             @onclick="() => ChangeStatus(6)">
                         Cancel
@@ -153,7 +153,7 @@ else
                 }
                 else if (_budget.Status == "Active")
                 {
-                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-secondary"
                             @onclick="() => ChangeStatus(5)">
                         Close
@@ -287,7 +287,7 @@ else
                                                     </button>
             </WorkspaceAction>
 
-                                                    <WorkspaceAction Route="/finance/company/budgets" Permission="Finance_Budget_Manage">
+                                                    <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-sm btn-outline-danger"
                                                             @onclick="() => DeleteBudgetLine(line.Id)">
                                                         Delete

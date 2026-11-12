@@ -1,3 +1,5 @@
+using CSM.Infrastructure.Security;
+using CSM.Domain.Enums;
 using CSM.Application.Dashboard;
 using CSM.Application.Dashboard.Dtos;
 using CSM.Infrastructure.Persistence;
@@ -13,6 +15,26 @@ public sealed class ExecutiveDashboardService
     public ExecutiveDashboardService(ApplicationDbContext context)
     {
         _context = context;
+    }
+
+    public async Task<ExecutiveDashboardResponse> GetForActorAsync(Guid actorId, Guid companyId, CancellationToken cancellationToken = default)
+    {
+        var actor = await _context.Users.AsNoTracking().Include(x => x.UserRoles).ThenInclude(x => x.Role)
+            .SingleOrDefaultAsync(x => x.Id == actorId && x.IsActive && !x.IsDeleted, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Authenticated user was not found.");
+        var permissions = new PermissionEvaluator(_context);
+        if (!await permissions.HasPermissionAsync(actorId, "Reports_View", cancellationToken) ||
+            !await permissions.HasPermissionAsync(actorId, "Reports_FinancialSummary_View", cancellationToken))
+            throw new UnauthorizedAccessException("Dashboard access is not permitted.");
+        actor = await FinanceOfficerScope.ResolveActorAsync(_context, actorId, GranularPermission.Reports_FinancialSummary_View,
+            cancellationToken, message => new UnauthorizedAccessException(message)) ?? actor;
+        var superAdmin = actor.UserRoles.Any(x => !x.IsDeleted && !x.Role.IsDeleted && x.Role.Name == "SuperAdmin");
+        if (!superAdmin && actor.CompanyId != companyId) throw new UnauthorizedAccessException("Company is outside your scope.");
+        if (!FinanceOfficerScope.IsOfficer(actor)) return await GetAsync(companyId, cancellationToken);
+        var scope = new FinancialReadScope(_context, actor, companyId);
+        var budget = await scope.Finance(_context.Budgets).SumAsync(x => (decimal?)x.TotalAmount, cancellationToken) ?? 0m;
+        var expenses = await scope.Finance(_context.Expenses).SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0m;
+        return new ExecutiveDashboardResponse(0, 0, budget, expenses, budget == 0 ? 0 : Math.Round(expenses / budget * 100, 2), 0, 0, 0, 0, DateTime.UtcNow);
     }
 
     public async Task<ExecutiveDashboardResponse> GetAsync(

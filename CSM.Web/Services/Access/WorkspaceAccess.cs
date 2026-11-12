@@ -14,8 +14,8 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
     private static readonly string[] HrManagers = ["SuperAdmin", "CompanyAdmin", "HrOfficer", "HROfficer"];
     private static readonly string[] HrReaders = ["SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor", "HrOfficer", "HROfficer"];
     private static readonly string[] StockManagers = ["SuperAdmin", "Administrator", "Storekeeper", "ProcurementOfficer"];
-    private static readonly string[] FinanceManagers = ["SuperAdmin", "CompanyAdmin", "Accountant"];
-    private static readonly string[] FinanceReaders = ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager"];
+    private static readonly string[] FinanceManagers = ["SuperAdmin", "CompanyAdmin", "Accountant", "FinanceOfficer"];
+    private static readonly string[] FinanceReaders = ["SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "FinanceOfficer"];
     private static bool OfficerAllows(string permission) => permission is
         "Sites_View" or "Procurement_Vendor_View" or "Procurement_MaterialRequest_View" or
         "Procurement_MaterialRequest_Submit" or "Procurement_PurchaseOrder_View" or
@@ -29,6 +29,7 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
            permission.EndsWith("_View", StringComparison.Ordinal) ||
            permission is "Procurement_PurchaseOrder_Manage" or "Procurement_PurchaseOrder_Approve" or "Reports_Export")));
     public bool IsIn(params string[] roles) => roles.Any(_roles.Contains);
+    public bool IsSiteFinanceOfficer => IsIn("FinanceOfficer") && !IsIn("SuperAdmin", "CompanyAdmin", "Accountant");
     public bool CanViewExecutive => Has("Reports_View") && Has("Reports_FinancialSummary_View");
     public bool CanApproveAttendance => IsIn(Managers) && Has("HRM_Attendance_Approve");
     public bool CanReviewLeave => IsIn(HrReaders.Where(r => r != "Supervisor").ToArray()) && Has("HRM_Leave_Approve");
@@ -158,7 +159,7 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
             Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") && (!write || CanVisit("/materials"));
         if (root == "finance")
         {
-            var siteOnly = IsIn("SiteManager") && !IsIn(FinanceManagers);
+            var siteOnly = (IsIn("SiteManager") || IsIn("FinanceOfficer")) && !IsIn("SuperAdmin", "CompanyAdmin", "Accountant");
             if (siteOnly && ((parts.Length > 1 && parts[1] == "company") || path == "/finance/petty-cash")) return false;
             if (parts.Contains("summary")) return Has("Reports_FinancialSummary_View");
             if (parts.Contains("cost-codes")) return IsIn(FinanceManagers) && Has(write ? "Finance_CostCode_Manage" : "Finance_CostCode_View");
@@ -180,7 +181,7 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
     public static readonly string[] EquipmentLinks = ["/equipment/list", "/equipment/sites", "/equipment/downtime-sites", "/equipment/maintenance-sites", "/equipment/fuel-sites", "/equipment/hourmeter-sites", "/equipment/utilization-sites", "/equipment/timesheet-sites"];
     public static readonly string[] ProcurementLinks = ["/materials", "/vendors", "/material-requests", "/purchase-orders", "/goods-receipts"];
     public static readonly string[] InventoryLinks = ["/stock-balance", "/stock-movements", "/stock-issues", "/daily-material-usage", "/material-return-audit", "/stock-returns", "/stock-transfers", "/stock-adjustments"];
-    public static readonly string[] FinanceLinks = ["/finance/sites/{siteId}/budgets", "/finance/sites/{siteId}/payments", "/finance/sites/{siteId}/expenses", "/finance/petty-cash/site/{siteId}", "/finance/company/cost-codes", "/finance/company/budgets", "/finance/company/invoices", "/finance/company/payments", "/finance/company/expenses", "/finance/petty-cash", "/finance/summary"];
+    public static readonly string[] FinanceLinks = ["/finance/sites/{siteId}/invoices", "/finance/sites/{siteId}/cost-codes", "/finance/sites/{siteId}/budgets", "/finance/sites/{siteId}/payments", "/finance/sites/{siteId}/expenses", "/finance/petty-cash/site/{siteId}", "/finance/company/cost-codes", "/finance/company/budgets", "/finance/company/invoices", "/finance/company/payments", "/finance/company/expenses", "/finance/petty-cash", "/finance/summary"];
 }
 
 

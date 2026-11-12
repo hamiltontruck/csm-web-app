@@ -1,3 +1,5 @@
+using CSM.Domain.Enums;
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.CostCodes;
 using CSM.Application.Finance.CostCodes.Dtos;
@@ -22,9 +24,7 @@ public sealed class CostCodeService : ICostCodeService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_CostCode_View);
 
         EnsureCanRead(actor);
 
@@ -38,6 +38,11 @@ public sealed class CostCodeService : ICostCodeService
                 x => x.CompanyId == GetActorCompanyId(actor));
         }
 
+        if (FinanceOfficerScope.IsOfficer(actor))
+        {
+            var siteIds = new FinancialReadScope(_dbContext, actor, GetActorCompanyId(actor)).Sites.Select(x => x.Id);
+            query = query.Where(x => siteIds.Any() && (x.ConstructionSiteId == null || siteIds.Contains(x.ConstructionSiteId.Value)));
+        }
         var costCodes = await query
             .OrderBy(x => x.Code)
             .ToListAsync(cancellationToken);
@@ -51,9 +56,7 @@ public sealed class CostCodeService : ICostCodeService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_CostCode_View);
 
         EnsureCanRead(actor);
 
@@ -68,6 +71,11 @@ public sealed class CostCodeService : ICostCodeService
                 x => x.CompanyId == GetActorCompanyId(actor));
         }
 
+        if (FinanceOfficerScope.IsOfficer(actor))
+        {
+            var siteIds = new FinancialReadScope(_dbContext, actor, GetActorCompanyId(actor)).Sites.Select(x => x.Id);
+            query = query.Where(x => siteIds.Any() && (x.ConstructionSiteId == null || siteIds.Contains(x.ConstructionSiteId.Value)));
+        }
         var costCodes = await query
             .OrderBy(x => x.Code)
             .ToListAsync(cancellationToken);
@@ -82,9 +90,7 @@ public sealed class CostCodeService : ICostCodeService
         Guid costCodeId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_CostCode_View);
 
         EnsureCanRead(actor);
 
@@ -93,6 +99,12 @@ public sealed class CostCodeService : ICostCodeService
             cancellationToken);
 
         EnsureCompanyAccess(actor, costCode.CompanyId);
+        if (FinanceOfficerScope.IsOfficer(actor))
+        {
+            var sites = new FinancialReadScope(_dbContext, actor, GetActorCompanyId(actor)).Sites;
+            if (!await sites.AnyAsync(x => costCode.ConstructionSiteId == null || x.Id == costCode.ConstructionSiteId, cancellationToken))
+                throw new CostCodeManagementException("Cost code is outside your assigned scope.");
+        }
 
         return Map(costCode);
     }
@@ -102,9 +114,7 @@ public sealed class CostCodeService : ICostCodeService
         CreateCostCodeRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_CostCode_Manage);
 
         EnsureCanModify(actor);
 
@@ -177,9 +187,7 @@ public sealed class CostCodeService : ICostCodeService
         UpdateCostCodeRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_CostCode_Manage);
 
         EnsureCanModify(actor);
 
@@ -238,9 +246,7 @@ public sealed class CostCodeService : ICostCodeService
         ChangeCostCodeActiveStatusRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_CostCode_Manage);
 
         EnsureCanModify(actor);
 
@@ -262,8 +268,12 @@ public sealed class CostCodeService : ICostCodeService
 
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GranularPermission action = GranularPermission.Finance_CostCode_View)
     {
+        var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
+            cancellationToken, message => new CostCodeManagementException(message));
+        if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)
@@ -276,7 +286,7 @@ public sealed class CostCodeService : ICostCodeService
 
     private static void EnsureCanRead(User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {
@@ -289,7 +299,7 @@ public sealed class CostCodeService : ICostCodeService
 
     private static void EnsureCanModify(User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {
@@ -427,12 +437,21 @@ public sealed class CostCodeService : ICostCodeService
     }
 
     public async Task<List<CostCodeResponse>> GetBySiteAsync(
+        Guid currentUserId,
         Guid siteId,
         CancellationToken cancellationToken = default)
     {
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_CostCode_View);
+        if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Finance_CostCode_View", cancellationToken))
+            throw new CostCodeManagementException("Cost code access is not permitted.");
+        var site = await _dbContext.ConstructionSites.AsNoTracking().SingleOrDefaultAsync(x => x.Id == siteId && !x.IsDeleted, cancellationToken)
+            ?? throw new CostCodeManagementException("Site was not found.");
+        EnsureCompanyAccess(actor, site.CompanyId);
+        if (SiteFinanceScope.IsSiteLimited(actor) && !await SiteFinanceScope.HasSiteAsync(_dbContext, actor, siteId, cancellationToken))
+            throw new CostCodeManagementException("Site is outside your assigned scope.");
         return await _dbContext.CostCodes
             .Where(x =>
-                (x.ConstructionSiteId == null ||
+                x.CompanyId == site.CompanyId && (x.ConstructionSiteId == null ||
                  x.ConstructionSiteId == siteId) &&
                 !x.IsDeleted)
             .OrderBy(x => x.Code)
@@ -458,7 +477,7 @@ public sealed class CostCodeService : ICostCodeService
         Guid costCodeId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_CostCode_Manage);
 
         EnsureCanModify(actor);
 
@@ -470,6 +489,12 @@ public sealed class CostCodeService : ICostCodeService
             ?? throw new CostCodeManagementException("Cost code not found.");
 
         EnsureCompanyAccess(actor, costCode.CompanyId);
+        if (FinanceOfficerScope.IsOfficer(actor))
+        {
+            var sites = new FinancialReadScope(_dbContext, actor, GetActorCompanyId(actor)).Sites;
+            if (!await sites.AnyAsync(x => costCode.ConstructionSiteId == null || x.Id == costCode.ConstructionSiteId, cancellationToken))
+                throw new CostCodeManagementException("Cost code is outside your assigned scope.");
+        }
 
         var inUse = await _dbContext.BudgetLines.AnyAsync(
             x => x.CostCodeId == costCodeId && !x.IsDeleted,

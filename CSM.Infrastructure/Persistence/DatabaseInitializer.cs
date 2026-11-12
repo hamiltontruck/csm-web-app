@@ -52,7 +52,7 @@ public static class DatabaseInitializer
         CancellationToken cancellationToken)
     {
         var roleNames = AppRoles.All
-            .Concat(new[] { AppRoles.Storekeeper, AppRoles.ProcurementOfficer })
+            .Concat(new[] { AppRoles.Storekeeper, AppRoles.ProcurementOfficer, AppRoles.FinanceOfficer })
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
         foreach (var roleName in roleNames)
@@ -71,7 +71,14 @@ public static class DatabaseInitializer
                 Name = roleName,
                 NormalizedName = normalizedName,
                 Description = $"{roleName} system role",
-                IsSystemRole = true
+                IsSystemRole = true,
+                // Seed FinanceOfficer defaults only when its role is first created,
+                // so subsequent startups do not undo an administrator's revocation.
+                GranularPermissions = roleName == AppRoles.FinanceOfficer
+                    ? Enum.GetValues<GranularPermission>()
+                        .Where(p => FinanceOfficerPermissionRules.Allows(roleName, p.ToString()))
+                        .Select(p => new RoleGranularPermission { Permission = p }).ToList()
+                    : new List<RoleGranularPermission>()
             });
         }
 
@@ -425,6 +432,13 @@ public static class DatabaseInitializer
         foreach (var reader in new[] { AppRoles.SiteManager, AppRoles.Accountant })
             Grant(reader, GranularPermission.Procurement_Vendor_View);
 
+        var unsupportedFinance = Enum.GetValues<GranularPermission>()
+            .Where(p => !FinanceOfficerPermissionRules.Allows(AppRoles.FinanceOfficer, p.ToString())).ToArray();
+        var staleFinance = await dbContext.RoleGranularPermissions
+            .Where(x => x.Role.Name == AppRoles.FinanceOfficer && unsupportedFinance.Contains(x.Permission))
+            .ToListAsync(cancellationToken);
+        dbContext.RoleGranularPermissions.RemoveRange(staleFinance);
+
         var unsupportedOfficer = Enum.GetValues<GranularPermission>()
             .Where(p => !RolePermissionRules.Allows(AppRoles.ProcurementOfficer, p.ToString())).ToArray();
         var staleOfficer = await dbContext.RoleGranularPermissions
@@ -460,7 +474,9 @@ public static class DatabaseInitializer
             .Where(x =>
                 reportingPermissions.Contains(x.Permission) &&
                 !reportingRoles.Contains(x.Role.Name) &&
-                !(x.Role.Name == AppRoles.ProcurementOfficer && x.Permission == GranularPermission.Reports_View))
+                !(x.Role.Name == AppRoles.ProcurementOfficer && x.Permission == GranularPermission.Reports_View) &&
+                !(x.Role.Name == AppRoles.FinanceOfficer &&
+                    (x.Permission == GranularPermission.Reports_View || x.Permission == GranularPermission.Reports_FinancialSummary_View)))
             .ToListAsync(cancellationToken);
 
         dbContext.RoleGranularPermissions.RemoveRange(staleReportingPermissions);

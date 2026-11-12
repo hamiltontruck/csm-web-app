@@ -28,9 +28,7 @@ public sealed class BudgetService : IBudgetService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_View);
 
         await EnsureCanRead(
             actor,
@@ -62,7 +60,7 @@ public sealed class BudgetService : IBudgetService
         Guid siteId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_View);
 
         await EnsureCanRead(
             actor,
@@ -94,9 +92,7 @@ public sealed class BudgetService : IBudgetService
         Guid budgetId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_View);
 
         await EnsureCanRead(
             actor,
@@ -120,15 +116,15 @@ public sealed class BudgetService : IBudgetService
         CreateBudgetRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
         await EnsureCanModify(
             actor,
             cancellationToken);
 
         var companyId = await ResolveCreateCompanyAsync(actor, request, cancellationToken);
+        if (FinanceOfficerScope.IsOfficer(actor))
+            await EnsureSiteAccess(actor, request.ConstructionSiteId, cancellationToken);
 
         var budgetNumber = CleanRequired(
             request.BudgetNumber,
@@ -218,9 +214,7 @@ public sealed class BudgetService : IBudgetService
         UpdateBudgetRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
         await EnsureCanModify(
             actor,
@@ -283,9 +277,7 @@ public sealed class BudgetService : IBudgetService
         ChangeBudgetStatusRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
         await EnsureCanModify(
             actor,
@@ -324,8 +316,12 @@ public sealed class BudgetService : IBudgetService
 
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GranularPermission action = GranularPermission.Finance_Budget_View)
     {
+        var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
+            cancellationToken, message => new BudgetManagementException(message));
+        if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)

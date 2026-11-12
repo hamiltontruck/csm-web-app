@@ -23,24 +23,28 @@ else if (_invoice is null)
 {
     <div class="container py-4">
         <div class="alert alert-danger">
-            Invoice not found.
+            @(_error ?? "Invoice not found.")
         </div>
     </div>
 }
 else
 {
     <div class="container-fluid py-4">
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
 
         <!-- Header -->
-        <div class="d-flex justify-content-between align-items-start mb-4">
+        <div class="d-flex flex-column flex-lg-row gap-3 justify-content-between align-items-start mb-4">
 
             <div>
-                <button class="btn btn-outline-secondary mb-3"
+                <button disabled="@_saving" class="btn btn-outline-secondary mb-3"
                         @onclick="Back">
                     ← Invoices
                 </button>
 
-                <h2 class="mb-1">@_invoice.InvoiceNumber</h2>
+                <h2 class="mb-1 text-break">@_invoice.InvoiceNumber</h2>
 
                 <div class="text-muted">
                     @_invoice.InvoiceType
@@ -49,23 +53,23 @@ else
 
 
 
-            <div class="d-flex gap-2">
+            <div class="d-flex flex-wrap gap-2">
                 <WorkspaceAction Route="@($"{InvoiceBase}/lines/create")">
-                    <button class="btn btn-success"
+                    <button disabled="@_saving" class="btn btn-success"
                         @onclick="AddLine">
                     + Add Line
                 </button>
             </WorkspaceAction>
 
                 <WorkspaceAction Route="/finance/sites/{SiteId.Value}/invoices/{_invoice.Id}/payments/create">
-                    <button class="btn btn-success"
+                    <button disabled="@_saving" class="btn btn-success"
                         @onclick="RecordPayment">
                     <i class="bi bi-wallet2"></i> Record Payment
                 </button>
             </WorkspaceAction>
 
                 <WorkspaceAction Route="@($"{InvoiceBase}/edit")">
-                    <button class="btn btn-primary"
+                    <button disabled="@_saving" class="btn btn-primary"
                         @onclick="EditInvoice">
                     Edit Invoice
                 </button>
@@ -73,8 +77,8 @@ else
 
                 @if (_invoice.Status == "Draft")
                 {
-                    <WorkspaceAction Route="/finance/company/invoices" Permission="Finance_Invoice_View" Roles="SuperAdmin,CompanyAdmin,Accountant">
-<button class="btn btn-warning"
+                    <WorkspaceAction Route="@InvoiceBase" Permission="Finance_Invoice_View" Roles="SuperAdmin,CompanyAdmin,Accountant,FinanceOfficer">
+<button disabled="@_saving" class="btn btn-warning"
                             @onclick="IssueInvoice">
                         Issue Invoice
                     </button>
@@ -83,8 +87,8 @@ else
 
                 @if (_invoice.Status == "Draft" || _invoice.Status == "Issued")
                 {
-                    <WorkspaceAction Route="/finance/company/invoices" Permission="Finance_Invoice_View" Roles="SuperAdmin,CompanyAdmin,Accountant">
-<button class="btn btn-danger"
+                    <WorkspaceAction Route="@InvoiceBase" Permission="Finance_Invoice_View" Roles="SuperAdmin,CompanyAdmin,Accountant,FinanceOfficer">
+<button disabled="@_saving" class="btn btn-danger"
                             @onclick="CancelInvoice">
                         Cancel Invoice
                     </button>
@@ -223,19 +227,19 @@ else
                                     <td class="text-center">
                                         <div class="btn-group btn-group-sm">
                                             <WorkspaceAction Route="/finance/sites/{SiteId.Value}/invoices/{Id}/lines/{lineId}/edit">
-                                                <button class="btn btn-outline-primary"
+                                                <button disabled="@_saving" class="btn btn-outline-primary"
                                                     @onclick="() => EditLine(line.Id)">
                                                 Edit
                                             </button>
             </WorkspaceAction>
 
-                                             <button class="btn btn-outline-dark"
+                                             <button disabled="@_saving" class="btn btn-outline-dark"
                                                      @onclick="PrintInvoice">
                                                  <i class="bi bi-printer"></i> Print
                                              </button>
 
-                                            <WorkspaceAction Route="/finance/company/invoices" Permission="Finance_Invoice_View" Roles="Administrator,FinanceOfficer">
-<button class="btn btn-outline-danger"
+                                            <WorkspaceAction Route="@InvoiceBase" Permission="Finance_Invoice_View" Roles="Administrator,FinanceOfficer">
+<button disabled="@_saving" class="btn btn-outline-danger"
                                                     @onclick="() => DeleteLine(line.Id)">
                                                 Delete
                                             </button>
@@ -337,44 +341,48 @@ else
         private List<InvoiceLineResponse> _lines = new();
 
         private bool _loading = true;
-        private bool _loaded;
+        private bool _loaded, _saving;
+    private Guid? _contextId, _contextSite;
+    private long _loadVersion;
         private string? _error;
         private string _vendorName = "";
 
         private decimal Outstanding =>
             _invoice is null ? 0 : _invoice.TotalAmount - _invoice.PaidAmount;
 
+    protected override void OnParametersSet()
+    {
+        if (_contextId == Id && _contextSite == SiteId) return;
+        _contextId = Id; _contextSite = SiteId;
+        _loadVersion++;
+        _loaded = _saving = false;
+        _loading = true;
+        _error = null;
+        _invoice = null; _lines = []; _vendorName = "";
+    }
+
+    private bool IsCurrent(Guid requestId, long version) => Id == requestId && _loadVersion == version;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _loaded)
-            return;
-
+        if (_loaded) return;
         _loaded = true;
-
+        var requestId = Id;
+        var version = _loadVersion;
         try
         {
-            _invoice = await FinanceService.GetInvoiceAsync(Id);
-            _lines = await FinanceService.GetInvoiceLinesAsync(Id);
-
-            if (_invoice?.VendorId != null)
+            var invoice = await FinanceService.GetInvoiceAsync(requestId);
+            var lines = await FinanceService.GetInvoiceLinesAsync(requestId);
+            var vendorName = "";
+            if (invoice?.VendorId is Guid vendorId)
             {
-                var vendors = await FinanceService.GetInvoiceVendorOptionsAsync(Id);
-
-                _vendorName = vendors
-                    .FirstOrDefault(v => v.Id == _invoice.VendorId)?
-                    .Name ?? "";
+                var vendors = await FinanceService.GetInvoiceVendorOptionsAsync(requestId);
+                vendorName = vendors.FirstOrDefault(v => v.Id == vendorId)?.Name ?? "";
             }
+            if (IsCurrent(requestId, version)) { _invoice = invoice; _lines = lines; _vendorName = vendorName; }
         }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
-        finally
-        {
-            _loading = false;
-        }
-
-        StateHasChanged();
+        catch { if (IsCurrent(requestId, version)) _error = "Unable to load this invoice. Refresh and try again."; }
+        finally { if (IsCurrent(requestId, version)) { _loading = false; StateHasChanged(); } }
     }
 
     private string InvoiceBase =>
@@ -436,28 +444,25 @@ else
             Navigation.NavigateTo($"/finance/payments/{paymentId}");
     }
 
-    private async Task IssueInvoice()
+    private Task IssueInvoice() => UpdateInvoiceAsync(id => FinanceService.IssueInvoiceAsync(id));
+    private Task CancelInvoice() => UpdateInvoiceAsync(id => FinanceService.CancelInvoiceAsync(id));
+    private Task DeleteLine(Guid lineId) => !_lines.Any(x => x.Id == lineId)
+        ? Task.CompletedTask : UpdateInvoiceAsync(_ => FinanceService.DeleteInvoiceLineAsync(lineId));
+
+    private async Task UpdateInvoiceAsync(Func<Guid, Task> update)
     {
-        await FinanceService.IssueInvoiceAsync(Id);
-        _invoice = await FinanceService.GetInvoiceAsync(Id);
-        StateHasChanged();
-    }
-
-    private async Task CancelInvoice()
-    {
-        await FinanceService.CancelInvoiceAsync(Id);
-        _invoice = await FinanceService.GetInvoiceAsync(Id);
-        StateHasChanged();
-    }
-
-    private async Task DeleteLine(Guid lineId)
-    {
-        await FinanceService.DeleteInvoiceLineAsync(lineId);
-
-        _invoice = await FinanceService.GetInvoiceAsync(Id);
-        _lines = await FinanceService.GetInvoiceLinesAsync(Id);
-
-        StateHasChanged();
+        if (_loading || _saving || _invoice?.Id != Id) return;
+        var requestId = Id; var version = _loadVersion;
+        _saving = true; _error = null;
+        try
+        {
+            await update(requestId);
+            var invoice = await FinanceService.GetInvoiceAsync(requestId);
+            var lines = await FinanceService.GetInvoiceLinesAsync(requestId);
+            if (IsCurrent(requestId, version)) { _invoice = invoice; _lines = lines; }
+        }
+        catch { if (IsCurrent(requestId, version)) _error = "Unable to update this invoice. Refresh and try again."; }
+        finally { if (IsCurrent(requestId, version)) _saving = false; }
     }
 
     private void Back()

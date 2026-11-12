@@ -166,6 +166,8 @@ else
 }
 
 @code {
+    [CascadingParameter] private WorkspaceAccess FormAccess { get; set; } = WorkspaceAccess.None;
+
     [Parameter] public Guid Id { get; set; }
     [Parameter] public Guid? SiteId { get; set; }
 
@@ -212,6 +214,8 @@ else
 
             if (_payment.PayrollRecordId is Guid payrollId)
             {
+                if (FormAccess.IsSiteFinanceOfficer)
+                    throw new InvalidOperationException("Payroll payments require separate payroll authority.");
                 _payroll = await PayrollService.GetByIdAsync(payrollId);
             }
         }
@@ -232,12 +236,12 @@ else
         try
         {
             // Company payment: no site or project
-            if (!SiteId.HasValue)
+            if (!SiteId.HasValue && !FormAccess.IsSiteFinanceOfficer)
             {
                 _payment.ConstructionSiteId = null;
                 _payment.ProjectId = null;
             }
-            else
+            else if (SiteId.HasValue)
             {
                 _payment.ConstructionSiteId = SiteId;
             }

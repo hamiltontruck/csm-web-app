@@ -129,6 +129,8 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<CSM.Application.AccountSettings.IAccountSettingsService, AccountSettingsService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IUserRoleOptionsService, UserRoleOptionsService>();
+        services.AddScoped<CSM.Application.Finance.Options.IFinanceSiteOptionsService, FinanceSiteOptionsService>();
         services.AddScoped<ICompanyService, CompanyService>();
         services.AddScoped<ISiteService, SiteService>();
         services.AddScoped<IProjectService, ProjectService>();

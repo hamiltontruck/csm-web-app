@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.Expenses;
 using CSM.Application.Finance.Expenses.Dtos;
@@ -23,9 +24,7 @@ public sealed class ExpenseService : IExpenseService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_View);
 
         EnsureCanRead(actor);
 
@@ -60,9 +59,7 @@ public sealed class ExpenseService : IExpenseService
         Guid constructionSiteId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_View);
 
         EnsureCanRead(actor);
 
@@ -108,9 +105,7 @@ public sealed class ExpenseService : IExpenseService
         Guid expenseId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_View);
 
         EnsureCanRead(actor);
 
@@ -142,9 +137,7 @@ public sealed class ExpenseService : IExpenseService
         CreateExpenseRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_Submit);
 
         EnsureCanSubmit(actor);
 
@@ -168,6 +161,7 @@ public sealed class ExpenseService : IExpenseService
             request.TaxAmount,
             request.ExchangeRate);
 
+        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, request.ConstructionSiteId, request.ProjectId, request.CostCodeId, cancellationToken, message => new ExpenseManagementException(message));
         await EnsureReferencesBelongToCompanyAsync(
             companyId,
             request.ConstructionSiteId,
@@ -227,9 +221,7 @@ public sealed class ExpenseService : IExpenseService
         UpdateExpenseRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_Submit);
 
         EnsureCanSubmit(actor);
 
@@ -262,6 +254,7 @@ public sealed class ExpenseService : IExpenseService
             request.TaxAmount,
             request.ExchangeRate);
 
+        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, request.ConstructionSiteId, request.ProjectId, request.CostCodeId, cancellationToken, message => new ExpenseManagementException(message));
         await EnsureReferencesBelongToCompanyAsync(
             expense.CompanyId,
             request.ConstructionSiteId,
@@ -308,9 +301,7 @@ public sealed class ExpenseService : IExpenseService
         ChangeExpenseStatusRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_Approve);
 
         EnsureCanModify(actor);
 
@@ -347,8 +338,12 @@ public sealed class ExpenseService : IExpenseService
 
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GranularPermission action = GranularPermission.Finance_Expense_View)
     {
+        var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
+            cancellationToken, message => new ExpenseManagementException(message));
+        if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)
@@ -361,7 +356,7 @@ public sealed class ExpenseService : IExpenseService
 
     private static void EnsureCanRead(User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant) ||
             HasRole(actor, AppRoles.SiteManager))
@@ -375,7 +370,7 @@ public sealed class ExpenseService : IExpenseService
 
     private static void EnsureCanModify(User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {
@@ -388,7 +383,7 @@ public sealed class ExpenseService : IExpenseService
 
     private static void EnsureCanSubmit(User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant) ||
             HasRole(actor, AppRoles.SiteManager))

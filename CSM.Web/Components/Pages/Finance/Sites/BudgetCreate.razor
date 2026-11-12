@@ -13,7 +13,12 @@
 
 <h3 class="mb-4">New Budget</h3>
 
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
 <EditForm Model="_model" OnValidSubmit="Save">
+    <fieldset disabled="@(!_ready || _saving)">
     <DataAnnotationsValidator/>
 
     <div class="row g-3">
@@ -92,27 +97,46 @@
             Cancel
         </button>
     </div>
+    </fieldset>
 </EditForm>
 
 @code {
+    [CascadingParameter] private WorkspaceAccess FormAccess { get; set; } = WorkspaceAccess.None;
+
     [Parameter] public Guid SiteId { get; set; }
 
     private readonly CreateBudgetModel _model = new();
 
     private List<ProjectResponse> _projects = new();
+    private bool _ready, _saving;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
         _model.ConstructionSiteId = SiteId;
-
-        _projects = await ProjectService.GetProjectsBySiteAsync(SiteId);
+        try
+        {
+            _projects = FormAccess.IsSiteFinanceOfficer
+                ? (await FinanceService.GetSiteFormOptionsAsync(SiteId, "budget")).Projects
+                : await ProjectService.GetProjectsBySiteAsync(SiteId);
+            _ready = true;
+        }
+        catch { _error = "Unable to load budget options. Reload this page to try again."; }
     }
 
     private async Task Save()
     {
-        await FinanceService.CreateBudgetAsync(_model);
-
-        Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets");
+        if (!_ready || _saving) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            await FinanceService.CreateBudgetAsync(_model);
+            Navigation.NavigateTo($"/finance/sites/{SiteId}/budgets");
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch { _error = "Unable to save this budget. Check the fields and try again."; }
+        finally { _saving = false; }
     }
 
     private void Back()

@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.BudgetLines;
 using CSM.Application.Finance.BudgetLines.Dtos;
@@ -24,17 +25,19 @@ public sealed class BudgetLineService : IBudgetLineService
         Guid budgetId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
         if (!actor.IsActive || actor.IsDeleted)
             throw new BudgetLineManagementException("Authenticated user is inactive.");
         EnsureCanModify(actor);
 
         var budget = await GetBudgetAsync(budgetId, cancellationToken);
         EnsureCompanyAccess(actor, budget.CompanyId);
+        await EnsureParentScopeAsync(actor, budget, cancellationToken);
 
         // Match the company boundary enforced when a budget line is saved.
         return await _dbContext.CostCodes.AsNoTracking()
-            .Where(x => x.CompanyId == budget.CompanyId && x.IsActive && !x.IsDeleted)
+            .Where(x => x.CompanyId == budget.CompanyId && x.IsActive && !x.IsDeleted &&
+                (!FinanceOfficerScope.IsOfficer(actor) || x.ConstructionSiteId == null || x.ConstructionSiteId == budget.ConstructionSiteId))
             .OrderBy(x => x.Code)
             .Select(x => new BudgetCostCodeOption(x.Id, x.Code, x.Name))
             .ToArrayAsync(cancellationToken);
@@ -45,9 +48,7 @@ public sealed class BudgetLineService : IBudgetLineService
         Guid budgetId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_View);
 
         EnsureCanRead(actor);
 
@@ -56,6 +57,7 @@ public sealed class BudgetLineService : IBudgetLineService
             cancellationToken);
 
         EnsureCompanyAccess(actor, budget.CompanyId);
+        await EnsureParentScopeAsync(actor, budget, cancellationToken);
 
         var lines = await _dbContext.BudgetLines
             .AsNoTracking()
@@ -74,9 +76,7 @@ public sealed class BudgetLineService : IBudgetLineService
         Guid budgetLineId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_View);
 
         EnsureCanRead(actor);
 
@@ -85,6 +85,7 @@ public sealed class BudgetLineService : IBudgetLineService
             cancellationToken);
 
         EnsureCompanyAccess(actor, line.CompanyId);
+        await EnsureParentScopeAsync(actor, await GetBudgetAsync(line.BudgetId, cancellationToken), cancellationToken);
 
         return Map(line);
     }
@@ -94,9 +95,7 @@ public sealed class BudgetLineService : IBudgetLineService
         CreateBudgetLineRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
         EnsureCanModify(actor);
 
@@ -111,6 +110,7 @@ public sealed class BudgetLineService : IBudgetLineService
         EnsureCompanyAccess(
             actor,
             budget.CompanyId);
+        await EnsureParentScopeAsync(actor, budget, cancellationToken);
 
         var companyId = budget.CompanyId;
 
@@ -120,6 +120,7 @@ public sealed class BudgetLineService : IBudgetLineService
             request.CostCodeId,
             companyId,
             cancellationToken);
+        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, budget.ConstructionSiteId, null, costCode.Id, cancellationToken, message => new BudgetLineManagementException(message));
 
         var duplicateExists = await _dbContext.BudgetLines
             .AnyAsync(
@@ -163,9 +164,7 @@ public sealed class BudgetLineService : IBudgetLineService
         UpdateBudgetLineRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
         EnsureCanModify(actor);
 
@@ -176,6 +175,7 @@ public sealed class BudgetLineService : IBudgetLineService
         EnsureCompanyAccess(
             actor,
             line.CompanyId);
+        await EnsureParentScopeAsync(actor, await GetBudgetAsync(line.BudgetId, cancellationToken), cancellationToken);
 
         var budget = await GetBudgetAsync(
             line.BudgetId,
@@ -184,6 +184,7 @@ public sealed class BudgetLineService : IBudgetLineService
         EnsureCompanyAccess(
             actor,
             budget.CompanyId);
+        await EnsureParentScopeAsync(actor, budget, cancellationToken);
 
         EnsureBudgetEditable(budget);
 
@@ -195,6 +196,7 @@ public sealed class BudgetLineService : IBudgetLineService
             request.CostCodeId,
             line.CompanyId,
             cancellationToken);
+        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, budget.ConstructionSiteId, null, costCode.Id, cancellationToken, message => new BudgetLineManagementException(message));
 
         var duplicateExists = await _dbContext.BudgetLines
             .AnyAsync(
@@ -226,10 +228,21 @@ public sealed class BudgetLineService : IBudgetLineService
         return Map(line);
     }
 
+    private async Task EnsureParentScopeAsync(User actor, Budget parent, CancellationToken cancellationToken)
+    {
+        EnsureCompanyAccess(actor, parent.CompanyId);
+        if (SiteFinanceScope.IsSiteLimited(actor) && !await SiteFinanceScope.HasSiteAsync(_dbContext, actor, parent.ConstructionSiteId, cancellationToken))
+            throw new BudgetLineManagementException("Parent site is unavailable or outside your assigned scope.");
+    }
+
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GranularPermission action = GranularPermission.Finance_Budget_View)
     {
+        var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
+            cancellationToken, message => new BudgetLineManagementException(message));
+        if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)
@@ -242,7 +255,7 @@ public sealed class BudgetLineService : IBudgetLineService
 
     private static void EnsureCanRead(User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {
@@ -255,7 +268,7 @@ public sealed class BudgetLineService : IBudgetLineService
 
     private static void EnsureCanModify(User actor)
     {
-        if (IsSuperAdmin(actor) ||
+        if (FinanceOfficerScope.IsOfficer(actor) || IsSuperAdmin(actor) ||
             HasRole(actor, AppRoles.CompanyAdmin) ||
             HasRole(actor, AppRoles.Accountant))
         {
@@ -333,9 +346,7 @@ public sealed class BudgetLineService : IBudgetLineService
         Guid budgetLineId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
         EnsureCanModify(actor);
 
@@ -346,6 +357,7 @@ public sealed class BudgetLineService : IBudgetLineService
         EnsureCompanyAccess(
             actor,
             line.CompanyId);
+        await EnsureParentScopeAsync(actor, await GetBudgetAsync(line.BudgetId, cancellationToken), cancellationToken);
 
         var budget = await GetBudgetAsync(
             line.BudgetId,
@@ -354,6 +366,7 @@ public sealed class BudgetLineService : IBudgetLineService
         EnsureCompanyAccess(
             actor,
             budget.CompanyId);
+        await EnsureParentScopeAsync(actor, budget, cancellationToken);
 
         EnsureBudgetEditable(budget);
 

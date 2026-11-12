@@ -26,9 +26,7 @@ public sealed class ReportingService : IReportingService
         CancellationToken cancellationToken = default,
         Guid? selectedCompanyId = null)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Reports_View);
 
         EnsureHasPermission(
             actor,
@@ -154,9 +152,7 @@ public sealed class ReportingService : IReportingService
         CancellationToken cancellationToken = default,
         Guid? selectedCompanyId = null)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Reports_FinancialSummary_View);
 
         EnsureHasPermission(
             actor,
@@ -390,9 +386,7 @@ public sealed class ReportingService : IReportingService
             CancellationToken cancellationToken = default,
         Guid? selectedCompanyId = null)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Reports_FinancialSummary_View);
 
         EnsureHasPermission(
             actor,
@@ -619,9 +613,7 @@ public sealed class ReportingService : IReportingService
             CancellationToken cancellationToken = default,
         Guid? selectedCompanyId = null)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Reports_FinancialSummary_View);
 
         EnsureHasPermission(
             actor,
@@ -955,8 +947,12 @@ public sealed class ReportingService : IReportingService
 
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GranularPermission action = GranularPermission.Reports_View)
     {
+        var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
+            cancellationToken, message => new UnauthorizedAccessException(message));
+        if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)
             .ThenInclude(x => x.Role)
@@ -975,9 +971,7 @@ public sealed class ReportingService : IReportingService
             CancellationToken cancellationToken = default,
         Guid? selectedCompanyId = null)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Reports_View);
 
         EnsureHasPermission(
             actor,

@@ -42,7 +42,7 @@
                     <select class="form-select"
                             @bind="_form.ConstructionSiteId">
 
-                        <option value="">-- Company Level --</option>
+                        <option value="">@(FormAccess.IsSiteFinanceOfficer ? "-- Select assigned site --" : "-- Company Level --")</option>
 
                         @foreach (var site in _sites)
                         {
@@ -54,7 +54,7 @@
                     </select>
 
                     <div class="form-text">
-                        Leave as Company Level for a company-wide petty cash account.
+                        @(FormAccess.IsSiteFinanceOfficer ? "Choose an assigned construction site." : "Leave as Company Level for a company-wide petty cash account.")
                     </div>
                 </div>
 
@@ -102,6 +102,8 @@
 </div>
 
 @code {
+    [CascadingParameter] private WorkspaceAccess FormAccess { get; set; } = WorkspaceAccess.None;
+
 
 
     private List<SiteResponse> _sites = new();
@@ -123,6 +125,7 @@
     protected override async Task OnInitializedAsync()
     {
         _sites = await ProjectService.GetSitesAsync();
+        if (FormAccess.IsSiteFinanceOfficer && _sites.Count == 1) _form.ConstructionSiteId = _sites[0].Id;
 
         _loading = false;
     }
@@ -137,11 +140,15 @@
 
         await FinanceService.CreatePettyCashAccountAsync(request);
 
-        Navigation.NavigateTo("/finance/petty-cash");
+        Navigation.NavigateTo(FormAccess.IsSiteFinanceOfficer
+            ? _form.ConstructionSiteId is Guid site ? $"/finance/petty-cash/site/{site}" : "/finance/sites"
+            : "/finance/petty-cash");
     }
 
     private void Back()
     {
-        Navigation.NavigateTo("/finance/petty-cash");
+        Navigation.NavigateTo(FormAccess.IsSiteFinanceOfficer
+            ? _form.ConstructionSiteId is Guid site ? $"/finance/petty-cash/site/{site}" : "/finance/sites"
+            : "/finance/petty-cash");
     }
 }

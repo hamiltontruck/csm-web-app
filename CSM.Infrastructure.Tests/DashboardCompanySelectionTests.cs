@@ -83,6 +83,7 @@ public sealed class DashboardCompanySelectionTests
     private sealed class DashboardStub : IExecutiveDashboardService
     {
         public Guid? CompanyId { get; private set; }
+        public Task<ExecutiveDashboardResponse> GetForActorAsync(Guid actorId, Guid companyId, CancellationToken cancellationToken = default) => GetAsync(companyId, cancellationToken);
         public Task<ExecutiveDashboardResponse> GetAsync(Guid id, CancellationToken cancellationToken = default)
         {
             CompanyId = id;

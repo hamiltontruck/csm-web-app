@@ -1,4 +1,5 @@
 @page "/finance/payments/create"
+@page "/finance/sites/{SiteId:guid}/payments/create"
 @page "/finance/sites/{SiteId:guid}/invoices/{InvoiceId:guid}/payments/create"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
@@ -57,8 +58,18 @@ else
                                          disabled="@_saving"
                                          @bind-Value="_paymentSource"
                                          @bind-Value:after="PaymentSourceChanged">
-                                <option value="Invoice">Invoice</option>
-                                <option value="Payroll">Payroll</option>
+                                @if (!FormAccess.IsSiteFinanceOfficer || InvoiceId.HasValue)
+                                {
+                                    <option value="Invoice">Invoice</option>
+                                }
+                                @if (!FormAccess.IsSiteFinanceOfficer)
+                                {
+                                    <option value="Payroll">Payroll</option>
+                                }
+                                @if (FormAccess.IsSiteFinanceOfficer && SiteId.HasValue && !InvoiceId.HasValue)
+                                {
+                                    <option value="Direct">Direct site payment</option>
+                                }
                             </InputSelect>
                         </div>
 
@@ -148,7 +159,7 @@ else
                             <label class="form-label">Currency</label>
                             <InputText class="form-control"
                                        @bind-Value="_payment.CurrencyCode"
-                                       disabled />
+                                       disabled="@(_paymentSource != "Direct")" />
                         </div>
 
                         <div class="col-md-4">
@@ -224,6 +235,8 @@ else
 }
 
 @code {
+    [CascadingParameter] private WorkspaceAccess FormAccess { get; set; } = WorkspaceAccess.None;
+
     [Parameter] public Guid? SiteId { get; set; }
     [Parameter, SupplyParameterFromQuery] public Guid? InvoiceId { get; set; }
 
@@ -256,10 +269,11 @@ else
         if (query.TryGetValue("invoiceId", out var value) && Guid.TryParse(value.ToString(), out var id))
             InvoiceId = id;
 
-        _paymentSource = InvoiceId.HasValue ? "Invoice" : "Payroll";
+        _paymentSource = InvoiceId.HasValue ? "Invoice" : FormAccess.IsSiteFinanceOfficer ? "Direct" : "Payroll";
         try
         {
             if (InvoiceId.HasValue) await LoadInvoice(version);
+            else if (FormAccess.IsSiteFinanceOfficer) await LoadDirectSite(version);
             else await LoadApprovedPayrolls(version);
         }
         catch (Exception ex)
@@ -310,8 +324,19 @@ else
         _ready = true;
     }
 
+    private async Task LoadDirectSite(int version)
+    {
+        if (!SiteId.HasValue) throw new InvalidOperationException("Select a finance site to record its payment.");
+        var options = await FinanceService.GetSiteFormOptionsAsync(SiteId.Value, "payment");
+        if (version != _contextVersion) return;
+        _invoiceNumber = options.SiteName;
+        _payment.ConstructionSiteId = options.SiteId;
+        _ready = true;
+    }
+
     private async Task LoadApprovedPayrolls(int version)
     {
+        if (FormAccess.IsSiteFinanceOfficer) throw new InvalidOperationException("Payroll payments require separate payroll authority.");
         var payrolls = await PayrollService.GetAllAsync();
         if (version != _contextVersion) return;
         _approvedPayrolls = payrolls
@@ -335,6 +360,7 @@ else
         try
         {
             if (_paymentSource == "Invoice") await LoadInvoice(version);
+            else if (FormAccess.IsSiteFinanceOfficer) await LoadDirectSite(version);
             else await LoadApprovedPayrolls(version);
         }
         catch (Exception ex)
@@ -360,6 +386,11 @@ else
     {
         if (_loading || !_ready || _saving) return;
         _error = null;
+        if (FormAccess.IsSiteFinanceOfficer && (_paymentSource == "Payroll" || !SiteId.HasValue))
+        {
+            _error = "Open an assigned finance site to record a payment.";
+            return;
+        }
         if (_paymentSource == "Payroll" && !_payment.PayrollRecordId.HasValue)
         {
             _error = "Approved payroll must be selected.";

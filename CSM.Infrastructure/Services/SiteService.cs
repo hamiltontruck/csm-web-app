@@ -28,6 +28,8 @@ public sealed class SiteService : ISiteService
             currentUserId,
             cancellationToken);
 
+        actor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, actor.Id, GranularPermission.Sites_View,
+            cancellationToken, message => new SiteManagementException(message)) ?? actor;
         var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
             GranularPermission.Sites_View, cancellationToken,
             message => new SiteManagementException(message),
@@ -38,7 +40,11 @@ public sealed class SiteService : ISiteService
             _dbContext.ConstructionSites
                 .AsNoTracking();
 
-        if (scope.IsScoped)
+        if (FinanceOfficerScope.IsOfficer(actor))
+        {
+            query = new FinancialReadScope(_dbContext, actor, actor.CompanyId!.Value).Sites;
+        }
+        else if (scope.IsScoped)
         {
             query = scope.Filter(query.Where(x => x.IsActive), x => x.CompanyId, x => (Guid?)x.Id);
         }
@@ -105,6 +111,8 @@ public sealed class SiteService : ISiteService
             currentUserId,
             cancellationToken);
 
+        actor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, actor.Id, GranularPermission.Sites_View,
+            cancellationToken, message => new SiteManagementException(message)) ?? actor;
         var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
             GranularPermission.Sites_View, cancellationToken,
             message => new SiteManagementException(message),
@@ -115,7 +123,12 @@ public sealed class SiteService : ISiteService
             siteId,
             cancellationToken);
 
-        if (scope.IsScoped)
+        if (FinanceOfficerScope.IsOfficer(actor))
+        {
+            if (!await SiteFinanceScope.HasSiteAsync(_dbContext, actor, site.Id, cancellationToken))
+                throw new SiteManagementException("Site is unavailable or outside your assigned scope.");
+        }
+        else if (scope.IsScoped)
         {
             scope.Ensure(site.CompanyId, site.Id);
             if (!site.IsActive) throw new SiteManagementException("This site is inactive.");

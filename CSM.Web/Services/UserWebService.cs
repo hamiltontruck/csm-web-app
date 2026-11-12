@@ -28,6 +28,13 @@ public class UserWebService
         }
     }
 
+    public async Task<List<string>> GetAssignableRolesAsync()
+    {
+        await AuthorizeAsync();
+        return await _http.GetFromJsonAsync<List<string>>("users/role-options")
+            ?? throw new HttpRequestException("Role options are unavailable.");
+    }
+
     public async Task<List<UserModel>> GetAllAsync()
     {
         await AuthorizeAsync();

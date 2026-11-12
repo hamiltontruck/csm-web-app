@@ -270,6 +270,8 @@ else
 }
 
 @code {
+    [CascadingParameter] private WorkspaceAccess FormAccess { get; set; } = WorkspaceAccess.None;
+
     [Parameter]
     public Guid SiteId { get; set; }
 
@@ -314,13 +316,20 @@ else
                 return;
             }
 
-            _sites = await ProjectService.GetSitesAsync();
-
-            _costCodes = await FinanceService.GetActiveCostCodesAsync();
-
-            _vendors = (await VendorService.GetVendorsAsync())
-                .Where(v => v.IsActive)
-                .ToList();
+            FinanceSiteOptions? options = null;
+            if (FormAccess.IsSiteFinanceOfficer)
+            {
+                options = await FinanceService.GetSiteFormOptionsAsync(SiteId, "expense");
+                _sites = [new SiteResponse { Id = options.SiteId, CompanyId = options.CompanyId, SiteCode = options.SiteCode, Name = options.SiteName, IsActive = true }];
+                _costCodes = options.CostCodes;
+                _vendors = options.Vendors;
+            }
+            else
+            {
+                _sites = await ProjectService.GetSitesAsync();
+                _costCodes = await FinanceService.GetActiveCostCodesAsync();
+                _vendors = (await VendorService.GetVendorsAsync()).Where(v => v.IsActive).ToList();
+            }
 
             _model = new EditExpenseModel
             {
@@ -340,8 +349,7 @@ else
 
             if (_model.ConstructionSiteId != Guid.Empty)
             {
-                _projects = await ProjectService.GetProjectsBySiteAsync(
-                    _model.ConstructionSiteId);
+                _projects = options?.Projects ?? await ProjectService.GetProjectsBySiteAsync(_model.ConstructionSiteId);
             }
         }
         catch (Exception ex)

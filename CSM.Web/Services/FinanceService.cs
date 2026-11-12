@@ -19,6 +19,13 @@ public class FinanceService : IFinanceService
         _storage = storage;
     }
 
+    public async Task<FinanceSiteOptions> GetSiteFormOptionsAsync(Guid siteId, string purpose)
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<FinanceSiteOptions>($"finance/sites/{siteId}/options?purpose={Uri.EscapeDataString(purpose)}")
+            ?? throw new HttpRequestException("Finance form options are unavailable.");
+    }
+
     private async Task<HttpClient> ClientAsync()
     {
         var client = _factory.CreateClient("CSM.Api");

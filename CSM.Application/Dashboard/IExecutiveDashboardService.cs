@@ -7,6 +7,8 @@ namespace CSM.Application.Dashboard;
 
 public interface IExecutiveDashboardService
 {
+    Task<ExecutiveDashboardResponse> GetForActorAsync(Guid actorId, Guid companyId, CancellationToken cancellationToken = default);
+
     Task<ExecutiveDashboardResponse> GetAsync(
         Guid companyId,
         CancellationToken cancellationToken = default);

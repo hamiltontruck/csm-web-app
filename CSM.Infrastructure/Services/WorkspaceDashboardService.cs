@@ -38,7 +38,7 @@ public sealed class WorkspaceDashboardService(ApplicationDbContext db) : IWorksp
             .Select(x => x.Id);
         var hrReader = IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor", "HrOfficer", "HROfficer");
         var hrCompany = IsIn("SuperAdmin", "CompanyAdmin", "HrOfficer", "HROfficer");
-        var financeReader = IsIn("SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager");
+        var financeReader = IsIn("SuperAdmin", "CompanyAdmin", "Accountant", "SiteManager", "FinanceOfficer");
         var financeCompany = IsIn("SuperAdmin", "CompanyAdmin", "Accountant");
         var todayUtc = DateTime.UtcNow;
         var zone = TimeZoneInfo.TryFindSystemTimeZoneById(company.TimeZone, out var configured) ? configured : TimeZoneInfo.Utc;
@@ -93,13 +93,25 @@ public sealed class WorkspaceDashboardService(ApplicationDbContext db) : IWorksp
                 (hrCompany || (assignments.Any(a => a.EmployeeId == x.EmployeeId && sites.Contains(a.ConstructionSiteId) && a.StartDate <= x.PeriodStartDate && (!a.EndDate.HasValue || a.EndDate >= x.PeriodEndDate)) &&
                     !assignments.Any(a => a.EmployeeId == x.EmployeeId && !sites.Contains(a.ConstructionSiteId) && a.StartDate <= x.PeriodEndDate && (!a.EndDate.HasValue || a.EndDate >= x.PeriodStartDate)))), cancellationToken);
         if (Has(GranularPermission.Finance_Budget_View))
-            result.TotalBudget = await db.Budgets.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted && x.CurrencyCode == result.CurrencyCode &&
-                (financeCompany || (x.ConstructionSiteId.HasValue && sites.Contains(x.ConstructionSiteId.Value))))
-                .SumAsync(x => (decimal?)x.TotalAmount, cancellationToken) ?? 0;
+        {
+            var budgetActor = await FinanceOfficerScope.ResolveActorAsync(db, actorId, GranularPermission.Finance_Budget_View,
+                cancellationToken, message => new UnauthorizedAccessException(message)) ?? actor;
+            var budgets = FinanceOfficerScope.IsOfficer(budgetActor)
+                ? new FinancialReadScope(db, budgetActor, company.Id).Finance(db.Budgets.AsNoTracking())
+                : db.Budgets.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted &&
+                    (financeCompany || (x.ConstructionSiteId.HasValue && sites.Contains(x.ConstructionSiteId.Value))));
+            result.TotalBudget = await budgets.Where(x => x.CurrencyCode == result.CurrencyCode).SumAsync(x => (decimal?)x.TotalAmount, cancellationToken) ?? 0;
+        }
         if (financeReader && Has(GranularPermission.Finance_Expense_View))
-            result.TotalExpenses = await db.Expenses.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted && x.CurrencyCode == result.CurrencyCode &&
-                (financeCompany || (x.ConstructionSiteId.HasValue && sites.Contains(x.ConstructionSiteId.Value))))
-                .SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0;
+        {
+            var expenseActor = await FinanceOfficerScope.ResolveActorAsync(db, actorId, GranularPermission.Finance_Expense_View,
+                cancellationToken, message => new UnauthorizedAccessException(message)) ?? actor;
+            var expenses = FinanceOfficerScope.IsOfficer(expenseActor)
+                ? new FinancialReadScope(db, expenseActor, company.Id).Finance(db.Expenses.AsNoTracking())
+                : db.Expenses.AsNoTracking().Where(x => x.CompanyId == company.Id && !x.IsDeleted &&
+                    (financeCompany || (x.ConstructionSiteId.HasValue && sites.Contains(x.ConstructionSiteId.Value))));
+            result.TotalExpenses = await expenses.Where(x => x.CurrencyCode == result.CurrencyCode).SumAsync(x => (decimal?)x.Amount, cancellationToken) ?? 0;
+        }
         if (result.TotalBudget.HasValue && result.TotalExpenses.HasValue && Has(GranularPermission.Reports_View) && Has(GranularPermission.Reports_FinancialSummary_View))
             result.BudgetUtilization = result.TotalBudget == 0 ? 0 : Math.Round(result.TotalExpenses.Value / result.TotalBudget.Value * 100, 2);
         return result;

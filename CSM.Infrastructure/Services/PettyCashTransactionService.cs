@@ -1,3 +1,4 @@
+using CSM.Domain.Enums;
 using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.PettyCashTransactions;
@@ -24,7 +25,7 @@ public sealed class PettyCashTransactionService
     public async Task<IReadOnlyCollection<PettyCashCostCodeOption>> GetCostCodeOptionsAsync(
         Guid currentUserId, Guid pettyCashAccountId, CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_PettyCash_Manage);
         var permissions = new PermissionEvaluator(_dbContext);
         if (!await permissions.HasPermissionAsync(currentUserId, "Finance_PettyCash_View", cancellationToken) ||
             !await permissions.HasPermissionAsync(currentUserId, "Finance_PettyCash_Manage", cancellationToken))
@@ -46,9 +47,7 @@ public sealed class PettyCashTransactionService
         Guid pettyCashAccountId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_PettyCash_View);
 
         var account = await GetAccountAsync(
             pettyCashAccountId,
@@ -73,9 +72,7 @@ public sealed class PettyCashTransactionService
         CreatePettyCashTransactionRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(
-            currentUserId,
-            cancellationToken);
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_PettyCash_Manage);
 
         var account = await GetAccountAsync(
             request.PettyCashAccountId,
@@ -156,6 +153,8 @@ public sealed class PettyCashTransactionService
     {
         EnsureCompanyAccess(actor, account.CompanyId);
 
+        if (FinanceOfficerScope.IsOfficer(actor) && !await SiteFinanceScope.HasSiteAsync(_dbContext, actor, account.ConstructionSiteId, cancellationToken))
+            throw new PettyCashManagementException("Petty cash site is unavailable or outside your assigned scope.");
         if (SiteFinanceScope.IsSiteLimited(actor))
         {
             if (!account.ConstructionSiteId.HasValue)
@@ -184,8 +183,12 @@ public sealed class PettyCashTransactionService
 
     private async Task<User> GetActorAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GranularPermission action = GranularPermission.Finance_PettyCash_View)
     {
+        var scopedActor = await FinanceOfficerScope.ResolveActorAsync(_dbContext, currentUserId, action,
+            cancellationToken, message => new PettyCashManagementException(message));
+        if (scopedActor is not null) return scopedActor;
         return await _dbContext.Users
             .Include(x => x.UserRoles)
                 .ThenInclude(x => x.Role)
