@@ -7,4 +7,7 @@ public sealed record CreatePettyCashTransactionRequest(
     decimal Amount,
     string Description,
     string? Remarks,
-    Guid? CostCodeId);
+    Guid? CostCodeId)
+{
+    public Guid? ExpenseId { get; init; }
+}

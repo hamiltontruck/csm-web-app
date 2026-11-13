@@ -4,6 +4,8 @@ namespace CSM.Application.Finance.Budgets.Dtos;
 
 public sealed record BudgetResponse
 {
+    public bool CanApprove { get; init; }
+    public string? ApprovalBlockReason { get; init; }
     public Guid Id { get; init; }
     public Guid CompanyId { get; init; }
 

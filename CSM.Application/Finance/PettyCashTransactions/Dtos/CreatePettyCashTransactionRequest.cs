@@ -2,6 +2,8 @@ namespace CSM.Application.Finance.PettyCashTransactions.Dtos;
 
 public sealed class CreatePettyCashTransactionRequest
 {
+    public Guid? ExpenseId { get; set; }
+
     public Guid PettyCashAccountId { get; set; }
 
     public string TransactionType { get; set; } = string.Empty;

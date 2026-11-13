@@ -16,4 +16,7 @@ public sealed record CreatePaymentRequest(
     decimal ExchangeRate,
     string? PaymentMethod,
     string? ReferenceNumber,
-    string? Notes);
+    string? Notes)
+{
+    public Guid? ExpenseId { get; init; }
+}

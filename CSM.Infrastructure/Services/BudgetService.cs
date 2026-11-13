@@ -108,7 +108,10 @@ public sealed class BudgetService : IBudgetService
 
         await EnsureSiteAccess(actor, budget.ConstructionSiteId, cancellationToken);
 
-        return Map(budget);
+        var approvalReason = await FinanceApprovalPolicy.GetBlockReasonAsync(_dbContext, currentUserId,
+            budget, budget.CompanyId, budget.ConstructionSiteId, GranularPermission.Finance_Budget_Manage,
+            budget.Status == BudgetStatus.PendingApproval, cancellationToken);
+        return Map(budget) with { CanApprove = approvalReason is null, ApprovalBlockReason = approvalReason };
     }
 
     public async Task<BudgetResponse> CreateAsync(
@@ -186,6 +189,8 @@ public sealed class BudgetService : IBudgetService
 
         var budget = new Budget
         {
+            CreatedBy = currentUserId,
+            UpdatedBy = currentUserId,
             CompanyId = companyId,
             ConstructionSiteId =
                 request.ConstructionSiteId,
@@ -214,61 +219,71 @@ public sealed class BudgetService : IBudgetService
         UpdateBudgetRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
-
-        await EnsureCanModify(
-            actor,
-            cancellationToken);
-
-        var budget = await GetBudgetForUpdateAsync(
-            budgetId,
-            cancellationToken);
-
-        EnsureCompanyAccess(
-            actor,
-            budget.CompanyId);
-
-        await EnsureSiteAccess(
-            actor,
-            budget.ConstructionSiteId,
-            cancellationToken);
-
-        EnsureEditable(budget);
-
-        var name = CleanRequired(
-            request.Name,
-            "Budget name");
-
-        var currencyCode = CleanRequired(
-            request.CurrencyCode,
-            "Currency code")
-            .ToUpperInvariant();
-
-        ValidateMoney(
-            request.TotalAmount,
-            "Total amount");
-
-        ValidateDates(
-            request.EffectiveFrom,
-            request.EffectiveTo);
-
-        if (currencyCode.Length != 3)
+        return await FinanceMutationTransaction.ExecuteAsync(_dbContext, new(BudgetId: budgetId), async () =>
         {
-            throw new BudgetManagementException(
-                "Currency code must contain exactly 3 characters.");
-        }
+            var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
-        budget.Name = name;
-        budget.Description = Clean(request.Description);
-        budget.TotalAmount = request.TotalAmount;
-        budget.CurrencyCode = currencyCode;
-        budget.EffectiveFrom = request.EffectiveFrom;
-        budget.EffectiveTo = request.EffectiveTo;
+            await EnsureCanModify(
+                actor,
+                cancellationToken);
 
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
+            var budget = await GetBudgetForUpdateAsync(
+                budgetId,
+                cancellationToken);
 
-        return Map(budget);
+            EnsureCompanyAccess(
+                actor,
+                budget.CompanyId);
+
+            await EnsureSiteAccess(
+                actor,
+                budget.ConstructionSiteId,
+                cancellationToken);
+
+            EnsureEditable(budget);
+
+            var name = CleanRequired(
+                request.Name,
+                "Budget name");
+
+            var currencyCode = CleanRequired(
+                request.CurrencyCode,
+                "Currency code")
+                .ToUpperInvariant();
+
+            ValidateMoney(
+                request.TotalAmount,
+                "Total amount");
+
+            ValidateDates(
+                request.EffectiveFrom,
+                request.EffectiveTo);
+
+            if (currencyCode.Length != 3)
+            {
+                throw new BudgetManagementException(
+                    "Currency code must contain exactly 3 characters.");
+            }
+
+            var materialChange = budget.Name != name || budget.Description != Clean(request.Description) ||
+                budget.TotalAmount != request.TotalAmount || budget.CurrencyCode != currencyCode ||
+                budget.EffectiveFrom != request.EffectiveFrom || budget.EffectiveTo != request.EffectiveTo;
+
+            budget.Name = name;
+            budget.Description = Clean(request.Description);
+            budget.TotalAmount = request.TotalAmount;
+            budget.CurrencyCode = currencyCode;
+            budget.EffectiveFrom = request.EffectiveFrom;
+            budget.EffectiveTo = request.EffectiveTo;
+
+            if (materialChange) budget.UpdatedBy = currentUserId;
+
+            await _dbContext.SaveChangesAsync(
+                cancellationToken);
+
+            return Map(budget);
+
+        }, cancellationToken);
     }
 
     public async Task<BudgetResponse> ChangeStatusAsync(
@@ -277,41 +292,46 @@ public sealed class BudgetService : IBudgetService
         ChangeBudgetStatusRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
-
-        await EnsureCanModify(
-            actor,
-            cancellationToken);
-
-        var budget = await GetBudgetForUpdateAsync(
-            budgetId,
-            cancellationToken);
-
-        EnsureCompanyAccess(
-            actor,
-            budget.CompanyId);
-
-        await EnsureSiteAccess(
-            actor,
-            budget.ConstructionSiteId,
-            cancellationToken);
-
-        ValidateStatusTransition(
-            budget.Status,
-            request.Status);
-
-        if (request.Status == BudgetStatus.Approved)
+        return await FinanceMutationTransaction.ExecuteAsync(_dbContext, new(BudgetId: budgetId), async () =>
         {
-            budget.ApprovedBy = currentUserId;
-            budget.ApprovedAtUtc = DateTime.UtcNow;
-        }
+            var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
-        budget.Status = request.Status;
+            await EnsureCanModify(
+                actor,
+                cancellationToken);
 
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
+            var budget = await GetBudgetForUpdateAsync(
+                budgetId,
+                cancellationToken);
 
-        return Map(budget);
+            EnsureCompanyAccess(
+                actor,
+                budget.CompanyId);
+
+            await EnsureSiteAccess(
+                actor,
+                budget.ConstructionSiteId,
+                cancellationToken);
+
+            ValidateStatusTransition(
+                budget.Status,
+                request.Status);
+
+            if (request.Status == BudgetStatus.Approved)
+            {
+                FinanceApprovalPolicy.EnsureIndependent(budget, currentUserId, message => new BudgetManagementException(message));
+                budget.ApprovedBy = currentUserId;
+                budget.ApprovedAtUtc = DateTime.UtcNow;
+            }
+
+            budget.Status = request.Status;
+
+            await _dbContext.SaveChangesAsync(
+                cancellationToken);
+
+            return Map(budget);
+
+        }, cancellationToken);
     }
 
     private async Task<User> GetActorAsync(

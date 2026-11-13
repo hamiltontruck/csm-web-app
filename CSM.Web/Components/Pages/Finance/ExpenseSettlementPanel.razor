@@ -1,0 +1,96 @@
+@using CSM.Web.Models.Finance
+@using CSM.Web.Services
+@inject IFinanceService FinanceService
+@inject NavigationManager Navigation
+
+@if (Expense.Settlement is { } summary)
+{
+    <section class="card shadow-sm mb-4" aria-label="Expense settlement">
+        <div class="card-header"><h5 class="mb-0">Expense Settlement</h5></div>
+        <div class="card-body">
+            @if (summary.IsLegacyPaid)
+            {
+                <div class="alert alert-warning" role="status">Historical Paid — unverified. No complete linked payment evidence is available. This record cannot receive a new disbursement.</div>
+            }
+            else
+            {
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-4">Total Due<br /><strong>@Expense.CurrencyCode @summary.TotalDue.ToString("N2")</strong></div>
+                    <div class="col-sm-4">Settled<br /><strong>@Expense.CurrencyCode @summary.SettledAmount.ToString("N2")</strong></div>
+                    <div class="col-sm-4">Outstanding<br /><strong>@Expense.CurrencyCode @summary.OutstandingAmount?.ToString("N2")</strong></div>
+                </div>
+                <p class="text-muted">@(summary.State == "Partial" ? "Partially paid" : summary.State). Completed outgoing Payments and posted expense Cash Out count toward settlement.</p>
+                @if (_paymentReady)
+                {
+                    <button type="button" class="btn btn-primary mb-2 me-2" @onclick="RecordPayment">Record Expense Payment</button>
+                }
+                @if (_cashAccounts.Count > 0)
+                {
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <select aria-label="Cash account for expense" class="form-select" style="max-width:100%" @bind="_accountId">
+                            <option value="">-- Select cash account --</option>
+                            @foreach (var account in _cashAccounts) { <option value="@account.Id">@account.AccountCode — @account.AccountName (@account.CurrentBalance.ToString("N2"))</option> }
+                        </select>
+                        <button type="button" class="btn btn-success" disabled="@(!_accountId.HasValue)" @onclick="RecordCashOut">Record Expense Cash Out</button>
+                    </div>
+                }
+            }
+            @if (_optionsError is not null) { <p class="text-muted small" role="status">@_optionsError</p> }
+            @if (summary.Evidence.Count > 0)
+            {
+                <div class="table-responsive"><table class="table mb-0"><thead><tr><th>Source</th><th>Reference</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+                    @foreach (var evidence in summary.Evidence)
+                    {
+                        <tr><td>@evidence.Source</td><td style="overflow-wrap:anywhere">@evidence.Number</td><td class="text-nowrap">@evidence.CurrencyCode @evidence.Amount.ToString("N2")</td><td>@evidence.Status</td></tr>
+                    }
+                </tbody></table></div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public ExpenseResponse Expense { get; set; } = null!;
+    [CascadingParameter] private WorkspaceAccess Access { get; set; } = WorkspaceAccess.None;
+    private IReadOnlyList<ExpenseCashAccountOption> _cashAccounts = [];
+    private Guid? _accountId, _loadedId;
+    private bool _paymentReady;
+    private string? _optionsError;
+    private int _version;
+    protected override async Task OnParametersSetAsync()
+    {
+        var version = ++_version; var id = Expense.Id;
+        _cashAccounts = []; _accountId = null; _paymentReady = false; _optionsError = null; _loadedId = null;
+        if (Expense.Status != "Approved" || Expense.Settlement is not { IsVerified: true, IsLegacyPaid: false, OutstandingAmount: > 0 }) return;
+        if (Access.Has("Finance_Expense_View") && Access.Has("Finance_Payment_View") && Access.Has("Finance_Payment_Manage"))
+        {
+            try
+            {
+                await FinanceService.GetExpenseSettlementOptionsAsync(id, "payment");
+                if (version == _version) _paymentReady = true;
+            }
+            catch { if (version == _version) _optionsError = "Payment options are currently unavailable. Refresh to check your access."; }
+        }
+        if (Access.Has("Finance_Expense_View") && Access.Has("Finance_PettyCash_View") && Access.Has("Finance_PettyCash_Manage"))
+        {
+            try
+            {
+                var options = await FinanceService.GetExpenseSettlementOptionsAsync(id, "petty-cash");
+                if (version == _version) _cashAccounts = options.CashAccounts;
+            }
+            catch { if (version == _version && Expense.CurrencyCode == "ETB" && Expense.ExchangeRate == 1) _optionsError = "Cash Out options are currently unavailable. Refresh to check your access."; }
+        }
+        if (version == _version) _loadedId = id;
+    }
+    private void RecordPayment()
+    {
+        if (!_paymentReady || _loadedId != Expense.Id) return;
+        var path = Expense.ConstructionSiteId is Guid site ? $"/finance/sites/{site}/payments/create" : "/finance/payments/create";
+        Navigation.NavigateTo($"{path}?expenseId={Expense.Id}");
+    }
+    private void RecordCashOut()
+    {
+        if (_loadedId != Expense.Id || !_cashAccounts.Any(x => x.Id == _accountId)) return;
+        Navigation.NavigateTo($"/finance/petty-cash/account/{_accountId}/transactions/create?expenseId={Expense.Id}");
+    }
+}

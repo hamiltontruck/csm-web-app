@@ -11,14 +11,16 @@ const path = require('path');
   const constructionSite={id:site,companyId:id,siteCode:'ASSIGNED',name:'Assigned finance site',status:'Planning',isActive:true,country:'Ethiopia'};
   const options={siteId:site,companyId:id,siteCode:'ASSIGNED',siteName:constructionSite.name,projects:[{id:project,projectCode:'P-1',name:'Assigned project',constructionSiteId:site}],costCodes:[{id:code,code:'SHARED',name:'Shared code',isActive:true}],vendors:[]};
   const invoice={id:invoiceId,companyId:id,constructionSiteId:site,vendorId:project,invoiceNumber:'INV-LOCAL',type:'VendorBill',status:'Draft',invoiceDate:'2026-11-11',subtotal:1,taxAmount:0,totalAmount:1,paidAmount:0,currencyCode:'ETB',exchangeRate:1};
-  let reads=[],writes=[],payment,expense,budget,adminMode=false,mixedMode=false;
-  function reset(){reads=[];writes=[];budget={id:budgetId,companyId:id,constructionSiteId:site,budgetNumber:'LOCAL-BUDGET',name:'Site budget',constructionSiteName:constructionSite.name,totalAmount:10,currencyCode:'ETB',effectiveFrom:'2026-11-11',status:'Draft'};payment={id:paymentId,companyId:id,constructionSiteId:site,paymentNumber:'LOCAL-PAY',paymentDate:'2026-11-11',amount:1,currencyCode:'ETB',exchangeRate:1,direction:'Outgoing',status:'Pending',paymentMethod:'Cash'};expense={id:expenseId,companyId:id,constructionSiteId:site,costCodeId:code,expenseNumber:'LOCAL-EXPENSE',expenseDate:'2026-11-11',description:'Local expense',amount:1,taxAmount:0,currencyCode:'ETB',exchangeRate:1,status:'Draft',createdAtUtc:'2026-11-11T00:00:00Z'};}
+  let reads=[],writes=[],payment,expense,budget,cashEntries=[],cashBalance=100,failNextPayment=false,adminMode=false,mixedMode=false;
+  function reset(){reads=[];writes=[];cashEntries=[];cashBalance=100;failNextPayment=false;budget={id:budgetId,companyId:id,constructionSiteId:site,budgetNumber:'LOCAL-BUDGET',name:'Site budget',constructionSiteName:constructionSite.name,totalAmount:10,currencyCode:'ETB',effectiveFrom:'2026-11-11',status:'Draft'};payment={id:paymentId,companyId:id,constructionSiteId:site,paymentNumber:'LOCAL-PAY',paymentDate:'2026-11-11',amount:1,currencyCode:'ETB',exchangeRate:1,direction:'Outgoing',status:'Pending',paymentMethod:'Cash'};expense={id:expenseId,companyId:id,constructionSiteId:site,costCodeId:code,expenseNumber:'LOCAL-EXPENSE',expenseDate:'2026-11-11',description:'Local expense',amount:50,taxAmount:10,currencyCode:'ETB',exchangeRate:1,status:'Draft',createdAtUtc:'2026-11-11T00:00:00Z'};}
+  function summary(){const evidence=[...cashEntries.map(x=>({source:'PettyCash',id:x.id,number:x.referenceNumber,status:'Approved',amount:x.amount,currencyCode:'ETB'})),...(payment.expenseId===expenseId&&payment.status==='Completed'?[{source:'Payment',id:paymentId,number:payment.paymentNumber,status:'Completed',amount:payment.amount,currencyCode:'ETB'}]:[])];const settled=evidence.reduce((n,x)=>n+x.amount,0);if(['Approved','Paid'].includes(expense.status))expense.status=settled===60?'Paid':'Approved';return {totalDue:60,settledAmount:settled,outstandingAmount:60-settled,isVerified:true,isLegacyPaid:false,state:settled===60?'Paid':settled?'Partial':'Unpaid',evidence};}
+  function expenseOption(){return {id:expenseId,expenseNumber:expense.expenseNumber,companyId:id,constructionSiteId:site,costCodeId:code,currencyCode:'ETB',exchangeRate:1,totalDue:60,outstandingAmount:summary().outstandingAmount};}
   reset();
   const api=http.createServer((req,res)=>{const chunks=[];req.on('data',b=>chunks.push(b));req.on('end',()=>{
     const route=new URL(req.url,'http://fixture').pathname.toLowerCase();const body=chunks.length?JSON.parse(Buffer.concat(chunks).toString()):null;
     if(req.method==='GET') reads.push(route);else writes.push({route,method:req.method,body});
-    let data,status=200;
-    if(route==='/auth/login'){adminMode=body.email==='admin@example.test';mixedMode=body.email==='mixed@example.test';data={accessToken:'local-finance-fixture',refreshToken:'local-refresh-fixture',email:'finance@example.test',fullName:adminMode?'Local Administrator':'Local Finance Officer',roles:adminMode?['CompanyAdmin']:mixedMode?['FinanceOfficer','Accountant']:roles,companyId:id};}
+    let data,status=200;const isChecker=(req.headers.authorization||'').includes('local-finance-checker');
+    if(route==='/auth/login'){adminMode=body.email==='admin@example.test';mixedMode=body.email==='mixed@example.test';data={accessToken:body.email==='checker@example.test'?'local-finance-checker':'local-finance-fixture',refreshToken:'local-refresh-fixture',email:'finance@example.test',fullName:adminMode?'Local Administrator':'Local Finance Officer',roles:adminMode?['CompanyAdmin']:mixedMode?['FinanceOfficer','Accountant']:roles,companyId:id};}
     else if(route==='/auth/permissions') data=adminMode?['Users_Create','Sites_View']:mixedMode?[...permissions,'HRM_Payroll_View']:permissions;
     else if(route==='/finance/action-capabilities') data={includesCompany:false,canUsePayroll:false};
     else if(route==='/users/role-options') data=['Accountant','FinanceOfficer','Storekeeper'];
@@ -33,19 +35,29 @@ const path = require('path');
     else if(route===`/finance/sites/${site}/options`) data=options;
     else if(route===`/constructionsites/${site}/cost-codes`) data=[{id:code,companyId:id,constructionSiteId:site,code:'HBG-BUD-001',name:'General Construction',isActive:true},{id:project,companyId:id,constructionSiteId:site,code:'INACTIVE',name:'Inactive code',isActive:false}];
     else if(route===`/budgets/${budgetId}/status`){budget.status=({1:'Draft',2:'PendingApproval',3:'Approved',4:'Active',5:'Closed',6:'Cancelled'})[body.status];data=budget;}
-    else if(route===`/budgets/${budgetId}`) data=budget;
+    else if(route===`/budgets/${budgetId}`) data={...budget,canApprove:isChecker&&budget.status==='PendingApproval',approvalBlockReason:isChecker?null:'Ask another authorized person to approve your work.'};
     else if(route===`/budgetlines/budget/${budgetId}`) data=[];
     else if(route===`/invoices/${invoiceId}`) data=invoice;
     else if(route==='/invoices/vendor-options') data=[{id:project,vendorCode:'VEN-001',name:'Local invoice vendor'}];
     else if(route===`/invoicelines/invoice/${invoiceId}`) data=[];
     else if(route==='/invoices') data=[invoice];
+    else if(route==='/payments'&&req.method==='POST'&&failNextPayment){failNextPayment=false;status=403;data={message:'Payment rejected for local test'};}
     else if(route==='/payments'&&req.method==='POST'){payment={...payment,...body,id:paymentId,status:'Pending',direction:body.direction===1?'Incoming':'Outgoing'};data=payment;}
-    else if(route===`/payments/${paymentId}/status`){payment.status=body.status===2?'Completed':'Pending';data=payment;}
-    else if(route===`/payments/${paymentId}/reverse`){payment.status='Reversed';data=payment;}
+    else if(route===`/payments/${paymentId}/status`){payment.status=body.status===2?'Completed':'Reversed';summary();data=payment;}
+    else if(route===`/payments/${paymentId}/reverse`){payment.status='Reversed';summary();data=payment;}
     else if(route===`/payments/${paymentId}`) data=payment;
     else if(route==='/payments'||route.includes(`/payments/site/${site}`)) data=[payment];
     else if(route===`/expenses/${expenseId}/status`){expense.status=({2:'Submitted',3:'Approved',5:'Paid'})[body.status];data=expense;}
-    else if(route===`/expenses/${expenseId}`) data=expense;
+    else if(route===`/expenses/${expenseId}/settlement-options`) data={expense:expenseOption(),cashAccounts:[{id:project,accountCode:'CASH',accountName:'Site Cash',currentBalance:cashBalance}]};
+    else if(route==='/expenses/settlement-options') data=expense.status==='Approved'?[expenseOption()]:[];
+    else if(route===`/pettycashaccounts/${project}`) data={id:project,companyId:id,constructionSiteId:site,accountCode:'CASH',accountName:'Site Cash',currentBalance:cashBalance,openingBalance:100,isActive:true};
+    else if(route===`/pettycashtransactions/account/${project}/cost-code-options`) data=options.costCodes;
+    else if(req.method==='GET'&&(route===`/pettycashtransactions/account/${project}`||route==='/pettycashtransactions')) data=cashEntries;
+    else if(route==='/pettycashtransactions'&&req.method==='POST'){
+      if(cashEntries.some(x=>x.referenceNumber===body.referenceNumber)){status=403;data={message:'Reference already posted'};}
+      else {const tx={...body,id:code,balanceBefore:cashBalance,balanceAfter:cashBalance-body.amount,isApproved:true};cashBalance=tx.balanceAfter;cashEntries.push(tx);summary();data=tx;}
+    }
+    else if(route===`/expenses/${expenseId}`) {const settlement=summary();data={...expense,canApprove:isChecker&&expense.status==='Submitted',approvalBlockReason:isChecker?null:'Ask another authorized person to approve your work.',settlement};}
     else if(route===`/expenses/site/${site}`) data=[expense];
     else {status=403;data={message:'Fixture denies unexpected endpoint'};}
     res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));
@@ -66,22 +78,33 @@ const path = require('path');
     if(writes.some(x=>x.route==='/users')) throw Error('Role-options browser check unexpectedly created an account');
     console.log('PASS Create User live FinanceOfficer role options with Users_Create and no Users_View');await admin.close();adminMode=false;
     for(const [width,mixed] of [[320,false],[390,false],[1280,false],[390,true]]){
-      reset();const context=await browser.newContext({viewport:{width,height:1000},isMobile:width<500,hasTouch:width<500});const page=await context.newPage(),errors=[];activePage=page;page.on('pageerror',e=>errors.push(e.message));
+      reset();const context=await browser.newContext({viewport:{width,height:1000},isMobile:width<500,hasTouch:width<500});let page=await context.newPage();const makerPage=page,errors=[];activePage=page;page.on('pageerror',e=>errors.push(e.message));
       const visit=async route=>{await page.goto('http://127.0.0.1:5081'+route);};
       const geometry=async()=>{const g=await page.evaluate(()=>({viewport:innerWidth,width:document.documentElement.scrollWidth,error:document.querySelector('#blazor-error-ui')?.getBoundingClientRect().height||0}));if(g.width>width+1||g.error||errors.length) throw Error('Layout/circuit failure '+JSON.stringify({g,errors}));};
-      const field=label=>page.locator('label').filter({hasText:new RegExp('^'+label+'(?: \\*)?$')}).locator('..').locator('input,select,textarea').first();
+      const field=label=>page.locator('label').filter({hasText:label}).locator('..').locator('input,select,textarea').first();
       await visit('/login');await page.locator('#csm-email').fill(mixed?'mixed@example.test':'finance@example.test');await page.locator('#csm-password').fill('Local-Fixture-Password-123!');await page.locator('button[type=submit]').click();await page.waitForURL('**/dashboard');
       await visit('/finance');await expect(page.getByRole('link',{name:'Open assigned sites',exact:true})).toBeVisible();await expect(page.getByText('Finance Overview',{exact:true})).toHaveCount(0);await geometry();
       await page.getByRole('link',{name:'Open assigned sites',exact:true}).click();await expect(page.getByText(constructionSite.name,{exact:true})).toBeVisible();
       await visit(`/finance/sites/${site}/cost-codes`);await expect(page.getByRole('cell',{name:'General Construction',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:/^(Activate|Deactivate|Edit|Delete|New Cost Code)$/})).toHaveCount(0);
       for(const form of ['budgets','invoices','expenses']){await visit(`/finance/sites/${site}/${form}/create`);await expect(page.locator('select').filter({hasText:'Assigned project'})).toHaveCount(1);await geometry();}
       await visit(`/finance/sites/${site}/invoices/${invoiceId}`);await expect(page.getByText('Local invoice vendor',{exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Issue Invoice',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'+ Add Line',exact:true})).toBeVisible();await geometry();
-      await visit(`/finance/sites/${site}/budgets/${budgetId}`);for(const name of ['Submit for Approval','Approve','Activate']) await page.getByRole('button',{name,exact:true}).click();await expect(page.getByText('Active',{exact:true})).toBeVisible();await geometry();
+      await visit(`/finance/sites/${site}/budgets/${budgetId}`);await page.getByRole('button',{name:'Submit for Approval',exact:true}).click();await expect(page.getByRole('button',{name:'Approve',exact:true})).toBeDisabled();
+      const checkerContext=await browser.newContext({viewport:{width,height:1000}});page=await checkerContext.newPage();activePage=page;page.on('pageerror',e=>errors.push(e.message));
+      await visit('/login');await page.locator('#csm-email').fill('checker@example.test');await page.locator('#csm-password').fill('Local-Fixture-Password-123!');await page.locator('button[type=submit]').click();await page.waitForURL('**/dashboard');
+      await visit(`/finance/sites/${site}/budgets/${budgetId}`);await page.getByRole('button',{name:'Approve',exact:true}).click();await page.getByRole('button',{name:'Activate',exact:true}).click();await expect(page.getByText('Active',{exact:true})).toBeVisible();await geometry();
       await visit(`/finance/sites/${site}/payments/create`);await expect(page.getByText('Loading payment information...',{exact:true})).toHaveCount(0);await expect(page.locator('option[value=Payroll]')).toHaveCount(0);
       await field('Payment Number').fill('LOCAL-PAY-'+width);await field('Amount').fill('1');await page.getByRole('button',{name:/Save Payment|Record Payment/}).click();await page.waitForURL(`**/finance/sites/${site}/payments/${paymentId}`);
       const creation=writes.find(x=>x.route==='/payments'&&x.method==='POST');if(!creation||creation.body.constructionSiteId!==site||creation.body.payrollRecordId) throw Error('Payment lost assigned site or included payroll');
       await visit(`/finance/sites/${site}/payments/${paymentId}`);await page.getByRole('button',{name:'Complete Payment',exact:true}).click();await expect(page.getByRole('button',{name:'Reverse Payment',exact:true})).toBeVisible();await page.getByRole('button',{name:'Reverse Payment',exact:true}).click();await expect(page.getByText('Reversed',{exact:true})).toBeVisible();await geometry();
-      await visit(`/finance/sites/${site}/expenses/${expenseId}`);for(const name of ['Submit Expense','Approve Expense','Mark as Paid']) await page.getByRole('button',{name,exact:true}).click();await expect(page.locator('.badge').filter({hasText:/^Paid$/})).toBeVisible();await geometry();
+      const checkerPage=page;page=makerPage;activePage=page;await visit(`/finance/sites/${site}/expenses/${expenseId}`);await page.getByRole('button',{name:'Submit Expense',exact:true}).click();await expect(page.getByRole('button',{name:'Approve Expense',exact:true})).toBeDisabled();
+      page=checkerPage;activePage=page;await visit(`/finance/sites/${site}/expenses/${expenseId}`);await page.getByRole('button',{name:'Approve Expense',exact:true}).click();await expect(page.getByRole('button',{name:'Mark as Paid',exact:true})).toHaveCount(0);
+      await page.getByRole('combobox',{name:'Cash account for expense'}).selectOption(project);await page.getByRole('button',{name:'Record Expense Cash Out',exact:true}).click();await expect(page.locator('option').filter({hasText:'LOCAL-EXPENSE'})).toHaveCount(1);
+      await field('Reference Number').fill('CASH-PARTIAL');await field('Amount').fill('20');await field('Description').fill('Partial cash expense');await page.getByRole('button',{name:'Save Transaction',exact:true}).click();await page.waitForURL(`**/finance/petty-cash/account/${project}/transactions`);await geometry();
+      await visit(`/finance/sites/${site}/expenses/${expenseId}`);await expect(page.getByText('Partially paid.',{exact:false})).toBeVisible();await page.getByRole('button',{name:'Record Expense Payment',exact:true}).click();await field('Payment Number').fill('EXPENSE-PAY');await field('Amount').fill('40');failNextPayment=true;await page.getByRole('button',{name:'Save Payment',exact:true}).click();await expect(page.locator('[role=alert]')).toBeVisible();await expect(field('Amount')).toHaveValue('40');await expect(field('Payment Number')).toHaveValue('EXPENSE-PAY');
+      await page.getByRole('button',{name:'Save Payment',exact:true}).click();await page.waitForURL(`**/finance/sites/${site}/payments/${paymentId}`);await page.getByRole('button',{name:'Complete Payment',exact:true}).click();await expect(page.getByRole('button',{name:'Reverse Payment',exact:true})).toBeVisible();
+      await visit(`/finance/sites/${site}/expenses/${expenseId}`);await expect(page.locator('.badge').filter({hasText:/^Paid$/})).toBeVisible();await geometry();
+      await visit(`/finance/sites/${site}/payments/${paymentId}`);await page.getByRole('button',{name:'Reverse Payment',exact:true}).click();await expect(page.getByText('Reversed',{exact:true})).toBeVisible();
+      await visit(`/finance/petty-cash/account/${project}/transactions/create?expenseId=${expenseId}`);await field('Reference Number').fill('CASH-PARTIAL');await field('Amount').fill('20');await field('Description').fill('Duplicate attempt');await page.getByRole('button',{name:'Save Transaction',exact:true}).click();await expect(page.locator('.alert-danger')).toBeVisible();await expect(field('Amount')).toHaveValue('20');if(cashBalance!==80||cashEntries.length!==1)throw Error('Duplicate cash out changed balance');await geometry();
       if(!mixed){
         await visit('/reports');
         const verifyBalances=async()=>{
@@ -94,10 +117,10 @@ const path = require('path');
         await verifyBalances();await page.locator('select').first().selectOption('Site');await page.locator('select').nth(1).selectOption(site);await verifyBalances();
       }
       const budgetStatuses=writes.filter(x=>x.route===`/budgets/${budgetId}/status`).map(x=>x.body.status);if(JSON.stringify(budgetStatuses)!=='[2,3,4]') throw Error('Budget lifecycle did not submit/approve/activate');
-      const statuses=writes.filter(x=>x.route===`/expenses/${expenseId}/status`).map(x=>x.body.status);if(JSON.stringify(statuses)!=='[2,3,5]') throw Error('Expense lifecycle did not submit/approve/pay');
+      const statuses=writes.filter(x=>x.route===`/expenses/${expenseId}/status`).map(x=>x.body.status);if(JSON.stringify(statuses)!=='[2,3]') throw Error('Expense lifecycle bypassed linked settlement');
       if(reads.some(x=>x.includes('payroll')||x==='/vendors'||x.includes('/projects'))) throw Error('Officer loaded unrelated HR/procurement/project endpoints');
       if(process.env.CSM_SCREENSHOT_DIR){fs.mkdirSync(process.env.CSM_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.CSM_SCREENSHOT_DIR,`finance-officer-${width}.png`),fullPage:true});}
-      console.log('PASS FinanceOfficer assigned-site forms/payment/expense/actions/no unrelated lookups',width,mixed?'mixed corporate reader':'officer only');await context.close();
+      console.log('PASS FinanceOfficer assigned-site forms/payment/expense/actions/no unrelated lookups',width,mixed?'mixed corporate reader':'officer only');await context.close();await checkerContext.close();
     }
   } catch(error) {
     if(activePage && !activePage.isClosed()) {

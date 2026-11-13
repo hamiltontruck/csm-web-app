@@ -2,6 +2,8 @@ namespace CSM.Web.Models.Finance;
 
 public sealed class BudgetResponse
 {
+    public bool CanApprove { get; set; }
+    public string? ApprovalBlockReason { get; set; }
     public Guid Id { get; set; }
     public Guid CompanyId { get; set; }
 

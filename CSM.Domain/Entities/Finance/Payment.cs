@@ -8,6 +8,9 @@ namespace CSM.Domain.Entities.Finance;
 
 public class Payment : TenantEntity
 {
+    public Guid? ExpenseId { get; set; }
+    public Expense? Expense { get; set; }
+
     public Guid? ConstructionSiteId { get; set; }
 
     public Guid? ProjectId { get; set; }

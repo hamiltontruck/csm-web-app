@@ -65,11 +65,12 @@ public sealed class ExpenseDetailLookupTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void Allowed_finance_manager_keeps_paid_control(bool companyPage)
+    public void Finance_manager_cannot_mark_paid_without_linked_disbursement(bool companyPage)
     {
         using var context = new TestContext(); var state = Services(context);
         var page = Render(context, state, companyPage, "CompanyAdmin", "Finance_Expense_View,Finance_Expense_Approve");
-        page.WaitForAssertion(() => Assert.Contains(page.FindAll("button"), b => b.TextContent.Contains("Mark as Paid")));
+        page.WaitForAssertion(() => Assert.Contains("EXP-0001", page.Markup));
+        Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Contains("Mark as Paid"));
     }
 
     [Theory]

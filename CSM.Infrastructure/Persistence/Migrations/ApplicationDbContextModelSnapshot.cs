@@ -1731,6 +1731,9 @@ namespace CSM.Infrastructure.Persistence.Migrations
                         .HasPrecision(19, 8)
                         .HasColumnType("numeric(19,8)");
 
+                    b.Property<Guid?>("ExpenseId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("InvoiceId")
                         .HasColumnType("uuid");
 
@@ -1779,6 +1782,8 @@ namespace CSM.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ConstructionSiteId");
+
+                    b.HasIndex("ExpenseId");
 
                     b.HasIndex("InvoiceId");
 
@@ -1896,6 +1901,9 @@ namespace CSM.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("ExpenseId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IsApproved")
                         .HasColumnType("boolean");
 
@@ -1933,7 +1941,13 @@ namespace CSM.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("ExpenseId");
+
                     b.HasIndex("PettyCashAccountId");
+
+                    b.HasIndex("PettyCashAccountId", "ReferenceNumber")
+                        .IsUnique()
+                        .HasFilter("\"ExpenseId\" IS NOT NULL");
 
                     b.ToTable("PettyCashTransactions");
                 });
@@ -6499,6 +6513,11 @@ namespace CSM.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ConstructionSiteId");
 
+                    b.HasOne("CSM.Domain.Entities.Finance.Expense", "Expense")
+                        .WithMany()
+                        .HasForeignKey("ExpenseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CSM.Domain.Entities.Finance.Invoice", "Invoice")
                         .WithMany("Payments")
                         .HasForeignKey("InvoiceId")
@@ -6519,6 +6538,8 @@ namespace CSM.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("ConstructionSite");
+
+                    b.Navigation("Expense");
 
                     b.Navigation("Invoice");
 
@@ -6562,6 +6583,11 @@ namespace CSM.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("CSM.Domain.Entities.Finance.Expense", "Expense")
+                        .WithMany()
+                        .HasForeignKey("ExpenseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CSM.Domain.Entities.Finance.PettyCashAccount", "PettyCashAccount")
                         .WithMany("Transactions")
                         .HasForeignKey("PettyCashAccountId")
@@ -6573,6 +6599,8 @@ namespace CSM.Infrastructure.Persistence.Migrations
                     b.Navigation("CostCode");
 
                     b.Navigation("CreatedByUser");
+
+                    b.Navigation("Expense");
 
                     b.Navigation("PettyCashAccount");
                 });

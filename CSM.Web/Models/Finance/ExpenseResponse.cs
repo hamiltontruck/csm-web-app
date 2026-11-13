@@ -21,4 +21,9 @@ public sealed record ExpenseResponse(
     string? ApprovedByName,
     DateTime? ApprovedAtUtc,
     DateTime CreatedAtUtc,
-    DateTime? UpdatedAtUtc);
+    DateTime? UpdatedAtUtc)
+{
+    public bool CanApprove { get; init; }
+    public string? ApprovalBlockReason { get; init; }
+    public ExpenseSettlementSummaryResponse? Settlement { get; init; }
+}

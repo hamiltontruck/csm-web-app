@@ -94,7 +94,7 @@ public sealed class BudgetLineCompanyTests
         db.Budgets.Add(new Budget
         {
             Id = BudgetId, CompanyId = BudgetCompany, BudgetNumber = "BUD-001",
-            Name = "Construction Budget", TotalAmount = 100000m, Status = BudgetStatus.Approved
+            Name = "Construction Budget", TotalAmount = 100000m, Status = BudgetStatus.Draft
         });
         db.CostCodes.Add(new CostCode
         {

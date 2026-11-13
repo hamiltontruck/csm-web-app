@@ -11,6 +11,7 @@ public class PaymentConfiguration :
     {
         builder.ToTable("Payments");
         builder.HasKey(x => x.Id);
+        builder.HasOne(x => x.Expense).WithMany().HasForeignKey(x => x.ExpenseId).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(x => x.PaymentNumber)
             .HasMaxLength(50)

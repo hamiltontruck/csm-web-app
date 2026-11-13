@@ -27,7 +27,8 @@ public sealed class ImportedFeatureMigrationTests
             db.Users.Add(new User { Id = id, Email = "existing@example.test", NormalizedEmail = "EXISTING@EXAMPLE.TEST",
                 PasswordHash = "unchanged-existing-hash", FirstName = "Existing", LastName = "User", IsActive = true });
             await db.SaveChangesAsync();
-            await db.Database.MigrateAsync();
+            // Exercise rollback only within the historical schema this test owns.
+            await db.GetService<IMigrator>().MigrateAsync("20261111142950_AddAccountLoginHistory");
             var user = await db.Users.AsNoTracking().SingleAsync(x => x.Id == id);
             Assert.Equal("unchanged-existing-hash", user.PasswordHash);
             var preferences = await new CSM.Infrastructure.Services.UserPreferencesService(db).GetAsync(id);

@@ -13,4 +13,7 @@ public sealed record PettyCashTransactionResponse(
     decimal BalanceAfter,
     string Description,
     string? Remarks,
-    bool IsApproved);
+    bool IsApproved)
+{
+    public Guid? ExpenseId { get; init; }
+}

@@ -114,6 +114,11 @@ else
 
         </div>
 
+        @if (_payment.ExpenseId is Guid expenseId)
+        {
+            <p class="text-muted">Expense Payment · <a href="@( _payment.ConstructionSiteId is Guid site ? $"/finance/sites/{site}/expenses/{expenseId}" : $"/finance/company/expenses/{expenseId}")">View linked expense</a></p>
+        }
+
         <div class="row g-3">
 
             <div class="col-md-4">

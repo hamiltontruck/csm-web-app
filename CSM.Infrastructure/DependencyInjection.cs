@@ -197,6 +197,7 @@ services.AddScoped<QualityChecklistService>();
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<IBudgetLineService, BudgetLineService>();
         services.AddScoped<IExpenseService, ExpenseService>();
+        services.AddScoped<IExpenseSettlementService, ExpenseSettlementService>();
         services.AddScoped<ISalaryStructureService, SalaryStructureService>();
         services.AddScoped<IPayrollCalculationService, PayrollCalculationService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
