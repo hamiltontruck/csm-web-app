@@ -4,6 +4,7 @@ namespace CSM.Application.Procurement.Equipment.Dtos;
 
 public sealed class CreateEquipmentRequest
 {
+    public Guid? CompanyId { get; set; }
     public string EquipmentCode { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Category { get; set; }

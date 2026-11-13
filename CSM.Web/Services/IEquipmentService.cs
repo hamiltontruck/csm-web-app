@@ -4,6 +4,8 @@ namespace CSM.Web.Services;
 
 public interface IEquipmentService
 {
+    Task<EquipmentCreateOptions> GetCreateOptionsAsync();
+
     Task<List<EquipmentResponse>> GetEquipmentAsync();
 
     Task<EquipmentResponse?> GetEquipmentByIdAsync(Guid id);

@@ -82,6 +82,32 @@ public sealed class EquipmentFeedbackTests
         Assert.Empty(page.FindAll("[role=alert]"));
     }
 
+    [Fact]
+    public void Superadmin_must_choose_company_and_save_failure_keeps_fields_for_retry()
+    {
+        using var context = Context(out var api);
+        api.Superadmin = true;
+        var page = context.RenderComponent<EquipmentCreate>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("#equipment-company")));
+        page.FindAll("input").ElementAt(0).Change("EQ-005");
+        page.FindAll("input").ElementAt(1).Change("Compactor");
+        page.Find("form").Submit();
+        Assert.Contains("Select a company", page.Find("#equipment-save-error").TextContent);
+        Assert.Equal(0, api.Writes);
+        page.Find("#equipment-company").Change(api.Company.ToString());
+        api.SaveFails = true;
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Contains("Unable to save equipment", page.Find("#equipment-save-error").TextContent));
+        Assert.Equal("EQ-005", page.FindAll("input").ElementAt(0).GetAttribute("value"));
+        Assert.Equal("Compactor", page.FindAll("input").ElementAt(1).GetAttribute("value"));
+        Assert.False(page.Find("fieldset").HasAttribute("disabled"));
+        api.SaveFails = false;
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(2, api.Writes));
+        Assert.Equal(api.Company, api.Request!.CompanyId);
+        Assert.EndsWith(api.Created.ToString(), context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+    }
+
     private static TestContext Context(out EquipmentApi api)
     {
         var context = new TestContext();
@@ -96,9 +122,24 @@ public sealed class EquipmentFeedbackTests
     {
         public HttpStatusCode? Status { get; set; }
         public bool Empty { get; set; }
+        public bool Superadmin { get; set; }
+        public bool SaveFails { get; set; }
+        public int Writes;
+        public Guid Company = Guid.NewGuid(), Created = Guid.NewGuid();
+        public CreateEquipmentRequest? Request;
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
-            if (method!.Name != nameof(IEquipmentService.GetEquipmentAsync))
+            if (method!.Name == nameof(IEquipmentService.GetCreateOptionsAsync))
+                return Status.HasValue
+                    ? Task.FromException<EquipmentCreateOptions>(new HttpRequestException("private API diagnostic", null, Status))
+                    : Task.FromResult(new EquipmentCreateOptions { CanSelectCompany = Superadmin, CompanyId = Superadmin ? null : Company,
+                        Companies = Superadmin ? [new() { Id = Company, Name = "Alpha", Code = "A" }, new() { Id = Guid.NewGuid(), Name = "Beta", Code = "B" }] : [] });
+            if (method.Name == nameof(IEquipmentService.CreateEquipmentAsync))
+            {
+                Writes++; Request = (CreateEquipmentRequest)args![0]!;
+                return SaveFails ? Task.FromException<Guid>(new Exception("private API diagnostic")) : Task.FromResult(Created);
+            }
+            if (method.Name != nameof(IEquipmentService.GetEquipmentAsync))
                 throw new InvalidOperationException("Unexpected equipment mutation.");
             return Status.HasValue
                 ? Task.FromException<List<EquipmentResponse>>(new HttpRequestException("private API diagnostic", null, Status))

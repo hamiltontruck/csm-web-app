@@ -12,7 +12,7 @@
         <h3 class="mb-0">New Equipment</h3>
 
         <button class="btn btn-outline-secondary"
-                @onclick="GoBack">
+                disabled="@saving" @onclick="GoBack">
             Back
         </button>
     </div>
@@ -35,7 +35,12 @@
     }
     else
     {
+    @if (saveError is not null)
+    {
+        <div id="equipment-save-error" class="alert alert-danger" role="alert">@saveError</div>
+    }
     <EditForm Model="model" OnValidSubmit="Save">
+        <fieldset disabled="@saving">
         <DataAnnotationsValidator />
         <ValidationSummary />
 
@@ -46,6 +51,20 @@
 
             <div class="card-body">
                 <div class="row g-3">
+                    @if (options.CanSelectCompany)
+                    {
+                        <div class="col-12">
+                            <label for="equipment-company" class="form-label">Company</label>
+                            <InputSelect id="equipment-company" class="form-select" @bind-Value="model.CompanyId">
+                                <option value="">-- Select Company --</option>
+                                @foreach (var company in options.Companies)
+                                {
+                                    <option value="@company.Id">@company.Code — @company.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    }
+
 
                     <div class="col-md-4">
                         <label class="form-label">Equipment Code</label>
@@ -178,11 +197,12 @@
 
             <button class="btn btn-outline-secondary"
                     type="button"
-                    @onclick="GoBack">
+                    disabled="@saving" @onclick="GoBack">
                 Cancel
             </button>
         </div>
 
+        </fieldset>
     </EditForm>
     }
 
@@ -191,6 +211,8 @@
 @code {
     private readonly CreateEquipmentRequest model = new();
     private bool saving;
+    private string? saveError;
+    private EquipmentCreateOptions options = new();
 
     private bool loading = true;
     private bool canCreate;
@@ -212,9 +234,10 @@
         accessError = null;
         try
         {
-            // GET and POST share the same controller role gate; the API is authoritative.
-            _ = await EquipmentService.GetEquipmentAsync();
-            canCreate = true;
+            options = await EquipmentService.GetCreateOptionsAsync();
+            model.CompanyId = options.CompanyId;
+            canCreate = !options.CanSelectCompany || options.Companies.Count > 0;
+            if (!canCreate) accessError = "No active company is available. Add or activate a company before creating equipment.";
         }
         catch (HttpRequestException ex)
         {
@@ -243,11 +266,32 @@
     {
         if (saving || !canCreate) return;
 
+        saveError = null;
+        if (options.CanSelectCompany && (!model.CompanyId.HasValue || !options.Companies.Any(x => x.Id == model.CompanyId)))
+        {
+            saveError = "Select a company before creating equipment.";
+            return;
+        }
         saving = true;
-
-        var id = await EquipmentService.CreateEquipmentAsync(model);
-
-        Navigation.NavigateTo($"/equipment/{id}");
+        try
+        {
+            var id = await EquipmentService.CreateEquipmentAsync(model);
+            Navigation.NavigateTo($"/equipment/{id}");
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.BadRequest
+            or System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.UnprocessableEntity
+            or System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+        {
+            saveError = ex.Message;
+        }
+        catch (Exception)
+        {
+            saveError = "Unable to save equipment. Please try again.";
+        }
+        finally
+        {
+            saving = false;
+        }
     }
 
     private void GoBack()

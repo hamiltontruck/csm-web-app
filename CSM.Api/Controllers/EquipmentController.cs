@@ -24,6 +24,20 @@ public sealed class EquipmentController : ControllerBase
         _equipmentService = equipmentService;
     }
 
+    [HttpGet("create-options")]
+    [Authorize(Policy = "Procurement.Inventory.Adjust")]
+    public async Task<ActionResult<EquipmentCreateOptions>> GetCreateOptions(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _equipmentService.GetCreateOptionsAsync(GetCurrentUserId(), cancellationToken));
+        }
+        catch (EquipmentManagementException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet]
     public async Task<ActionResult<IReadOnlyCollection<EquipmentResponse>>> GetAll(
         [FromQuery] bool? isActive,

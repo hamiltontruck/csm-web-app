@@ -130,6 +130,6 @@ public sealed class EquipmentSignInReturnTests
     public class DeniedEquipment : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>
-            Task.FromException<List<EquipmentResponse>>(new HttpRequestException("Unauthorized", null, HttpStatusCode.Unauthorized));
+            Task.FromException<EquipmentCreateOptions>(new HttpRequestException("Unauthorized", null, HttpStatusCode.Unauthorized));
     }
 }
