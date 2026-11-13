@@ -86,6 +86,20 @@ public sealed class EmployeeInputTests
         Assert.Equal(1000m, payload.GetProperty("BaseWage").GetDecimal());
     }
 
+    [Fact]
+    public void Superadmin_company_selection_and_failed_save_preserve_inputs_for_retry()
+    {
+        using var context=Context(out var state);state.Superadmin=true;
+        var page=context.RenderComponent<EmployeeCreate>();page.WaitForAssertion(()=>Assert.Single(page.FindAll("#employee-company")));
+        Field(page,"Employee Number *").Change("EMP-LOCAL");Field(page,"First Name *").Change("Comp");Field(page,"Last Name *").Change("Level");Field(page,"Base Wage *").Input("1000.25");
+        page.Find("form").Submit();Assert.Equal(0,state.SaveCalls);Assert.Contains("Select a company",page.Find("[role=alert]").TextContent);
+        page.Find("#employee-company").Change(state.Company.ToString());state.Fail=true;page.Find("form").Submit();
+        page.WaitForAssertion(()=>Assert.Contains("Unable to save employee",page.Find("[role=alert]").TextContent));
+        Assert.DoesNotContain("private diagnostic",page.Markup);Assert.Equal("EMP-LOCAL",Field(page,"Employee Number *").GetAttribute("value"));Assert.Equal("1000.25",Field(page,"Base Wage *").GetAttribute("value"));
+        Assert.False(page.Find("fieldset").HasAttribute("disabled"));state.Fail=false;page.Find("form").Submit();page.WaitForAssertion(()=>Assert.Equal(2,state.SaveCalls));
+        Assert.Equal(state.Company,((CreateEmployeeRequest)state.Saved!).CompanyId);
+    }
+
     private static IElement Field(IRenderedFragment page, string label) => page.FindAll(".col-md-4")
         .Single(x => x.QuerySelector("label")?.TextContent.Trim() == label).QuerySelector("input")!;
 
@@ -103,7 +117,7 @@ public sealed class EmployeeInputTests
         return context;
     }
 
-    public sealed class State { public int SaveCalls; public object? Saved; }
+    public sealed class State { public int SaveCalls; public object? Saved; public bool Superadmin,Fail; public Guid Company=Guid.NewGuid(); }
     public class Api : DispatchProxy
     {
         public State State = null!;
@@ -118,6 +132,7 @@ public sealed class EmployeeInputTests
             };
             return method!.Name switch
             {
+                nameof(IEmployeeService.GetCreateOptionsAsync) => Task.FromResult(new EmployeeCreateOptions { CanSelectCompany=State.Superadmin, CompanyId=State.Superadmin?null:State.Company, Companies=State.Superadmin?[new(){Id=State.Company,Code="A",Name="Alpha"},new(){Id=Guid.NewGuid(),Code="B",Name="Beta"}]:[] }),
                 nameof(IEmployeeService.GetEmployeesAsync) => Task.FromResult<IReadOnlyList<EmployeeResponse>>([employee]),
                 nameof(IEmployeeService.GetEmployeeAsync) => Task.FromResult(employee),
                 nameof(IEmployeeService.CreateEmployeeAsync) => Save(args![0], employee),
@@ -129,7 +144,7 @@ public sealed class EmployeeInputTests
         {
             State.SaveCalls++;
             State.Saved = request;
-            return Task.FromResult(employee);
+            return State.Fail ? Task.FromException<EmployeeResponse>(new Exception("private diagnostic")) : Task.FromResult(employee);
         }
     }
 }

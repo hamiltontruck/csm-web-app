@@ -137,7 +137,11 @@ public sealed class EmployeeFeedbackTests
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
-            if (method!.Name != nameof(IEmployeeService.GetEmployeesAsync)) throw new InvalidOperationException("Unexpected employee mutation.");
+            if (method!.Name == nameof(IEmployeeService.GetCreateOptionsAsync))
+                return State.Status.HasValue
+                    ? Task.FromException<EmployeeCreateOptions>(new HttpRequestException("private diagnostic", null, State.Status))
+                    : Task.FromResult(new EmployeeCreateOptions { CompanyId = Guid.NewGuid() });
+            if (method.Name != nameof(IEmployeeService.GetEmployeesAsync)) throw new InvalidOperationException("Unexpected employee mutation.");
             return State.Status.HasValue
                 ? Task.FromException<IReadOnlyList<EmployeeResponse>>(new HttpRequestException("private diagnostic", null, State.Status))
                 : Task.FromResult<IReadOnlyList<EmployeeResponse>>(new List<EmployeeResponse> { new() { FirstName = args![1]?.ToString() == "Company" ? "Test" : "General", LastName = "Employee" } });

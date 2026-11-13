@@ -1,0 +1,35 @@
+name: SuperAdmin employee creation browser regression
+on:
+  pull_request:
+    paths: ['CSM.Web/**', 'scripts/qa/employee-create.cjs', '.github/workflows/employee-create.yml']
+  push:
+    branches: [main]
+    paths: ['CSM.Web/**', 'scripts/qa/employee-create.cjs', '.github/workflows/employee-create.yml']
+permissions:
+  contents: read
+jobs:
+  employee-browser:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: dotnet build CSM.Web/CSM.Web.csproj --configuration Release
+      - run: npm install --no-save --no-package-lock playwright@1.56.1
+      - run: node scripts/qa/employee-create.cjs
+        env:
+          CSM_SCREENSHOT_DIR: artifacts/employee-create
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: employee-create-browser
+          path: artifacts/employee-create
+          if-no-files-found: ignore

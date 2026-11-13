@@ -30,6 +30,20 @@ public sealed class EmployeesController : ControllerBase
         _auditService = auditService;
     }
 
+    [HttpGet("create-options")]
+    [Authorize(Policy = "HRM.Employee.Manage")]
+    public async Task<ActionResult<EmployeeCreateOptions>> GetCreateOptions(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _employeeService.GetCreateOptionsAsync(GetCurrentUserId(), cancellationToken));
+        }
+        catch (EmployeeManagementException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet]
     public async Task<
         ActionResult<IReadOnlyCollection<EmployeeResponse>>> GetAll(

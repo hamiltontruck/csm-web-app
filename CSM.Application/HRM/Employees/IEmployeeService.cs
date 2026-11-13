@@ -5,6 +5,8 @@ namespace CSM.Application.HRM.Employees;
 
 public interface IEmployeeService
 {
+    Task<EmployeeCreateOptions> GetCreateOptionsAsync(Guid currentUserId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<EmployeeResponse>> GetAllAsync(
         Guid currentUserId,
         EmployeeStatus? status = null,

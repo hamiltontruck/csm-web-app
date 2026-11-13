@@ -23,4 +23,7 @@ public sealed record CreateEmployeeRequest(
     string? BankName,
     string? BankAccountNumber,
     string? EmergencyContactName,
-    string? EmergencyContactPhone);
+    string? EmergencyContactPhone)
+{
+    public Guid? CompanyId { get; init; }
+}
