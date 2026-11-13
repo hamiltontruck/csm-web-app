@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using CSM.Web.Models.HRM;
@@ -79,6 +80,22 @@ public sealed class EmployeeService : IEmployeeService
                 "Failed to read employee details.");
     }
 
+    public async Task<EmployeeCreateOptions> GetCreateOptionsAsync()
+    {
+        var client = await ClientAsync();
+        using var response = await client.GetAsync("Employees/create-options");
+        await EnsureCreateSuccessAsync(response);
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<EmployeeCreateOptions>()
+                ?? throw new HttpRequestException("Unable to verify employee access. Please try again.");
+        }
+        catch (JsonException)
+        {
+            throw new HttpRequestException("Unable to verify employee access. Please try again.");
+        }
+    }
+
     public async Task<EmployeeResponse> CreateEmployeeAsync(
         CreateEmployeeRequest request)
     {
@@ -86,6 +103,7 @@ public sealed class EmployeeService : IEmployeeService
 
         var payload = new
         {
+            request.CompanyId,
             request.EmployeeNumber,
             request.FirstName,
             request.MiddleName,
@@ -109,24 +127,45 @@ public sealed class EmployeeService : IEmployeeService
             request.EmergencyContactPhone
         };
 
-        var response = await client.PostAsJsonAsync(
+        using var response = await client.PostAsJsonAsync(
             "Employees",
             payload);
 
-        if (!response.IsSuccessStatusCode)
+        await EnsureCreateSuccessAsync(response);
+        try
         {
-            var error = await response.Content.ReadAsStringAsync();
-
-            throw new Exception(
-                $"Employee creation failed. " +
-                $"HTTP {(int)response.StatusCode} " +
-                $"{response.StatusCode}: {error}");
+            var created = await response.Content.ReadFromJsonAsync<EmployeeResponse>();
+            if (created is null || created.Id == Guid.Empty)
+                throw new HttpRequestException("Unable to confirm employee creation. Refresh the employee list before trying again.");
+            return created;
         }
+        catch (JsonException)
+        {
+            throw new HttpRequestException("Unable to confirm employee creation. Refresh the employee list before trying again.");
+        }
+    }
 
-        return await response.Content
-            .ReadFromJsonAsync<EmployeeResponse>()
-            ?? throw new Exception(
-                "Failed to read employee response.");
+    private static async Task EnsureCreateSuccessAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode) return;
+        var message = response.StatusCode switch
+        {
+            System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+            System.Net.HttpStatusCode.Forbidden => "You do not have permission to create employees.",
+            _ => "Unable to save employee. Please try again."
+        };
+        if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.UnprocessableEntity)
+        {
+            try
+            {
+                var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+                if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("message", out var value)
+                    && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()))
+                    message = value.GetString()!;
+            }
+            catch (JsonException) { }
+        }
+        throw new HttpRequestException(message, null, response.StatusCode);
     }
 
     public async Task<EmployeeResponse> UpdateEmployeeAsync(

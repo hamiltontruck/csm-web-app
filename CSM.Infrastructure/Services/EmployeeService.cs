@@ -19,6 +19,40 @@ public sealed class EmployeeService : IEmployeeService
         _dbContext = dbContext;
     }
 
+    public async Task<EmployeeCreateOptions> GetCreateOptionsAsync(Guid currentUserId, CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanModify(actor);
+        if (!IsSuperAdmin(actor))
+            return new() { CompanyId = GetActorCompanyId(actor) };
+
+        var companies = await _dbContext.Companies.AsNoTracking()
+            .Where(x => x.IsActive && !x.IsDeleted)
+            .OrderBy(x => x.Name).ThenBy(x => x.Code)
+            .Select(x => new EmployeeCompanyOption { Id = x.Id, Code = x.Code, Name = x.Name })
+            .ToListAsync(cancellationToken);
+        var companyId = companies.Any(x => x.Id == actor.CompanyId) ? actor.CompanyId
+            : companies.Count == 1 ? companies[0].Id : (Guid?)null;
+        return new() { CanSelectCompany = true, CompanyId = companyId, Companies = companies };
+    }
+
+    private async Task<Guid> ResolveCreateCompanyAsync(User actor, Guid? selectedCompanyId, CancellationToken cancellationToken)
+    {
+        if (!IsSuperAdmin(actor))
+        {
+            var ownCompanyId = GetActorCompanyId(actor);
+            if (selectedCompanyId.HasValue && selectedCompanyId != ownCompanyId)
+                throw new EmployeeManagementException("You cannot create an employee for another company.");
+            return ownCompanyId;
+        }
+        var companyId = selectedCompanyId ?? actor.CompanyId;
+        if (!companyId.HasValue || companyId == Guid.Empty)
+            throw new EmployeeManagementException("Select a company before creating an employee.");
+        if (!await _dbContext.Companies.AnyAsync(x => x.Id == companyId && x.IsActive && !x.IsDeleted, cancellationToken))
+            throw new EmployeeManagementException("The selected company is invalid or inactive.");
+        return companyId.Value;
+    }
+
     public async Task<IReadOnlyCollection<EmployeeResponse>> GetAllAsync(
         Guid currentUserId,
         EmployeeStatus? status = null,
@@ -96,7 +130,7 @@ public sealed class EmployeeService : IEmployeeService
 
         EnsureCanModify(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ResolveCreateCompanyAsync(actor, request.CompanyId, cancellationToken);
 
         var employeeNumber = CleanRequired(
             request.EmployeeNumber,

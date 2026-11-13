@@ -17,6 +17,21 @@ namespace CSM.Infrastructure.Tests;
 public sealed class EmployeeAdminAccessTests
 {
     [Theory]
+    [InlineData("SuperAdmin",true,true)] [InlineData("CompanyAdmin",true,true)]
+    [InlineData("HrOfficer",true,true)] [InlineData("HROfficer",true,true)]
+    [InlineData("SuperAdmin",false,false)] [InlineData("Supervisor",true,false)]
+    public async Task Create_options_requires_existing_employee_writer_permissions(string role,bool grant,bool expected)
+    {
+        var services=new ServiceCollection();services.AddLogging();services.AddAuthorization();
+        var permissions=new List<GranularPermission>{GranularPermission.HRM_Employee_View};if(grant)permissions.Add(GranularPermission.HRM_Employee_Manage);
+        using var provider=services.AddGrantedBackendPermissions(role,permissions).BuildServiceProvider();
+        var attributes=typeof(EmployeesController).GetCustomAttributes(true).OfType<IAuthorizeData>().Concat(typeof(EmployeesController).GetMethod("GetCreateOptions")!.GetCustomAttributes(true).OfType<IAuthorizeData>());
+        var policy=await AuthorizationPolicy.CombineAsync(provider.GetRequiredService<IAuthorizationPolicyProvider>(),attributes);
+        var actor=new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role,role)],"test"));
+        var result=await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(BackendAuthorizationFixture.WithGrantedIdentity(actor),null,policy!);Assert.Equal(expected,result.Succeeded);
+    }
+
+    [Theory]
     [InlineData("SuperAdmin", true)]
     [InlineData("CompanyAdmin", true)]
     [InlineData("HrOfficer", true)]

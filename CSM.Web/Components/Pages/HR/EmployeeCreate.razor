@@ -17,7 +17,7 @@
         </div>
 
         <button class="btn btn-outline-secondary"
-                @onclick="Cancel">
+                disabled="@_saving" @onclick="Cancel">
             <i class="bi bi-arrow-left me-1"></i>
             Back
         </button>
@@ -48,10 +48,25 @@
     <div class="card shadow-sm">
         <div class="card-body">
             <EditForm Model="_model" OnValidSubmit="SaveAsync">
+                <fieldset disabled="@_saving">
                 <DataAnnotationsValidator />
                 <ValidationSummary />
 
                 <div class="row g-3">
+                    @if (_options.CanSelectCompany)
+                    {
+                        <div class="col-12">
+                            <label for="employee-company" class="form-label">Company</label>
+                            <InputSelect id="employee-company" class="form-select" @bind-Value="_model.CompanyId">
+                                <option value="">-- Select Company --</option>
+                                @foreach (var company in _options.Companies)
+                                {
+                                    <option value="@company.Id">@company.Code — @company.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    }
+
 
                     <div class="col-md-4">
                         <label class="form-label">Employee Number *</label>
@@ -231,6 +246,7 @@
                         }
                     </button>
                 </div>
+                </fieldset>
             </EditForm>
         </div>
     </div>
@@ -256,6 +272,7 @@
         CurrencyCode = "ETB"
     };
 
+    private EmployeeCreateOptions _options = new();
     private bool _saving;
     private bool _loading = true;
     private bool _canManage;
@@ -275,8 +292,10 @@
         _accessStatus = null;
         try
         {
-            await EmployeeService.GetEmployeesAsync();
-            _canManage = true;
+            _options = await EmployeeService.GetCreateOptionsAsync();
+            _model.CompanyId = _options.CompanyId;
+            _canManage = !_options.CanSelectCompany || _options.Companies.Count > 0;
+            if (!_canManage) _loadError = "No active company is available. Add or activate a company before creating an employee.";
         }
         catch (HttpRequestException ex)
         {
@@ -304,8 +323,13 @@
     private async Task SaveAsync()
     {
         if (_saving || !_canManage) return;
-        _saving = true;
         _error = null;
+        if (_options.CanSelectCompany && (!_model.CompanyId.HasValue || !_options.Companies.Any(x => x.Id == _model.CompanyId)))
+        {
+            _error = "Select a company before creating an employee.";
+            return;
+        }
+        _saving = true;
 
         try
         {
@@ -313,9 +337,15 @@
 
             Navigation.NavigateTo("/hr/employees");
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.BadRequest
+            or System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.UnprocessableEntity
+            or System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
         {
             _error = ex.Message;
+        }
+        catch (Exception)
+        {
+            _error = "Unable to save employee. Please try again.";
         }
         finally
         {

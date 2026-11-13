@@ -4,6 +4,8 @@ namespace CSM.Web.Services;
 
 public interface IEmployeeService
 {
+    Task<EmployeeCreateOptions> GetCreateOptionsAsync();
+
     Task<IReadOnlyList<EmployeeResponse>> GetEmployeesAsync(
         string? status = null,
         string? employeeScope = null);
