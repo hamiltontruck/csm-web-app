@@ -40,7 +40,9 @@ public sealed class SiteManagerFinanceUiTests
     [InlineData("SiteManager", true)]
     [InlineData("CompanyAdmin", false)]
     [InlineData("CompanyAdmin", true)]
-    public void Both_site_hubs_hide_company_card_for_site_manager_only(string role, bool managementHub)
+    [InlineData("SuperAdmin", false)]
+    [InlineData("SuperAdmin", true)]
+    public void Company_finance_stays_on_finance_hub_and_not_construction_sites(string role, bool managementHub)
     {
         using var context = new TestContext();
         WorkspaceTestAccess.Add(context, [role]);
@@ -52,7 +54,7 @@ public sealed class SiteManagerFinanceUiTests
         IRenderedFragment page = managementHub ? context.RenderComponent<CSM.Web.Components.Pages.Sites>()
             : context.RenderComponent<CSM.Web.Components.Pages.Finance.Sites.Dashboard>();
         page.WaitForAssertion(() => Assert.Contains("Allowed Site", page.Markup));
-        if (role == "SiteManager") Assert.DoesNotContain("Company-wide financial records", page.Markup);
+        if (managementHub || role == "SiteManager") Assert.DoesNotContain("Company-wide financial records", page.Markup);
         else Assert.Contains("Company-wide financial records", page.Markup);
     }
 

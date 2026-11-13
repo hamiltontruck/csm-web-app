@@ -111,70 +111,6 @@ else
             </div>
         </div>
 
-       <WorkspaceAction Route="/finance/company">
-       <!-- Company Finance -->
-       <div class="card border-0 shadow-sm mb-4">
-           <div class="card-body">
-
-               <div class="d-flex align-items-center mb-3">
-                   <i class="bi bi-building fs-3 text-primary me-3"></i>
-
-                   <div>
-                       <h3 class="mb-0">Company Finance</h3>
-                       <div class="text-muted">
-                           Company-wide financial records
-                       </div>
-                   </div>
-               </div>
-
-               <div class="row g-3">
-
-                   <div class="col-md-3">
-                       <WorkspaceAction Route="/finance/company/cost-codes">
-                           <button class="btn btn-outline-primary w-100 py-3"
-                               @onclick="OpenCompanyCostCodes">
-                           <i class="bi bi-diagram-3 d-block fs-3 mb-2"></i>
-                           Cost Codes
-                       </button>
-            </WorkspaceAction>
-                   </div>
-
-                   <div class="col-md-3">
-                       <WorkspaceAction Route="/finance/company/vendors">
-                           <button class="btn btn-outline-primary w-100 py-3"
-                               @onclick="OpenCompanyVendors">
-                           <i class="bi bi-people d-block fs-3 mb-2"></i>
-                           Vendors
-                       </button>
-            </WorkspaceAction>
-                   </div>
-
-                   <div class="col-md-3">
-                       <WorkspaceAction Route="/finance/company/invoices">
-                           <button class="btn btn-outline-primary w-100 py-3"
-                               @onclick="OpenCompanyInvoices">
-                           <i class="bi bi-receipt d-block fs-3 mb-2"></i>
-                           Invoices
-                       </button>
-            </WorkspaceAction>
-                   </div>
-
-                   <div class="col-md-3">
-                       <WorkspaceAction Route="/finance/company/payments">
-                           <button class="btn btn-outline-primary w-100 py-3"
-                               @onclick="OpenCompanyPayments">
-                           <i class="bi bi-wallet2 d-block fs-3 mb-2"></i>
-                           Payments
-                       </button>
-            </WorkspaceAction>
-                   </div>
-
-               </div>
-           </div>
-       </div>
-
-       </WorkspaceAction>
-
         <!-- Site Cards -->
         <div class="row g-4">
 
@@ -347,23 +283,4 @@ else
         };
     }
 
-    private void OpenCompanyCostCodes()
-    {
-        Navigation.NavigateTo("/finance/company/cost-codes");
-    }
-
-    private void OpenCompanyVendors()
-    {
-        Navigation.NavigateTo("/finance/company/vendors");
-    }
-
-    private void OpenCompanyInvoices()
-    {
-        Navigation.NavigateTo("/finance/company/invoices");
-    }
-
-    private void OpenCompanyPayments()
-    {
-        Navigation.NavigateTo("/finance/company/payments");
-    }
 }
