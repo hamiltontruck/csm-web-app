@@ -201,6 +201,10 @@
             await EquipmentService.CreateAssignmentAsync(model);
             Navigation.NavigateTo($"/equipment/assignments/site/{SiteId}");
         }
+        catch (EquipmentAssignmentValidationException ex)
+        {
+            saveError = ex.Message;
+        }
         catch (HttpRequestException ex)
         {
             signInRequired = ex.StatusCode == System.Net.HttpStatusCode.Unauthorized;

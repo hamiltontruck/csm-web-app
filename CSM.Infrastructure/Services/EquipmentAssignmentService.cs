@@ -131,8 +131,6 @@ public sealed class EquipmentAssignmentService :
 
         EnsureCanModify(actor);
 
-        var companyId = GetActorCompanyId(actor);
-
         request = request with { AssignedAtUtc = EnsureUtc(request.AssignedAtUtc) };
 
         if (request.AssignedAtUtc == default)
@@ -155,6 +153,8 @@ public sealed class EquipmentAssignmentService :
         EnsureCompanyAccess(
             actor,
             equipment.CompanyId);
+
+        var companyId = equipment.CompanyId;
 
         if (!equipment.IsActive)
         {

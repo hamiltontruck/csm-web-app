@@ -158,6 +158,19 @@ public sealed class EquipmentAssignmentFeedbackTests
         Assert.Equal(1, api.SaveCalls);
     }
 
+    [Fact]
+    public void Cross_company_validation_is_actionable_and_form_can_retry()
+    {
+        using var context=Context(out var api);
+        var page=context.RenderComponent<EquipmentAssignmentCreate>(p=>p.Add(x=>x.SiteId,SiteId));
+        page.WaitForAssertion(()=>Assert.Single(page.FindAll("form")));
+        page.Find("select").Change(api.EquipmentId.ToString());page.Find("textarea").Change("assignment remarks");
+        api.SaveError=new EquipmentAssignmentValidationException("Equipment and construction site must belong to the same company.");page.Find("form").Submit();
+        page.WaitForAssertion(()=>Assert.Contains("same company",page.Find("[role=alert]").TextContent));
+        Assert.Contains("assignment remarks",page.Find("textarea").GetAttribute("value")??page.Find("textarea").TextContent);
+        api.SaveError=null;page.Find("form").Submit();page.WaitForAssertion(()=>Assert.Equal(2,api.SaveCalls));
+    }
+
     private static ApplicationDbContext Database(string role, out Guid userId)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()

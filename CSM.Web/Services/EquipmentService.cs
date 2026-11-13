@@ -158,6 +158,22 @@ public class EquipmentService : IEquipmentService
 
         var body = await response.Content.ReadAsStringAsync();
 
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            try
+            {
+                using var json = JsonDocument.Parse(body);
+                if (json.RootElement.ValueKind == JsonValueKind.Object &&
+                    json.RootElement.TryGetProperty("message", out var value) && value.ValueKind == JsonValueKind.String &&
+                    value.GetString() is { } message && message is
+                        "Equipment and construction site must belong to the same company."
+                        or "Project must belong to the same company."
+                        or "Project must belong to the selected construction site."
+                        or "Equipment already has an active assignment.")
+                    throw new EquipmentAssignmentValidationException(message);
+            }
+            catch (JsonException) { }
+        }
         response.EnsureSuccessStatusCode();
 
         var created =
