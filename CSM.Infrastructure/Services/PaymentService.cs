@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CSM.Infrastructure.Services;
 
-public sealed class PaymentService : IPaymentService
+public sealed partial class PaymentService : IPaymentService
 {
     private readonly ApplicationDbContext _dbContext;
 
@@ -78,7 +78,7 @@ public sealed class PaymentService : IPaymentService
         return Map(payment);
     }
 
-    public async Task<PaymentResponse> CreateAsync(
+    private async Task<PaymentResponse> CreateCoreAsync(
         Guid currentUserId,
         CreatePaymentRequest request,
         CancellationToken cancellationToken = default)
@@ -176,7 +176,7 @@ public sealed class PaymentService : IPaymentService
         return Map(payment);
     }
 
-    public async Task<PaymentResponse> UpdateAsync(
+    private async Task<PaymentResponse> UpdateCoreAsync(
         Guid currentUserId,
         Guid paymentId,
         UpdatePaymentRequest request,
@@ -246,7 +246,7 @@ public sealed class PaymentService : IPaymentService
         return Map(payment);
     }
 
-    public async Task<PaymentResponse> ChangeStatusAsync(
+    private async Task<PaymentResponse> ChangeStatusCoreAsync(
         Guid currentUserId,
         Guid paymentId,
         ChangePaymentStatusRequest request,
@@ -391,7 +391,7 @@ public sealed class PaymentService : IPaymentService
                 "Authenticated user was not found.");
     }
 
-    public async Task CompletePaymentAsync(
+    private async Task CompletePaymentCoreAsync(
         Guid currentUserId,
         Guid paymentId,
         CancellationToken cancellationToken = default)
@@ -435,7 +435,7 @@ public sealed class PaymentService : IPaymentService
         }
     }
 
-    public async Task ReversePaymentAsync(
+    private async Task ReversePaymentCoreAsync(
         Guid currentUserId,
         Guid paymentId,
         CancellationToken cancellationToken = default)
@@ -470,7 +470,7 @@ public sealed class PaymentService : IPaymentService
         }
     }
 
-    public async Task DeleteAsync(
+    private async Task DeleteCoreAsync(
         Guid currentUserId,
         Guid paymentId,
         CancellationToken cancellationToken = default)
@@ -1037,7 +1037,7 @@ public sealed class PaymentService : IPaymentService
             payment.Notes,
             payment.Status,
             payment.CreatedAtUtc,
-            payment.UpdatedAtUtc);
+            payment.UpdatedAtUtc) { ExpenseId = payment.ExpenseId };
     }
 }
 

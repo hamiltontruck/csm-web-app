@@ -22,4 +22,7 @@ public sealed record PaymentResponse(
     string? Notes,
     PaymentStatus Status,
     DateTime CreatedAtUtc,
-    DateTime? UpdatedAtUtc);
+    DateTime? UpdatedAtUtc)
+{
+    public Guid? ExpenseId { get; init; }
+}

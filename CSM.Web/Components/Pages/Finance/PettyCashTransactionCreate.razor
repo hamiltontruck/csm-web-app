@@ -49,6 +49,17 @@
 
                     <DataAnnotationsValidator />
 
+                    @if (_settlementError is not null) { <p class="text-muted" role="status">@_settlementError</p> }
+                    @if (_form.TransactionType == "CashOut" && (_expenseChoices.Count > 0 || ExpenseId.HasValue))
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Expense to settle (optional)</label>
+                            <select class="form-select" @bind="_form.ExpenseId" @bind:after="ExpenseChanged" disabled="@(ExpenseId.HasValue || _saving)">
+                                <option value="">-- Unlinked Cash Out --</option>
+                                @foreach (var expense in _expenseChoices) { <option value="@expense.Id">@expense.ExpenseNumber — ETB @expense.OutstandingAmount.ToString("N2") outstanding</option> }
+                            </select>
+                        </div>
+                    }
                     <div class="row g-3">
 
                         <div class="col-md-6">
@@ -57,7 +68,7 @@
                             </label>
 
                             <select class="form-select"
-                                    @bind="_form.TransactionType">
+                                    @bind="_form.TransactionType" @bind:after="TypeChanged" disabled="@(ExpenseId.HasValue || _saving)">
                                 <option value="CashOut">
                                     Cash Out
                                 </option>
@@ -98,7 +109,7 @@
                             </label>
 
                             <select class="form-select"
-                                    @bind="_form.CostCodeId">
+                                    @bind="_form.CostCodeId" disabled="@_form.ExpenseId.HasValue">
 
                                 <option value="">
                                     -- No Cost Code --
@@ -150,7 +161,7 @@
 
                         <button type="submit"
                                 class="btn btn-primary"
-                                disabled="@_saving">
+                                disabled="@(_saving || !_expenseReady)">
                             @if (_saving)
                             {
                                 <span>Saving...</span>
@@ -183,6 +194,12 @@
 @code {
     [Parameter]
     public Guid AccountId { get; set; }
+    [Parameter, SupplyParameterFromQuery] public Guid? ExpenseId { get; set; }
+    [CascadingParameter] private WorkspaceAccess Access { get; set; } = WorkspaceAccess.None;
+    private IReadOnlyList<ExpenseSettlementOption> _expenseChoices = [];
+    private string? _settlementError;
+    private Guid? _requestedExpenseId;
+    private bool _expenseReady;
 
     private PettyCashAccountResponse? _account;
 
@@ -199,9 +216,10 @@
 
     protected override void OnParametersSet()
     {
-        if (_requestedAccountId != AccountId)
+        if (_requestedAccountId != AccountId || _requestedExpenseId != ExpenseId)
         {
             _loading = true;
+            _expenseReady = false; _expenseChoices = []; _settlementError = null;
             _account = null;
             _loadedAccountId = null;
             _error = null;
@@ -212,9 +230,10 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_requestedAccountId == AccountId) return;
+        if (_requestedAccountId == AccountId && _requestedExpenseId == ExpenseId) return;
         var id = AccountId;
         _requestedAccountId = id;
+        var expenseId = ExpenseId; _requestedExpenseId = expenseId;
         var version = ++_loadVersion;
         try
         {
@@ -226,6 +245,25 @@
             _costCodes = codes;
             _form = new PettyCashTransactionForm { PettyCashAccountId = account.Id };
             _loadedAccountId = id;
+            _expenseReady = !expenseId.HasValue;
+            if (Access.Has("Finance_Expense_View"))
+            {
+                try
+                {
+                    var choices = await FinanceService.GetExpenseSettlementChoicesAsync("petty-cash", account.ConstructionSiteId, id);
+                    if (id != AccountId || version != _loadVersion) return;
+                    _expenseChoices = choices;
+                    if (expenseId.HasValue)
+                    {
+                        _form.ExpenseId = choices.Any(x => x.Id == expenseId) ? expenseId : null;
+                        ExpenseChanged();
+                        _expenseReady = _form.ExpenseId == expenseId;
+                        if (!_expenseReady) _settlementError = "This expense is not available for this cash account. Refresh or open the correct account.";
+                    }
+                }
+                catch { if (version == _loadVersion) _settlementError = "Expense options are currently unavailable. Refresh to check your access."; }
+            }
+            else if (expenseId.HasValue) _settlementError = "Expense viewing permission is required to settle this expense.";
         }
         catch (Exception ex)
         {
@@ -243,7 +281,9 @@
 
     private async Task Submit()
     {
-        if (_loading || _loadedAccountId != AccountId || _account is null || _saving) return;
+        if (_loading || _loadedAccountId != AccountId || _account is null || _saving || !_expenseReady) return;
+        if ((_form.ExpenseId.HasValue && !_expenseChoices.Any(x => x.Id == _form.ExpenseId)) ||
+            (ExpenseId.HasValue && _form.ExpenseId != ExpenseId)) { _error = "Expense selection is stale. Refresh before posting."; return; }
         var id = AccountId;
         var version = _loadVersion;
         _saving = true;
@@ -258,7 +298,7 @@
                 _form.Amount,
                 _form.Description,
                 _form.Remarks,
-                _form.CostCodeId);
+                _form.CostCodeId) { ExpenseId = _form.ExpenseId };
 
             await FinanceService
                 .CreatePettyCashTransactionAsync(request);
@@ -276,6 +316,19 @@
         }
     }
 
+    private void TypeChanged()
+    {
+        if (_form.TransactionType != "CashOut") { _form.ExpenseId = null; _expenseReady = !ExpenseId.HasValue; }
+    }
+    private void ExpenseChanged()
+    {
+        var expense = _expenseChoices.FirstOrDefault(x => x.Id == _form.ExpenseId);
+        _form.CostCodeId = expense?.CostCodeId;
+        _form.Amount = expense?.OutstandingAmount ?? 0m;
+        if (expense is not null) _form.TransactionType = "CashOut";
+        _expenseReady = !ExpenseId.HasValue || expense?.Id == ExpenseId;
+    }
+
     private void Back()
     {
         Navigation.NavigateTo(
@@ -284,6 +337,7 @@
 
     private sealed class PettyCashTransactionForm
     {
+        public Guid? ExpenseId { get; set; }
         public Guid PettyCashAccountId { get; set; }
 
         public string TransactionType { get; set; } = "CashOut";

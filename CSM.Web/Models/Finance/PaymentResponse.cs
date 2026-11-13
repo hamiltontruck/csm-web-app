@@ -2,6 +2,7 @@ namespace CSM.Web.Models.Finance;
 
 public class PaymentResponse
 {
+    public Guid? ExpenseId { get; set; }
     public Guid Id { get; set; }
     public Guid CompanyId { get; set; }
     public Guid? ConstructionSiteId { get; set; }

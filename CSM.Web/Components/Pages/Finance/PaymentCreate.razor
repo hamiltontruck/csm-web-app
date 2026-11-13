@@ -58,6 +58,7 @@ else
                                          disabled="@_saving"
                                          @bind-Value="_paymentSource"
                                          @bind-Value:after="PaymentSourceChanged">
+                                @if (!InvoiceId.HasValue) { <option value="Expense">Expense</option> }
                                 @if (_canUsePayroll || InvoiceId.HasValue)
                                 {
                                     <option value="Invoice">Invoice</option>
@@ -72,6 +73,17 @@ else
                                 }
                             </InputSelect>
                         </div>
+
+                        @if (_paymentSource == "Expense")
+                        {
+                            <div class="col-md-8">
+                                <label class="form-label">Approved Expense</label>
+                                <InputSelect class="form-select" @bind-Value="_selectedExpenseId" @bind-Value:after="ExpenseChanged" disabled="@(ExpenseId.HasValue || _saving)">
+                                    <option value="">-- Select expense --</option>
+                                    @foreach (var expense in _expenseChoices) { <option value="@expense.Id">@expense.ExpenseNumber — @expense.CurrencyCode @expense.OutstandingAmount.ToString("N2") outstanding</option> }
+                                </InputSelect>
+                            </div>
+                        }
 
                         @if (_paymentSource == "Payroll")
                         {
@@ -147,7 +159,7 @@ else
 
                             <InputSelect TValue="int"
                                          class="form-select"
-                                         @bind-Value="_payment.Direction">
+                                         @bind-Value="_payment.Direction" disabled="@(_paymentSource == "Expense")">
 
                                 <option value="1">Incoming</option>
                                 <option value="2">Outgoing</option>
@@ -239,6 +251,10 @@ else
 
     [Parameter] public Guid? SiteId { get; set; }
     [Parameter, SupplyParameterFromQuery] public Guid? InvoiceId { get; set; }
+    [Parameter, SupplyParameterFromQuery] public Guid? ExpenseId { get; set; }
+    private IReadOnlyList<ExpenseSettlementOption> _expenseChoices = [];
+    private Guid? _selectedExpenseId;
+    private ExpenseSettlementOption? _selectedExpense;
 
     private CreatePaymentRequest _payment = new();
     private InvoiceResponse? _invoice;
@@ -263,6 +279,7 @@ else
         _selectedPayrollId = null;
         _selectedPayroll = null;
         _approvedPayrolls = [];
+        _expenseChoices = []; _selectedExpenseId = null; _selectedExpense = null;
         _payment = NewPayment();
 
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
@@ -279,8 +296,10 @@ else
                 if (version != _contextVersion) return;
                 _canUsePayroll = capability.CanUsePayroll;
             }
-            _paymentSource = InvoiceId.HasValue ? "Invoice" : _canUsePayroll ? "Payroll" : "Direct";
-            if (InvoiceId.HasValue) await LoadInvoice(version);
+            if (ExpenseId.HasValue && InvoiceId.HasValue) throw new InvalidOperationException("Select one payment source.");
+            _paymentSource = ExpenseId.HasValue ? "Expense" : InvoiceId.HasValue ? "Invoice" : _canUsePayroll ? "Payroll" : "Direct";
+            if (ExpenseId.HasValue) await LoadExpenses(version);
+            else if (InvoiceId.HasValue) await LoadInvoice(version);
             else if (_paymentSource == "Direct") await LoadDirectSite(version);
             else await LoadApprovedPayrolls(version);
         }
@@ -302,6 +321,33 @@ else
         ConstructionSiteId = SiteId,
         PaymentMethod = "Cash"
     };
+
+    private async Task LoadExpenses(int version)
+    {
+        IReadOnlyList<ExpenseSettlementOption> choices;
+        if (ExpenseId is Guid id)
+        {
+            var options = await FinanceService.GetExpenseSettlementOptionsAsync(id, "payment");
+            if (SiteId.HasValue && options.Expense.ConstructionSiteId != SiteId) throw new InvalidOperationException("Expense does not match this site.");
+            choices = [options.Expense];
+        }
+        else choices = await FinanceService.GetExpenseSettlementChoicesAsync("payment", SiteId);
+        if (version != _contextVersion) return;
+        _expenseChoices = choices;
+        if (ExpenseId.HasValue) { _selectedExpenseId = ExpenseId; ExpenseChanged(); }
+    }
+
+    private void ExpenseChanged()
+    {
+        _selectedExpense = _expenseChoices.FirstOrDefault(x => x.Id == _selectedExpenseId);
+        _payment = NewPayment(); _ready = _selectedExpense is not null;
+        if (_selectedExpense is not { } expense) return;
+        _payment.ExpenseId = expense.Id; _payment.ConstructionSiteId = expense.ConstructionSiteId;
+        _payment.ProjectId = expense.ProjectId; _payment.VendorId = expense.VendorId;
+        _payment.CurrencyCode = expense.CurrencyCode; _payment.ExchangeRate = expense.ExchangeRate;
+        _payment.Amount = expense.OutstandingAmount; _payment.Direction = 2;
+        _invoiceNumber = expense.ExpenseNumber; _vendorName = expense.VendorName ?? "";
+    }
 
     private async Task LoadInvoice(int version)
     {
@@ -363,11 +409,13 @@ else
         _ready = false;
         _selectedPayrollId = null;
         _selectedPayroll = null;
+        _selectedExpenseId = null; _selectedExpense = null; _expenseChoices = [];
         _payment = NewPayment();
         _vendorName = _invoiceNumber = "";
         try
         {
-            if (_paymentSource == "Invoice") await LoadInvoice(version);
+            if (_paymentSource == "Expense") await LoadExpenses(version);
+            else if (_paymentSource == "Invoice") await LoadInvoice(version);
             else if (_paymentSource == "Direct") await LoadDirectSite(version);
             else await LoadApprovedPayrolls(version);
         }
@@ -410,6 +458,9 @@ else
             _error = "Open an invoice to record its payment.";
             return;
         }
+        if (_paymentSource == "Expense" && (_selectedExpense is null || _payment.ExpenseId != _selectedExpenseId ||
+            (ExpenseId.HasValue && _selectedExpenseId != ExpenseId)))
+        { _error = "Select an approved expense in the current context."; return; }
         if (string.IsNullOrWhiteSpace(_paymentNumber))
         {
             _error = "Payment Number is required.";
@@ -424,6 +475,7 @@ else
         var version = _contextVersion;
         var request = new CreatePaymentRequest
         {
+            ExpenseId = _payment.ExpenseId,
             ConstructionSiteId = _payment.ConstructionSiteId,
             ProjectId = _payment.ProjectId,
             InvoiceId = _payment.InvoiceId,

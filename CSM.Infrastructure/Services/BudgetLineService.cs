@@ -95,67 +95,73 @@ public sealed class BudgetLineService : IBudgetLineService
         CreateBudgetLineRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
+        return await FinanceMutationTransaction.ExecuteAsync(_dbContext, new(BudgetId: request.BudgetId), async () =>
+        {
+            var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
-        EnsureCanModify(actor);
+            EnsureCanModify(actor);
 
-        ValidateAmounts(
-            request.BudgetedAmount,
-            request.RevisedAmount);
+            ValidateAmounts(
+                request.BudgetedAmount,
+                request.RevisedAmount);
 
-        var budget = await GetBudgetAsync(
-            request.BudgetId,
-            cancellationToken);
-
-        EnsureCompanyAccess(
-            actor,
-            budget.CompanyId);
-        await EnsureParentScopeAsync(actor, budget, cancellationToken);
-
-        var companyId = budget.CompanyId;
-
-        EnsureBudgetEditable(budget);
-
-        var costCode = await GetCostCodeAsync(
-            request.CostCodeId,
-            companyId,
-            cancellationToken);
-        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, budget.ConstructionSiteId, null, costCode.Id, cancellationToken, message => new BudgetLineManagementException(message));
-
-        var duplicateExists = await _dbContext.BudgetLines
-            .AnyAsync(
-                x =>
-                    x.BudgetId == request.BudgetId &&
-                    x.CostCodeId == request.CostCodeId &&
-                    !x.IsDeleted,
+            var budget = await GetBudgetAsync(
+                request.BudgetId,
                 cancellationToken);
 
-        if (duplicateExists)
-        {
-            throw new BudgetLineManagementException(
-                "This cost code already exists on the selected budget.");
-        }
+            EnsureCompanyAccess(
+                actor,
+                budget.CompanyId);
+            await EnsureParentScopeAsync(actor, budget, cancellationToken);
 
-        var line = new BudgetLine
-        {
-            CompanyId = companyId,
-            BudgetId = budget.Id,
-            CostCodeId = costCode.Id,
-            Description = Clean(request.Description),
-            BudgetedAmount = request.BudgetedAmount,
-            RevisedAmount = request.RevisedAmount
-        };
+            var companyId = budget.CompanyId;
 
-        _dbContext.BudgetLines.Add(line);
+            EnsureBudgetEditable(budget);
 
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
+            var costCode = await GetCostCodeAsync(
+                request.CostCodeId,
+                companyId,
+                cancellationToken);
+            await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, budget.ConstructionSiteId, null, costCode.Id, cancellationToken, message => new BudgetLineManagementException(message));
 
-        await _dbContext.Entry(line)
-            .Reference(x => x.CostCode)
-            .LoadAsync(cancellationToken);
+            var duplicateExists = await _dbContext.BudgetLines
+                .AnyAsync(
+                    x =>
+                        x.BudgetId == request.BudgetId &&
+                        x.CostCodeId == request.CostCodeId &&
+                        !x.IsDeleted,
+                    cancellationToken);
 
-        return Map(line);
+            if (duplicateExists)
+            {
+                throw new BudgetLineManagementException(
+                    "This cost code already exists on the selected budget.");
+            }
+
+            var line = new BudgetLine
+            {
+                CompanyId = companyId,
+                BudgetId = budget.Id,
+                CostCodeId = costCode.Id,
+                Description = Clean(request.Description),
+                BudgetedAmount = request.BudgetedAmount,
+                RevisedAmount = request.RevisedAmount
+            };
+
+            _dbContext.BudgetLines.Add(line);
+
+            budget.UpdatedBy = currentUserId;
+
+            await _dbContext.SaveChangesAsync(
+                cancellationToken);
+
+            await _dbContext.Entry(line)
+                .Reference(x => x.CostCode)
+                .LoadAsync(cancellationToken);
+
+            return Map(line);
+
+        }, cancellationToken);
     }
 
     public async Task<BudgetLineResponse> UpdateAsync(
@@ -164,68 +170,79 @@ public sealed class BudgetLineService : IBudgetLineService
         UpdateBudgetLineRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
+        var parentId = await _dbContext.BudgetLines.AsNoTracking().Where(x => x.Id == budgetLineId && !x.IsDeleted)
+            .Select(x => x.BudgetId).SingleOrDefaultAsync(cancellationToken);
+        return await FinanceMutationTransaction.ExecuteAsync(_dbContext, new(BudgetId: parentId), async () =>
+        {
+            var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
-        EnsureCanModify(actor);
+            EnsureCanModify(actor);
 
-        var line = await GetBudgetLineAsync(
-            budgetLineId,
-            cancellationToken);
-
-        EnsureCompanyAccess(
-            actor,
-            line.CompanyId);
-        await EnsureParentScopeAsync(actor, await GetBudgetAsync(line.BudgetId, cancellationToken), cancellationToken);
-
-        var budget = await GetBudgetAsync(
-            line.BudgetId,
-            cancellationToken);
-
-        EnsureCompanyAccess(
-            actor,
-            budget.CompanyId);
-        await EnsureParentScopeAsync(actor, budget, cancellationToken);
-
-        EnsureBudgetEditable(budget);
-
-        ValidateAmounts(
-            request.BudgetedAmount,
-            request.RevisedAmount);
-
-        var costCode = await GetCostCodeAsync(
-            request.CostCodeId,
-            line.CompanyId,
-            cancellationToken);
-        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, budget.ConstructionSiteId, null, costCode.Id, cancellationToken, message => new BudgetLineManagementException(message));
-
-        var duplicateExists = await _dbContext.BudgetLines
-            .AnyAsync(
-                x =>
-                    x.Id != line.Id &&
-                    x.BudgetId == line.BudgetId &&
-                    x.CostCodeId == costCode.Id &&
-                    !x.IsDeleted,
+            var line = await GetBudgetLineAsync(
+                budgetLineId,
                 cancellationToken);
 
-        if (duplicateExists)
-        {
-            throw new BudgetLineManagementException(
-                "This cost code already exists on the selected budget.");
-        }
+            EnsureCompanyAccess(
+                actor,
+                line.CompanyId);
+            await EnsureParentScopeAsync(actor, await GetBudgetAsync(line.BudgetId, cancellationToken), cancellationToken);
 
-        line.CostCodeId = costCode.Id;
-        line.Description = Clean(request.Description);
-        line.BudgetedAmount = request.BudgetedAmount;
-        line.RevisedAmount = request.RevisedAmount;
+            var budget = await GetBudgetAsync(
+                line.BudgetId,
+                cancellationToken);
 
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
+            EnsureCompanyAccess(
+                actor,
+                budget.CompanyId);
+            await EnsureParentScopeAsync(actor, budget, cancellationToken);
 
-        await _dbContext.Entry(line)
-            .Reference(x => x.CostCode)
-            .LoadAsync(cancellationToken);
+            EnsureBudgetEditable(budget);
 
-        return Map(line);
+            ValidateAmounts(
+                request.BudgetedAmount,
+                request.RevisedAmount);
+
+            var costCode = await GetCostCodeAsync(
+                request.CostCodeId,
+                line.CompanyId,
+                cancellationToken);
+            await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, budget.ConstructionSiteId, null, costCode.Id, cancellationToken, message => new BudgetLineManagementException(message));
+
+            var duplicateExists = await _dbContext.BudgetLines
+                .AnyAsync(
+                    x =>
+                        x.Id != line.Id &&
+                        x.BudgetId == line.BudgetId &&
+                        x.CostCodeId == costCode.Id &&
+                        !x.IsDeleted,
+                    cancellationToken);
+
+            if (duplicateExists)
+            {
+                throw new BudgetLineManagementException(
+                    "This cost code already exists on the selected budget.");
+            }
+
+            var materialChange = line.CostCodeId != costCode.Id || line.Description != Clean(request.Description) ||
+                line.BudgetedAmount != request.BudgetedAmount || line.RevisedAmount != request.RevisedAmount;
+
+            line.CostCodeId = costCode.Id;
+            line.Description = Clean(request.Description);
+            line.BudgetedAmount = request.BudgetedAmount;
+            line.RevisedAmount = request.RevisedAmount;
+
+            if (materialChange) budget.UpdatedBy = currentUserId;
+
+            await _dbContext.SaveChangesAsync(
+                cancellationToken);
+
+            await _dbContext.Entry(line)
+                .Reference(x => x.CostCode)
+                .LoadAsync(cancellationToken);
+
+            return Map(line);
+
+        }, cancellationToken);
     }
 
     private async Task EnsureParentScopeAsync(User actor, Budget parent, CancellationToken cancellationToken)
@@ -346,41 +363,48 @@ public sealed class BudgetLineService : IBudgetLineService
         Guid budgetLineId,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
+        var parentId = await _dbContext.BudgetLines.AsNoTracking().Where(x => x.Id == budgetLineId && !x.IsDeleted)
+            .Select(x => x.BudgetId).SingleOrDefaultAsync(cancellationToken);
+        await FinanceMutationTransaction.ExecuteAsync(_dbContext, new(BudgetId: parentId), async () =>
+        {
+            var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Budget_Manage);
 
-        EnsureCanModify(actor);
+            EnsureCanModify(actor);
 
-        var line = await GetBudgetLineAsync(
-            budgetLineId,
-            cancellationToken);
+            var line = await GetBudgetLineAsync(
+                budgetLineId,
+                cancellationToken);
 
-        EnsureCompanyAccess(
-            actor,
-            line.CompanyId);
-        await EnsureParentScopeAsync(actor, await GetBudgetAsync(line.BudgetId, cancellationToken), cancellationToken);
+            EnsureCompanyAccess(
+                actor,
+                line.CompanyId);
+            await EnsureParentScopeAsync(actor, await GetBudgetAsync(line.BudgetId, cancellationToken), cancellationToken);
 
-        var budget = await GetBudgetAsync(
-            line.BudgetId,
-            cancellationToken);
+            var budget = await GetBudgetAsync(
+                line.BudgetId,
+                cancellationToken);
 
-        EnsureCompanyAccess(
-            actor,
-            budget.CompanyId);
-        await EnsureParentScopeAsync(actor, budget, cancellationToken);
+            EnsureCompanyAccess(
+                actor,
+                budget.CompanyId);
+            await EnsureParentScopeAsync(actor, budget, cancellationToken);
 
-        EnsureBudgetEditable(budget);
+            EnsureBudgetEditable(budget);
 
-        line.IsDeleted = true;
+            line.IsDeleted = true;
 
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
+            budget.UpdatedBy = currentUserId;
+
+            await _dbContext.SaveChangesAsync(
+                cancellationToken);
+
+        }, cancellationToken);
     }
 
     private static void EnsureBudgetEditable(
         Budget budget)
     {
-        if (budget.Status == BudgetStatus.Closed ||
-            budget.Status == BudgetStatus.Cancelled)
+        if (budget.Status is not (BudgetStatus.Draft or BudgetStatus.PendingApproval))
         {
             throw new BudgetLineManagementException(
                 $"Budget lines cannot be modified when the budget is {budget.Status}.");

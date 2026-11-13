@@ -71,7 +71,7 @@ public sealed class SettingsAccountPostgresTests
             var actor = new User { FirstName = "Test", LastName = "User", Email = "own@example.test",
                 NormalizedEmail = "OWN@EXAMPLE.TEST", PasswordHash = hasher.Hash("Test-only-Password123!") };
             db.Users.Add(actor); await db.SaveChangesAsync();
-            await db.Database.MigrateAsync();
+            await db.GetService<IMigrator>().MigrateAsync(latest);
             var jwt = Options.Create(new JwtSettings { Issuer = "test", Audience = "test", SecretKey = "test-only-signing-key-with-at-least-32-characters" });
             var service = new AuthService(db, hasher, new TokenService(jwt), jwt);
             await service.LoginAsync(new LoginRequest(actor.Email, "Test-only-Password123!", "test browser"), "127.0.0.1");
@@ -85,7 +85,7 @@ public sealed class SettingsAccountPostgresTests
             }
             await db.GetService<IMigrator>().MigrateAsync(previous);
             db.ChangeTracker.Clear(); Assert.True(await db.Users.AnyAsync(x => x.Id == actor.Id));
-            await db.Database.MigrateAsync();
+            await db.GetService<IMigrator>().MigrateAsync(latest);
             Assert.Empty(await db.Set<LoginHistoryEntry>().ToListAsync());
         }
         finally { await db.Database.EnsureDeletedAsync(); }

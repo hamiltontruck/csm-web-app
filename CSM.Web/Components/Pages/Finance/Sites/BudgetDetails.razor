@@ -114,9 +114,10 @@ else
                 }
                 else if (_budget.Status == "PendingApproval")
                 {
+                    @if (!_budget.CanApprove) { <div class="text-muted small" role="status">@_budget.ApprovalBlockReason</div> }
                     <WorkspaceAction Route="@($"/finance/sites/{SiteId}/budgets")" Permission="Finance_Budget_Manage">
 <button class="btn btn-success"
-                            @onclick="() => ChangeStatus(3)">
+                            @onclick="() => ChangeStatus(3)" disabled="@(!_budget.CanApprove)">
                         Approve
                     </button>
 </WorkspaceAction>
@@ -225,8 +226,7 @@ else
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Budget Lines</strong>
 
-                    @if (_budget.Status != "Closed" &&
-                         _budget.Status != "Cancelled")
+                    @if ((_budget.Status is "Draft" or "PendingApproval"))
                     {
                         <WorkspaceAction Route="/finance/sites/{_budget!.ConstructionSiteId}/budgets/{Id}/lines/create">
                             <button class="btn btn-primary btn-sm"
@@ -277,8 +277,7 @@ else
                                             </td>
 
                                             <td class="text-end">
-                                                @if (_budget.Status != "Closed" &&
-                                                     _budget.Status != "Cancelled")
+                                                @if ((_budget.Status is "Draft" or "PendingApproval"))
                                                 {
                                                     <WorkspaceAction Route="/finance/sites/{_budget!.ConstructionSiteId}/budgets/{Id}/lines/{budgetLineId}/edit">
                                                         <button class="btn btn-sm btn-outline-primary me-1"
@@ -331,7 +330,6 @@ else
     private BudgetResponse? _budget;
     private List<BudgetLineResponse> _budgetLines = new();
     private bool _loading = true;
-    private bool _loaded;
     private string? _error;
 
     private decimal BudgetedLinesTotal =>
@@ -346,33 +344,25 @@ else
     private decimal RevisedVariance =>
         (_budget?.TotalAmount ?? 0m) - RevisedLinesTotal;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private int _contextVersion;
+    protected override async Task OnParametersSetAsync()
     {
-        if (!firstRender || _loaded)
-            return;
-
-        _loaded = true;
-
+        var version = ++_contextVersion; var id = Id;
+        _loading = true; _budget = null; _budgetLines = []; _error = null;
         try
         {
-            _budget = await FinanceService.GetBudgetAsync(Id);
-
-            _budgetLines = await FinanceService.GetBudgetLinesAsync(Id);
+            var budget = await FinanceService.GetBudgetAsync(id);
+            var lines = await FinanceService.GetBudgetLinesAsync(id);
+            if (version != _contextVersion) return;
+            _budget = budget; _budgetLines = lines;
         }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
-        finally
-        {
-            _loading = false;
-        }
-
-        StateHasChanged();
+        catch (Exception ex) { if (version == _contextVersion) _error = ex.Message; }
+        finally { if (version == _contextVersion) _loading = false; }
     }
 
     private async Task ChangeStatus(int status)
     {
+        if (_loading || _budget?.Id != Id || (status == 3 && !_budget.CanApprove)) return;
         try
         {
             _error = null;

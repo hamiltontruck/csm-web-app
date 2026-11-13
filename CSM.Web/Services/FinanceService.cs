@@ -8,6 +8,18 @@ namespace CSM.Web.Services;
 
 public class FinanceService : IFinanceService
 {
+    public async Task<IReadOnlyList<ExpenseSettlementOption>> GetExpenseSettlementChoicesAsync(string purpose, Guid? siteId = null, Guid? accountId = null)
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<List<ExpenseSettlementOption>>($"Expenses/settlement-options?purpose={Uri.EscapeDataString(purpose)}&siteId={siteId}&accountId={accountId}") ?? [];
+    }
+    public async Task<ExpenseSettlementOptionsResponse> GetExpenseSettlementOptionsAsync(Guid expenseId, string purpose)
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<ExpenseSettlementOptionsResponse>($"Expenses/{expenseId}/settlement-options?purpose={Uri.EscapeDataString(purpose)}")
+            ?? throw new InvalidOperationException("Expense settlement options are unavailable.");
+    }
+
     private readonly IHttpClientFactory _factory;
     private readonly ProtectedSessionStorage _storage;
 

@@ -94,16 +94,18 @@ public sealed class FinanceOfficerUiTests
     }
 
     [Fact]
-    public void Officer_site_expense_can_submit_approve_and_mark_paid_using_real_actions()
+    public void Officer_expense_actions_require_server_checker_capability_and_never_offer_status_only_paid()
     {
         using var context = Context(out var finance, out _);
+        finance.CanApproveExpense = true; // Server response represents a distinct eligible checker.
         var page = context.RenderComponent<CSM.Web.Components.Pages.Finance.Sites.SiteExpenseDetails>(p => p.Add(x => x.ExpenseId, Guid.NewGuid()).Add(x => x.SiteId, Site));
         page.WaitForAssertion(() => Assert.Contains("E-1", page.Markup));
-        foreach (var label in new[] { "Submit Expense", "Approve Expense", "Mark as Paid" }) {
+        foreach (var label in new[] { "Submit Expense", "Approve Expense" }) {
             page.WaitForAssertion(() => Assert.Contains(page.FindAll("button"), x => x.TextContent.Contains(label)));
             page.FindAll("button").Single(x => x.TextContent.Contains(label)).Click();
         }
-        Assert.Equal(new[] { 2, 3, 5 }, finance.ExpenseActions);
+        Assert.Equal(new[] { 2, 3 }, finance.ExpenseActions);
+        Assert.DoesNotContain("Mark as Paid", page.Markup);
     }
 
     [Fact]
@@ -145,6 +147,7 @@ public sealed class FinanceOfficerUiTests
         public FinanceActionCapabilities ActionCapabilities = new(false, false);
         public UpdatePaymentRequest? PaymentUpdate;
         public string ExpenseStatus = "Draft";
+        public bool CanApproveExpense;
         public List<int> ExpenseActions = [];
         protected override object? Invoke(MethodInfo? m, object?[]? a) {
             if (m!.Name == FailOperation) throw new HttpRequestException("The requested finance action is unavailable.", null, System.Net.HttpStatusCode.Forbidden);
@@ -159,7 +162,7 @@ public sealed class FinanceOfficerUiTests
                 "CreatePettyCashAccountAsync" => Task.FromResult(Guid.NewGuid()),
                 "GetPettyCashAccountAsync" => Task.FromResult(new PettyCashAccountResponse((Guid)a![0]!, Guid.NewGuid(), Site, "Assigned site", "OWN", "Own cash", 10m, 10m, true)),
                 "GetPettyCashTransactionsAsync" => Task.FromResult(new List<PettyCashTransactionResponse>()),
-                "GetExpenseAsync" => Task.FromResult(new ExpenseResponse((Guid)a![0]!, Guid.NewGuid(), Site, null, Guid.NewGuid(), null, "E-1", new(2026,11,11), "Expense", 1m, 0m, "ETB", 1m, null, null, ExpenseStatus, null, null, null, DateTime.UtcNow, null)),
+                "GetExpenseAsync" => Task.FromResult(new ExpenseResponse((Guid)a![0]!, Guid.NewGuid(), Site, null, Guid.NewGuid(), null, "E-1", new(2026,11,11), "Expense", 1m, 0m, "ETB", 1m, null, null, ExpenseStatus, null, null, null, DateTime.UtcNow, null) { CanApprove = CanApproveExpense }),
                 "GetPaymentAsync" => Task.FromResult(new PaymentResponse { Id = (Guid)a![0]!, ConstructionSiteId = Site, PaymentNumber = EchoIds ? ((Guid)a![0]!).ToString() : "P-1", Amount = 1m, ExchangeRate = 1m, CurrencyCode = "ETB", Direction = "Outgoing", Status = "Pending", PaymentDate = new(2026,11,11) }),
                 "GetInvoiceAsync" => Task.FromResult<InvoiceResponse?>(new() { Id = (Guid)a![0]!, ConstructionSiteId = Site, InvoiceNumber = EchoIds ? ((Guid)a![0]!).ToString() : "INV-OFFICER", Status = "Draft", InvoiceDate = new(2026,11,11) }),
                 "GetInvoiceLinesAsync" => Task.FromResult(new List<InvoiceLineResponse>()),

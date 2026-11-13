@@ -1,3 +1,4 @@
+using Npgsql;
 using CSM.Domain.Enums;
 using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
@@ -72,80 +73,121 @@ public sealed class PettyCashTransactionService
         CreatePettyCashTransactionRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_PettyCash_Manage);
-
-        var account = await GetAccountAsync(
-            request.PettyCashAccountId,
-            cancellationToken);
-
-        await EnsureAccountAccessAsync(actor, account, cancellationToken);
-
-        var siteLimited = SiteFinanceScope.IsSiteLimited(actor);
-        if (request.CostCodeId is Guid costCodeId &&
-            !await _dbContext.CostCodes.AnyAsync(x =>
-                x.Id == costCodeId && x.CompanyId == account.CompanyId && !x.IsDeleted &&
-                (!siteLimited || x.ConstructionSiteId == null || x.ConstructionSiteId == account.ConstructionSiteId),
-                cancellationToken))
+        try
         {
-            throw new PettyCashManagementException("Cost code does not belong to this petty cash account's permitted scope.");
-        }
+            return await FinanceMutationTransaction.ExecuteAsync(_dbContext,
+                new(ExpenseIds: request.ExpenseId is Guid id ? [id] : [], AccountId: request.PettyCashAccountId), async () =>
+            {
+                var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_PettyCash_Manage);
 
-        if (request.Amount <= 0)
-        {
-            throw new PettyCashManagementException(
-                "Amount must be greater than zero.");
-        }
-
-        var before = account.CurrentBalance;
-        var type = request.TransactionType.Trim();
-
-        decimal after = type.Equals(
-            "CashIn",
-            StringComparison.OrdinalIgnoreCase)
-            ? before + request.Amount
-            : before - request.Amount;
-
-        if (after < 0)
-        {
-            throw new PettyCashManagementException(
-                "Insufficient petty cash balance.");
-        }
-
-        var transaction = new PettyCashTransaction
-        {
-            PettyCashAccountId = account.Id,
-            CostCodeId = request.CostCodeId,
-            CreatedByUserId = currentUserId,
-            ReferenceNumber = request.ReferenceNumber.Trim(),
-            TransactionType = type,
-            TransactionDateUtc = DateTime.UtcNow,
-            Amount = request.Amount,
-            BalanceBefore = before,
-            BalanceAfter = after,
-            Description = request.Description.Trim(),
-            Remarks = string.IsNullOrWhiteSpace(request.Remarks)
-                ? null
-                : request.Remarks.Trim(),
-            IsApproved = true,
-            ApprovedAtUtc = DateTime.UtcNow,
-            ApprovedByUserId = currentUserId
-        };
-
-        account.CurrentBalance = after;
-
-        _dbContext.PettyCashTransactions.Add(transaction);
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        if (transaction.CostCodeId.HasValue)
-        {
-            transaction.CostCode = await _dbContext.CostCodes
-                .FindAsync(
-                    [transaction.CostCodeId.Value],
+                var account = await GetAccountAsync(
+                    request.PettyCashAccountId,
                     cancellationToken);
-        }
 
-        return Map(transaction);
+                await EnsureAccountAccessAsync(actor, account, cancellationToken);
+
+                if (!account.IsActive) throw new PettyCashManagementException("An active petty cash account is required.");
+                var type = request.TransactionType?.Trim();
+                type = string.Equals(type, "CashIn", StringComparison.OrdinalIgnoreCase) ? "CashIn"
+                    : string.Equals(type, "CashOut", StringComparison.OrdinalIgnoreCase) ? "CashOut"
+                    : throw new PettyCashManagementException("Transaction type must be CashIn or CashOut.");
+                if (request.Amount <= 0 || request.Amount >= 1000000000000000m || decimal.Round(request.Amount, 4) != request.Amount)
+                    throw new PettyCashManagementException("Amount must be positive with at most four decimal places.");
+                Expense? expense = null;
+                var settlement = new ExpenseSettlementService(_dbContext);
+                if (request.ExpenseId is Guid expenseId)
+                {
+                    expense = await settlement.LoadForDisbursementAsync(currentUserId, expenseId, "petty-cash", cancellationToken);
+                    if (type != "CashOut" || account.CompanyId != expense.CompanyId || account.ConstructionSiteId != expense.ConstructionSiteId || request.CostCodeId != expense.CostCodeId)
+                        throw new PettyCashManagementException("Expense Cash Out must match its company, site and cost code.");
+                    var reference = request.ReferenceNumber?.Trim();
+                    if (string.IsNullOrWhiteSpace(reference) || reference.Length > 100)
+                        throw new PettyCashManagementException("A reference number of at most 100 characters is required for expense Cash Out.");
+                    if (await _dbContext.PettyCashTransactions.IgnoreQueryFilters().AnyAsync(x => x.PettyCashAccountId == account.Id && x.ExpenseId != null && x.ReferenceNumber == reference, cancellationToken))
+                        throw new PettyCashManagementException("This expense Cash Out reference has already been posted for this account.");
+                    await settlement.ValidateNewSettlementAsync(expense, request.Amount, "ETB", 1m, true, cancellationToken);
+                }
+
+                var siteLimited = SiteFinanceScope.IsSiteLimited(actor);
+                if (request.CostCodeId is Guid costCodeId &&
+                    !await _dbContext.CostCodes.AnyAsync(x =>
+                        x.Id == costCodeId && x.CompanyId == account.CompanyId && !x.IsDeleted &&
+                        (!siteLimited || x.ConstructionSiteId == null || x.ConstructionSiteId == account.ConstructionSiteId),
+                        cancellationToken))
+                {
+                    throw new PettyCashManagementException("Cost code does not belong to this petty cash account's permitted scope.");
+                }
+
+                if (request.Amount <= 0)
+                {
+                    throw new PettyCashManagementException(
+                        "Amount must be greater than zero.");
+                }
+
+                var before = account.CurrentBalance;
+
+                decimal after = type.Equals(
+                    "CashIn",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? before + request.Amount
+                    : before - request.Amount;
+
+                if (after < 0)
+                {
+                    throw new PettyCashManagementException(
+                        "Insufficient petty cash balance.");
+                }
+
+                var transaction = new PettyCashTransaction
+                {
+                    ExpenseId = expense?.Id,
+                    CreatedBy = currentUserId,
+                    UpdatedBy = currentUserId,
+                    PettyCashAccountId = account.Id,
+                    CostCodeId = request.CostCodeId,
+                    CreatedByUserId = currentUserId,
+                    ReferenceNumber = request.ReferenceNumber?.Trim() ?? string.Empty,
+                    TransactionType = type,
+                    TransactionDateUtc = DateTime.UtcNow,
+                    Amount = request.Amount,
+                    BalanceBefore = before,
+                    BalanceAfter = after,
+                    Description = request.Description?.Trim() ?? string.Empty,
+                    Remarks = string.IsNullOrWhiteSpace(request.Remarks)
+                        ? null
+                        : request.Remarks.Trim(),
+                    IsApproved = true,
+                    ApprovedAtUtc = DateTime.UtcNow,
+                    ApprovedByUserId = currentUserId
+                };
+
+                account.CurrentBalance = after;
+                account.UpdatedBy = currentUserId;
+
+                _dbContext.PettyCashTransactions.Add(transaction);
+
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                if (expense is not null)
+                {
+                    await settlement.SynchronizeAsync(expense, cancellationToken);
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+                }
+
+                if (transaction.CostCodeId.HasValue)
+                {
+                    transaction.CostCode = await _dbContext.CostCodes
+                        .FindAsync(
+                            [transaction.CostCodeId.Value],
+                            cancellationToken);
+                }
+
+                return Map(transaction);
+            }, cancellationToken);
+        }
+        catch (ExpenseManagementException ex) { throw new PettyCashManagementException(ex.Message); }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        { throw new PettyCashManagementException("This expense Cash Out reference has already been posted for this account."); }
     }
 
     private async Task EnsureAccountAccessAsync(
@@ -236,6 +278,7 @@ public sealed class PettyCashTransactionService
         return new PettyCashTransactionResponse
         {
             Id = tx.Id,
+            ExpenseId = tx.ExpenseId,
             PettyCashAccountId = tx.PettyCashAccountId,
             CostCodeId = tx.CostCodeId,
             CostCodeName = tx.CostCode?.Name,

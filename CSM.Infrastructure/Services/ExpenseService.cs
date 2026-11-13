@@ -129,7 +129,11 @@ public sealed class ExpenseService : IExpenseService
                 .SingleOrDefaultAsync(cancellationToken)
             : null;
 
-        return Map(expense, approvedByName);
+        var approvalReason = await FinanceApprovalPolicy.GetBlockReasonAsync(_dbContext, currentUserId,
+            expense, expense.CompanyId, expense.ConstructionSiteId, GranularPermission.Finance_Expense_Approve,
+            expense.Status == ExpenseStatus.Submitted, cancellationToken);
+        return Map(expense, approvedByName) with { CanApprove = approvalReason is null, ApprovalBlockReason = approvalReason,
+            Settlement = await new ExpenseSettlementService(_dbContext).GetSummaryAsync(expense, cancellationToken) };
     }
 
     public async Task<ExpenseResponse> CreateAsync(
@@ -186,6 +190,8 @@ public sealed class ExpenseService : IExpenseService
 
         var expense = new Expense
         {
+            CreatedBy = currentUserId,
+            UpdatedBy = currentUserId,
             CompanyId = companyId,
             ConstructionSiteId =
                 request.ConstructionSiteId,
@@ -221,78 +227,90 @@ public sealed class ExpenseService : IExpenseService
         UpdateExpenseRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_Submit);
+        return await FinanceMutationTransaction.ExecuteAsync(_dbContext, new(ExpenseIds: [expenseId]), async () =>
+        {
+            var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_Submit);
 
-        EnsureCanSubmit(actor);
+            EnsureCanSubmit(actor);
 
-        var expense = await GetExpenseAsync(
-            expenseId,
-            cancellationToken);
+            var expense = await GetExpenseAsync(
+                expenseId,
+                cancellationToken);
 
-        EnsureCompanyAccess(
-            actor,
-            expense.CompanyId);
+            EnsureCompanyAccess(
+                actor,
+                expense.CompanyId);
 
-        await EnsureSiteAccess(
-            actor,
-            expense.ConstructionSiteId,
-            cancellationToken);
+            await EnsureSiteAccess(
+                actor,
+                expense.ConstructionSiteId,
+                cancellationToken);
 
-        await EnsureSiteAccess(
-            actor,
-            request.ConstructionSiteId,
-            cancellationToken);
+            await EnsureSiteAccess(
+                actor,
+                request.ConstructionSiteId,
+                cancellationToken);
 
-        EnsureEditable(expense);
+            EnsureEditable(expense);
 
-        var description = CleanRequired(
-            request.Description,
-            "Expense description");
+            var description = CleanRequired(
+                request.Description,
+                "Expense description");
 
-        ValidateAmounts(
-            request.Amount,
-            request.TaxAmount,
-            request.ExchangeRate);
+            ValidateAmounts(
+                request.Amount,
+                request.TaxAmount,
+                request.ExchangeRate);
 
-        await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, request.ConstructionSiteId, request.ProjectId, request.CostCodeId, cancellationToken, message => new ExpenseManagementException(message));
-        await EnsureReferencesBelongToCompanyAsync(
-            expense.CompanyId,
-            request.ConstructionSiteId,
-            request.ProjectId,
-            request.CostCodeId,
-            request.VendorId,
-            cancellationToken);
+            await SiteFinanceScope.EnsureOfficerReferencesAsync(_dbContext, actor, request.ConstructionSiteId, request.ProjectId, request.CostCodeId, cancellationToken, message => new ExpenseManagementException(message));
+            await EnsureReferencesBelongToCompanyAsync(
+                expense.CompanyId,
+                request.ConstructionSiteId,
+                request.ProjectId,
+                request.CostCodeId,
+                request.VendorId,
+                cancellationToken);
 
-        expense.ConstructionSiteId =
-            request.ConstructionSiteId;
-        expense.ProjectId =
-            request.ProjectId;
-        expense.CostCodeId =
-            request.CostCodeId;
-        expense.VendorId =
-            request.VendorId;
-        expense.ExpenseDate =
-            request.ExpenseDate;
-        expense.Description =
-            description;
-        expense.Amount =
-            request.Amount;
-        expense.TaxAmount =
-            request.TaxAmount;
-        expense.CurrencyCode =
-            CleanCurrencyCode(
-                request.CurrencyCode);
-        expense.ExchangeRate =
-            request.ExchangeRate;
-        expense.ReferenceNumber =
-            Clean(request.ReferenceNumber);
-        expense.ReceiptDocumentUrl =
-            Clean(request.ReceiptDocumentUrl);
+            var materialChange = expense.ConstructionSiteId != request.ConstructionSiteId || expense.ProjectId != request.ProjectId ||
+                expense.CostCodeId != request.CostCodeId || expense.VendorId != request.VendorId || expense.ExpenseDate != request.ExpenseDate ||
+                expense.Description != description || expense.Amount != request.Amount || expense.TaxAmount != request.TaxAmount ||
+                expense.CurrencyCode != CleanCurrencyCode(request.CurrencyCode) || expense.ExchangeRate != request.ExchangeRate ||
+                expense.ReferenceNumber != Clean(request.ReferenceNumber) || expense.ReceiptDocumentUrl != Clean(request.ReceiptDocumentUrl);
 
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
+            expense.ConstructionSiteId =
+                request.ConstructionSiteId;
+            expense.ProjectId =
+                request.ProjectId;
+            expense.CostCodeId =
+                request.CostCodeId;
+            expense.VendorId =
+                request.VendorId;
+            expense.ExpenseDate =
+                request.ExpenseDate;
+            expense.Description =
+                description;
+            expense.Amount =
+                request.Amount;
+            expense.TaxAmount =
+                request.TaxAmount;
+            expense.CurrencyCode =
+                CleanCurrencyCode(
+                    request.CurrencyCode);
+            expense.ExchangeRate =
+                request.ExchangeRate;
+            expense.ReferenceNumber =
+                Clean(request.ReferenceNumber);
+            expense.ReceiptDocumentUrl =
+                Clean(request.ReceiptDocumentUrl);
 
-        return Map(expense);
+            if (materialChange) expense.UpdatedBy = currentUserId;
+
+            await _dbContext.SaveChangesAsync(
+                cancellationToken);
+
+            return Map(expense);
+
+        }, cancellationToken);
     }
 
     public async Task<ExpenseResponse> ChangeStatusAsync(
@@ -301,39 +319,51 @@ public sealed class ExpenseService : IExpenseService
         ChangeExpenseStatusRequest request,
         CancellationToken cancellationToken = default)
     {
-        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_Approve);
-
-        EnsureCanModify(actor);
-
-        var expense = await GetExpenseAsync(
-            expenseId,
-            cancellationToken);
-
-        EnsureCompanyAccess(
-            actor,
-            expense.CompanyId);
-
-        await EnsureSiteAccess(
-            actor,
-            expense.ConstructionSiteId,
-            cancellationToken);
-
-        EnsureValidTransition(
-            expense.Status,
-            request.Status);
-
-        if (request.Status == ExpenseStatus.Approved)
+        return await FinanceMutationTransaction.ExecuteAsync(_dbContext, new(ExpenseIds: [expenseId]), async () =>
         {
-            expense.ApprovedBy = currentUserId;
-            expense.ApprovedAtUtc = DateTime.UtcNow;
-        }
+            var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Expense_Approve);
 
-        expense.Status = request.Status;
+            EnsureCanModify(actor);
 
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
+            var expense = await GetExpenseAsync(
+                expenseId,
+                cancellationToken);
 
-        return Map(expense);
+            EnsureCompanyAccess(
+                actor,
+                expense.CompanyId);
+
+            await EnsureSiteAccess(
+                actor,
+                expense.ConstructionSiteId,
+                cancellationToken);
+
+            EnsureValidTransition(
+                expense.Status,
+                request.Status);
+
+            if (request.Status == ExpenseStatus.Paid)
+            {
+                var settlement = await new ExpenseSettlementService(_dbContext).GetSummaryAsync(expense, cancellationToken);
+                if (!settlement.IsVerified || settlement.TotalDue <= 0 || settlement.SettledAmount < settlement.TotalDue)
+                    throw new ExpenseManagementException("Record a completed Payment or Petty Cash Cash Out before marking this expense as paid.");
+            }
+
+            if (request.Status == ExpenseStatus.Approved)
+            {
+                FinanceApprovalPolicy.EnsureIndependent(expense, currentUserId, message => new ExpenseManagementException(message));
+                expense.ApprovedBy = currentUserId;
+                expense.ApprovedAtUtc = DateTime.UtcNow;
+            }
+
+            expense.Status = request.Status;
+
+            await _dbContext.SaveChangesAsync(
+                cancellationToken);
+
+            return Map(expense);
+
+        }, cancellationToken);
     }
 
     private async Task<User> GetActorAsync(
@@ -604,8 +634,7 @@ public sealed class ExpenseService : IExpenseService
     private static void EnsureEditable(
         Expense expense)
     {
-        if (expense.Status == ExpenseStatus.Paid ||
-            expense.Status == ExpenseStatus.Cancelled)
+        if (expense.Status is not (ExpenseStatus.Draft or ExpenseStatus.Submitted or ExpenseStatus.Rejected))
         {
             throw new ExpenseManagementException(
                 $"Expense cannot be modified when status is {expense.Status}.");

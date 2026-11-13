@@ -2,6 +2,8 @@ namespace CSM.Application.Finance.PettyCashTransactions.Dtos;
 
 public sealed class PettyCashTransactionResponse
 {
+    public Guid? ExpenseId { get; set; }
+
     public Guid Id { get; set; }
 
     public Guid PettyCashAccountId { get; set; }

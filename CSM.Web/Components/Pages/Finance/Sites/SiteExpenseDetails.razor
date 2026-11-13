@@ -240,6 +240,8 @@ else
             </div>
         </div>
 
+        <CSM.Web.Components.Pages.Finance.ExpenseSettlementPanel Expense="_expense" />
+
         <!-- Approval / Audit Information -->
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white">
@@ -292,10 +294,10 @@ else
 
                     @if (_expense.Status == "Submitted")
                     {
+                        @if (!_expense.CanApprove) { <p class="text-muted small" role="status">@_expense.ApprovalBlockReason</p> }
                         <WorkspaceAction Route="@($"/finance/sites/{SiteId}/expenses")" Permission="Finance_Expense_Approve">
 <button class="btn btn-success"
-                                @onclick="ApproveExpense"
-                                disabled="@_saving">
+                                @onclick="ApproveExpense" disabled="@(_saving || !_expense.CanApprove)">
                             @if (_saving)
                             {
                                 <span class="spinner-border spinner-border-sm me-1"></span>
@@ -305,20 +307,7 @@ else
 </WorkspaceAction>
                     }
 
-                    @if (_expense.Status == "Approved")
-                    {
-                        <WorkspaceAction Route="@($"/finance/sites/{SiteId}/expenses")" Permission="Finance_Expense_Approve" Roles="SuperAdmin,CompanyAdmin,Accountant,FinanceOfficer">
-<button class="btn btn-success"
-                                @onclick="MarkExpenseAsPaid"
-                                disabled="@_saving">
-                            @if (_saving)
-                            {
-                                <span class="spinner-border spinner-border-sm me-1"></span>
-                            }
-                            Mark as Paid
-                        </button>
-</WorkspaceAction>
-                    }
+
 
                     <div class="col-md-6">
                         <div class="text-muted small">Created</div>
@@ -387,22 +376,22 @@ else
 
     private Task SubmitExpense() => UpdateExpenseStatusAsync(2);
     private Task ApproveExpense() => UpdateExpenseStatusAsync(3);
-    private Task MarkExpenseAsPaid() => UpdateExpenseStatusAsync(5);
 
     private async Task UpdateExpenseStatusAsync(int status)
     {
-        if (_saving || _expense?.Id != ExpenseId) return;
-        var requestId = ExpenseId;
+        if (_saving || _expense?.Id != ExpenseId || (status == 3 && !_expense.CanApprove)) return;
+        var requestId = ExpenseId; var requestVersion = _contextVersion;
         _saving = true;
         _actionError = null;
         try
         {
             await FinanceService.ChangeExpenseStatusAsync(requestId, status);
+            if (requestVersion != _contextVersion) return;
             var updated = await FinanceService.GetExpenseAsync(requestId);
-            if (ExpenseId == requestId) _expense = updated;
+            if (requestVersion == _contextVersion && ExpenseId == requestId) _expense = updated;
         }
-        catch { if (ExpenseId == requestId) _actionError = "Unable to update this expense. Refresh and try again."; }
-        finally { _saving = false; }
+        catch { if (requestVersion == _contextVersion && ExpenseId == requestId) _actionError = "Unable to update this expense. Refresh and try again."; }
+        finally { if (requestVersion == _contextVersion) _saving = false; }
     }
 
     private string ConstructionSiteDisplay =>
@@ -424,11 +413,17 @@ else
                 : "Not available"
             : "—";
 
-    protected override async Task OnInitializedAsync()
+    private int _contextVersion;
+    protected override async Task OnParametersSetAsync()
     {
+        var version = ++_contextVersion;
+        _saving = false;
+        _loading = true; _expense = null; _loadError = _actionError = null; _relatedDataUnavailable = false;
         try
         {
-            _expense = await FinanceService.GetExpenseAsync(ExpenseId);
+            var expense = await FinanceService.GetExpenseAsync(ExpenseId);
+            if (version != _contextVersion) return;
+            _expense = expense;
             if (_expense is null ||
                 _expense.ConstructionSiteId != SiteId)
             {
@@ -455,6 +450,7 @@ else
         }
         catch (HttpRequestException ex)
         {
+            if (version != _contextVersion) return;
             _expense = null;
             _loadError = ex.StatusCode switch
             {
@@ -466,12 +462,13 @@ else
         }
         catch
         {
+            if (version != _contextVersion) return;
             _expense = null;
             _loadError = "Unable to load expense details. Please try again.";
         }
         finally
         {
-            _loading = false;
+            if (version == _contextVersion) _loading = false;
         }
     }
 

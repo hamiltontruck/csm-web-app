@@ -67,6 +67,24 @@ public sealed class ExpensesController : ControllerBase
         }
     }
 
+    [HttpGet("settlement-options")]
+    [Authorize(Policy = "Finance.Expense.View")]
+    public async Task<IActionResult> SettlementOptions([FromServices] IExpenseSettlementService settlement,
+        [FromQuery] string purpose, [FromQuery] Guid? siteId, [FromQuery] Guid? accountId, CancellationToken ct)
+    {
+        try { return Ok(await settlement.GetOptionsAsync(GetCurrentUserId(), purpose, siteId, accountId, ct)); }
+        catch (ExpenseManagementException ex) { return StatusCode(403, new { message = ex.Message }); }
+    }
+
+    [HttpGet("{expenseId:guid}/settlement-options")]
+    [Authorize(Policy = "Finance.Expense.View")]
+    public async Task<IActionResult> ExpenseSettlementOptions([FromServices] IExpenseSettlementService settlement,
+        Guid expenseId, [FromQuery] string purpose, CancellationToken ct)
+    {
+        try { return Ok(await settlement.GetForExpenseAsync(GetCurrentUserId(), expenseId, purpose, ct)); }
+        catch (ExpenseManagementException ex) { return StatusCode(403, new { message = ex.Message }); }
+    }
+
     [HttpGet("{expenseId:guid}")]
     [Authorize(Policy = "Finance.Expense.View")]
     public async Task<ActionResult<ExpenseResponse>> GetById(

@@ -2,6 +2,7 @@ namespace CSM.Web.Models.Finance;
 
 public class UpdatePaymentRequest
 {
+    public Guid? ExpenseId { get; set; }
     public Guid CompanyId { get; set; }
     public Guid? ConstructionSiteId { get; set; }
     public Guid? ProjectId { get; set; }

@@ -5,6 +5,9 @@ namespace CSM.Domain.Entities.Finance;
 
 public class PettyCashTransaction : AuditableEntity
 {
+    public Guid? ExpenseId { get; set; }
+    public Expense? Expense { get; set; }
+
     public Guid PettyCashAccountId { get; set; }
     public PettyCashAccount PettyCashAccount { get; set; } = null!;
 

@@ -37,12 +37,15 @@ public sealed class FinanceOfficerPostgresTests
             var actor = new User { CompanyId = company.Id, Email = "finance@example.test", NormalizedEmail = "FINANCE@EXAMPLE.TEST", IsActive = true,
                 UserRoles = [new() { Role = await db.Roles.SingleAsync(x => x.Name == "FinanceOfficer") }] }; db.Users.Add(actor);
             var assignment = new UserSiteAccess { UserId = actor.Id, CompanyId = company.Id, SiteId = site.Id, IsActive = true }; db.UserSiteAccesses.Add(assignment);
+            var checker = new User { CompanyId = company.Id, Email = "checker@example.test", NormalizedEmail = "CHECKER@EXAMPLE.TEST", IsActive = true,
+                UserRoles = [new() { Role = await db.Roles.SingleAsync(x => x.Name == "FinanceOfficer") }] };
+            db.Users.Add(checker); db.UserSiteAccesses.Add(new() { UserId = checker.Id, CompanyId = company.Id, SiteId = site.Id, IsActive = true });
             await db.SaveChangesAsync(); var date = new DateOnly(2026,11,11);
             var budgets = new BudgetService(db, new PermissionEvaluator(db));
             var budget = await budgets.CreateAsync(actor.Id, new CreateBudgetRequest(site.Id, project.Id, "B-1", "Budget", null, 10m, "ETB", date, null));
             await new BudgetLineService(db).CreateAsync(actor.Id, new CreateBudgetLineRequest(budget.Id, code.Id, "Line", 10m, 10m));
             await budgets.ChangeStatusAsync(actor.Id, budget.Id, new ChangeBudgetStatusRequest(BudgetStatus.PendingApproval));
-            await budgets.ChangeStatusAsync(actor.Id, budget.Id, new ChangeBudgetStatusRequest(BudgetStatus.Approved));
+            await budgets.ChangeStatusAsync(checker.Id, budget.Id, new ChangeBudgetStatusRequest(BudgetStatus.Approved));
             var invoices = new InvoiceService(db);
             var invoice = await invoices.CreateAsync(actor.Id, new CreateInvoiceRequest(site.Id, project.Id, null, "I-1", InvoiceType.ClientInvoice, date, null, 1m, 0m, 1m, "ETB", 1m, null, null));
             await new InvoiceLineService(db).CreateAsync(actor.Id, invoice.Id, new CreateInvoiceLineRequest(code.Id, "Line", 1m, "Unit", 1m, 0m));
@@ -56,7 +59,7 @@ public sealed class FinanceOfficerPostgresTests
             var expenses = new ExpenseService(db);
             var expense = await expenses.CreateAsync(actor.Id, new CreateExpenseRequest(site.Id, project.Id, code.Id, null, "E-1", date, "Expense", 1m, 0m, "ETB", 1m, null, null));
             await expenses.ChangeStatusAsync(actor.Id, expense.Id, new ChangeExpenseStatusRequest(ExpenseStatus.Submitted));
-            await expenses.ChangeStatusAsync(actor.Id, expense.Id, new ChangeExpenseStatusRequest(ExpenseStatus.Approved));
+            await expenses.ChangeStatusAsync(checker.Id, expense.Id, new ChangeExpenseStatusRequest(ExpenseStatus.Approved));
             var cash = await new PettyCashAccountService(db).CreateAsync(actor.Id, new CreatePettyCashAccountRequest { ConstructionSiteId = site.Id, AccountCode = "PC-1", AccountName = "Cash", OpeningBalance = 10m });
             await new PettyCashTransactionService(db).CreateAsync(actor.Id, new CreatePettyCashTransactionRequest { PettyCashAccountId = cash.Id, CostCodeId = code.Id, TransactionType = "CashOut", ReferenceNumber = "PC-OUT-1", Description = "Expense", Amount = 1m });
             await using var verify = new ApplicationDbContext(options);
@@ -75,7 +78,7 @@ public sealed class FinanceOfficerPostgresTests
             Assert.Equal(InvoiceStatus.Issued, (await verify.Invoices.AsNoTracking().SingleAsync(x => x.Id == otherInvoice.Id)).Status);
             Assert.Equal(0m, (await verify.Invoices.AsNoTracking().SingleAsync(x => x.Id == otherInvoice.Id)).PaidAmount);
             Assert.Equal(10m, (await verify.PettyCashAccounts.AsNoTracking().SingleAsync(x => x.Id == otherCash.Id)).CurrentBalance);
-            assignment.IsActive = false; await db.SaveChangesAsync();
+            (await db.UserSiteAccesses.SingleAsync(x => x.Id == assignment.Id)).IsActive = false; await db.SaveChangesAsync();
             Assert.Empty(await budgets.GetAllAsync(actor.Id)); Assert.Empty(await payments.GetAllAsync(actor.Id));
             Assert.NotNull(await Record.ExceptionAsync(() => payments.CompletePaymentAsync(actor.Id, payment.Id)));
             Assert.Equal(PaymentStatus.Reversed, (await verify.Payments.AsNoTracking().SingleAsync(x => x.Id == payment.Id)).Status);

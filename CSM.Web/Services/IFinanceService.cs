@@ -4,6 +4,8 @@ namespace CSM.Web.Services;
 
 public interface IFinanceService
 {
+    Task<IReadOnlyList<ExpenseSettlementOption>> GetExpenseSettlementChoicesAsync(string purpose, Guid? siteId = null, Guid? accountId = null);
+    Task<ExpenseSettlementOptionsResponse> GetExpenseSettlementOptionsAsync(Guid expenseId, string purpose);
     Task<FinanceActionCapabilities> GetActionCapabilitiesAsync(string purpose);
     Task<FinanceSiteOptions> GetSiteFormOptionsAsync(Guid siteId, string purpose);
     Task<IReadOnlyList<CostCodeResponse>> GetCostCodesAsync();

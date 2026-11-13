@@ -35,6 +35,11 @@ else
             <div class="alert alert-danger">@_error</div>
         }
 
+        @if (_payment.ExpenseId is Guid expenseId)
+        {
+            <p class="text-muted">Expense Payment · <a href="@( _payment.ConstructionSiteId is Guid site ? $"/finance/sites/{site}/expenses/{expenseId}" : $"/finance/company/expenses/{expenseId}")">View linked expense</a></p>
+        }
+
         @if (_isPayrollPayment && _payroll is not null)
         {
             <div class="alert alert-info mb-4">
@@ -177,20 +182,22 @@ else
     private bool _isPayrollPayment;
 
     private bool _loading = true;
-    private bool _loaded;
 
     private string? _error;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private int _contextVersion;
+    private Guid? _loadedPaymentId;
+    protected override async Task OnParametersSetAsync()
     {
-        if (!firstRender || _loaded)
-            return;
-
-        _loaded = true;
-
+        var version = ++_contextVersion; var id = Id;
+        _loading = true; _loadedPaymentId = null; _payment = new(); _payroll = null; _error = null;
         try
         {
-            var data = await FinanceService.GetPaymentAsync(Id);
+            var data = await FinanceService.GetPaymentAsync(id);
+            if (version != _contextVersion) return;
+            if (SiteId.HasValue && data.ConstructionSiteId != SiteId) throw new InvalidOperationException("Payment does not match this site.");
+            if (data.Status != "Pending") throw new InvalidOperationException("Only pending payments can be edited.");
+            _loadedPaymentId = id;
 
             _payment.PaymentNumber = data.PaymentNumber;
             _payment.PaymentDate = data.PaymentDate;
@@ -205,6 +212,7 @@ else
             _payment.CompanyId = data.CompanyId;
             _payment.ConstructionSiteId = data.ConstructionSiteId;
             _payment.ProjectId = data.ProjectId;
+            _payment.ExpenseId = data.ExpenseId;
             _payment.InvoiceId = data.InvoiceId;
             _payment.VendorId = data.VendorId;
             _payment.PayrollRecordId = data.PayrollRecordId;
@@ -225,18 +233,19 @@ else
         }
         finally
         {
-            _loading = false;
+            if (version == _contextVersion) _loading = false;
         }
 
-        StateHasChanged();
     }
 
     private async Task Save()
     {
+        if (_loading || _loadedPaymentId != Id) return;
+        var requestId = Id; var version = _contextVersion;
         try
         {
             // Company payment: no site or project
-            if (!SiteId.HasValue && !FormAccess.IsSiteFinanceOfficer)
+            if (!_payment.ExpenseId.HasValue && !SiteId.HasValue && !FormAccess.IsSiteFinanceOfficer)
             {
                 _payment.ConstructionSiteId = null;
                 _payment.ProjectId = null;
@@ -246,7 +255,8 @@ else
                 _payment.ConstructionSiteId = SiteId;
             }
 
-            await FinanceService.UpdatePaymentAsync(Id, _payment);
+            await FinanceService.UpdatePaymentAsync(requestId, _payment);
+            if (version != _contextVersion) return;
 
             if (SiteId.HasValue)
                 Navigation.NavigateTo($"/finance/sites/{SiteId.Value}/payments/{Id}");
