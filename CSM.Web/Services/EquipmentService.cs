@@ -56,36 +56,61 @@ public class EquipmentService : IEquipmentService
             $"equipment/{id}");
     }
 
+    public async Task<EquipmentCreateOptions> GetCreateOptionsAsync()
+    {
+        var client = await GetClientAsync();
+        using var response = await client.GetAsync("equipment/create-options");
+        await EnsureCreateSuccessAsync(response);
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<EquipmentCreateOptions>()
+                ?? throw new HttpRequestException("Unable to verify equipment access. Please try again.");
+        }
+        catch (JsonException)
+        {
+            throw new HttpRequestException("Unable to verify equipment access. Please try again.");
+        }
+    }
+
     public async Task<Guid> CreateEquipmentAsync(CreateEquipmentRequest request)
     {
         var client = await GetClientAsync();
+        using var response = await client.PostAsJsonAsync("equipment", request);
+        await EnsureCreateSuccessAsync(response);
+        try
+        {
+            var created = await response.Content.ReadFromJsonAsync<EquipmentResponse>();
+            if (created is null || created.Id == Guid.Empty)
+                throw new HttpRequestException("Unable to confirm equipment creation. Refresh the equipment list before trying again.");
+            return created.Id;
+        }
+        catch (JsonException)
+        {
+            throw new HttpRequestException("Unable to confirm equipment creation. Refresh the equipment list before trying again.");
+        }
+    }
 
-        Console.WriteLine("===== CREATE EQUIPMENT REQUEST =====");
-        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(
-            request,
-            new System.Text.Json.JsonSerializerOptions
+    private static async Task EnsureCreateSuccessAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode) return;
+        var message = response.StatusCode switch
+        {
+            System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+            System.Net.HttpStatusCode.Forbidden => "You do not have permission to create equipment.",
+            _ => "Unable to save equipment. Please try again."
+        };
+        if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.UnprocessableEntity)
+        {
+            try
             {
-                WriteIndented = true
-            }));
-
-        var response = await client.PostAsJsonAsync("equipment", request);
-
-        var body = await response.Content.ReadAsStringAsync();
-
-        Console.WriteLine("===== CREATE EQUIPMENT RESPONSE =====");
-        Console.WriteLine(body);
-
-        if (!response.IsSuccessStatusCode)
-            throw new Exception(body);
-
-        var created = System.Text.Json.JsonSerializer.Deserialize<EquipmentResponse>(
-            body,
-            new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-        return created!.Id;
+                var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+                if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("message", out var value)
+                    && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()))
+                    message = value.GetString()!;
+            }
+            catch (JsonException) { }
+        }
+        throw new HttpRequestException(message, null, response.StatusCode);
     }
 
     public async Task UpdateEquipmentAsync(Guid id, UpdateEquipmentRequest request)

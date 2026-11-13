@@ -5,6 +5,8 @@ namespace CSM.Application.Procurement.Equipment;
 
 public interface IEquipmentService
 {
+    Task<EquipmentCreateOptions> GetCreateOptionsAsync(Guid currentUserId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<EquipmentResponse>> GetAllAsync(
         Guid currentUserId,
         bool? isActive = null,

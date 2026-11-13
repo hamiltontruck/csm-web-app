@@ -2,6 +2,7 @@ namespace CSM.Web.Models.Equipment;
 
 public class CreateEquipmentRequest
 {
+    public Guid? CompanyId { get; set; }
     public string EquipmentCode { get; set; } = "";
     public string Name { get; set; } = "";
     public string Category { get; set; } = "";

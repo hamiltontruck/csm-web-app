@@ -22,6 +22,40 @@ public sealed class EquipmentService : IEquipmentService
         _dbContext = dbContext;
     }
 
+    public async Task<EquipmentCreateOptions> GetCreateOptionsAsync(Guid currentUserId, CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanAccess(actor);
+        if (!IsSuperAdmin(actor))
+            return new() { CompanyId = GetActorCompanyId(actor) };
+
+        var companies = await _dbContext.Companies.AsNoTracking()
+            .Where(x => x.IsActive && !x.IsDeleted)
+            .OrderBy(x => x.Name).ThenBy(x => x.Code)
+            .Select(x => new EquipmentCompanyOption { Id = x.Id, Code = x.Code, Name = x.Name })
+            .ToListAsync(cancellationToken);
+        var companyId = companies.Any(x => x.Id == actor.CompanyId) ? actor.CompanyId
+            : companies.Count == 1 ? companies[0].Id : (Guid?)null;
+        return new() { CanSelectCompany = true, CompanyId = companyId, Companies = companies };
+    }
+
+    private async Task<Guid> ResolveCreateCompanyAsync(User actor, Guid? selectedCompanyId, CancellationToken cancellationToken)
+    {
+        if (!IsSuperAdmin(actor))
+        {
+            var ownCompanyId = GetActorCompanyId(actor);
+            if (selectedCompanyId.HasValue && selectedCompanyId != ownCompanyId)
+                throw new EquipmentManagementException("You cannot create equipment for another company.");
+            return ownCompanyId;
+        }
+        var companyId = selectedCompanyId ?? actor.CompanyId;
+        if (!companyId.HasValue || companyId == Guid.Empty)
+            throw new EquipmentManagementException("Select a company before creating equipment.");
+        if (!await _dbContext.Companies.AnyAsync(x => x.Id == companyId && x.IsActive && !x.IsDeleted, cancellationToken))
+            throw new EquipmentManagementException("The selected company is invalid or inactive.");
+        return companyId.Value;
+    }
+
     public async Task<IReadOnlyCollection<EquipmentResponse>> GetAllAsync(
         Guid currentUserId,
         bool? isActive = null,
@@ -111,7 +145,7 @@ public sealed class EquipmentService : IEquipmentService
 
         EnsureCanAccess(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ResolveCreateCompanyAsync(actor, request.CompanyId, cancellationToken);
 
         var equipmentCode = Clean(request.EquipmentCode);
         var name = Clean(request.Name);
