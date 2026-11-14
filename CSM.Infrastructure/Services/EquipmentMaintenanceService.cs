@@ -109,8 +109,6 @@ public sealed class EquipmentMaintenanceService :
 
         EnsureCanModify(actor);
 
-        var companyId = GetActorCompanyId(actor);
-
         ValidateRequiredText(
             request.MaintenanceType,
             "Maintenance type");
@@ -142,11 +140,9 @@ public sealed class EquipmentMaintenanceService :
             actor,
             equipment.CompanyId);
 
-        if (equipment.CompanyId != companyId)
-        {
-            throw new EquipmentMaintenanceManagementException(
-                "Equipment does not belong to the current company.");
-        }
+        // Global SuperAdmins may have no account company. The authorized
+        // equipment supplies the company for both the record and its site check.
+        var companyId = equipment.CompanyId;
 
         if (!equipment.IsActive)
         {

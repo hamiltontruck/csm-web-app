@@ -54,6 +54,19 @@ public sealed class EquipmentMaintenanceSiteSnapshotTests
         Assert.Empty(f.Db.EquipmentMaintenanceRecords);
     }
 
+    [Theory]
+    [InlineData(AppRoles.CompanyAdmin)] [InlineData(AppRoles.SiteManager)]
+    public async Task Company_user_cannot_create_maintenance_for_foreign_equipment(string role)
+    {
+        using var f = new Fixture(role);
+        f.Equipment.CompanyId = f.ForeignSite.CompanyId;
+        f.Db.SaveChanges(true);
+        var error = await Assert.ThrowsAsync<EquipmentMaintenanceManagementException>(() =>
+            new EquipmentMaintenanceService(f.Db).CreateAsync(f.Actor.Id, f.Request(f.ForeignSite.Id)));
+        Assert.Contains("outside your company", error.Message);
+        Assert.Empty(f.Db.EquipmentMaintenanceRecords);
+    }
+
     [Fact]
     public async Task Legacy_company_maintenance_without_a_site_remains_unattributed()
     {

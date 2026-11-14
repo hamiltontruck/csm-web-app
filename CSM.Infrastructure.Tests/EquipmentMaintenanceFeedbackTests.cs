@@ -200,6 +200,24 @@ public sealed class EquipmentMaintenanceFeedbackTests
         Assert.Equal(SiteId, api.CapturedSite);
     }
 
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void Failed_maintenance_save_retains_input_and_masks_unexpected_error(bool networkFailure)
+    {
+        using var context = Context(out var api);
+        api.SaveError = networkFailure ? new HttpRequestException("private API diagnostic") : new Exception("private API diagnostic");
+        var page = context.RenderComponent<EquipmentMaintenanceCreate>(p => p.Add(x => x.SiteId, SiteId));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("form")));
+        page.FindAll("input").First().Change("service");
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Contains("Unable to save maintenance", page.Find("[role=alert]").TextContent));
+        Assert.DoesNotContain("private API diagnostic", page.Markup);
+        Assert.Equal("service", page.FindAll("input").First().GetAttribute("value"));
+        api.SaveError = null;
+        page.Find("form").Submit();
+        page.WaitForAssertion(() => Assert.Equal(2, api.SaveCalls));
+    }
+
     private static ApplicationDbContext Database(string role, out Guid userId)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -229,6 +247,7 @@ public sealed class EquipmentMaintenanceFeedbackTests
 
     public class Api : DispatchProxy
     {
+        public Exception? SaveError { get; set; }
         public bool IncludeHistory { get; set; }
         public bool AllReleased { get; set; }
         public bool MovedAway { get; set; }
@@ -238,7 +257,7 @@ public sealed class EquipmentMaintenanceFeedbackTests
         {
             SaveCalls++;
             CapturedSite = request.GetType().GetProperty("SiteId")?.GetValue(request) is Guid id ? id : null;
-            return Task.FromResult(Guid.NewGuid());
+            return SaveError is null ? Task.FromResult(Guid.NewGuid()) : Task.FromException<Guid>(SaveError);
         }
         private static EquipmentMaintenanceResponse Row(Guid equipment, Guid? site, string name) =>
             System.Text.Json.JsonSerializer.Deserialize<EquipmentMaintenanceResponse>(
