@@ -230,7 +230,7 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
                         ReceiptNumber =
                             normalizedReceiptNumber,
                         ReceivedAtUtc =
-                            request.ReceivedAtUtc,
+                            PostgresDateTimeNormalizer.Normalize(request.ReceivedAtUtc),
                         ReceivedBy =
                             currentUserId,
                         DeliveryNoteNumber =
