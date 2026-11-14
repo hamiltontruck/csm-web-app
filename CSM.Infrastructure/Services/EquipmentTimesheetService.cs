@@ -18,6 +18,7 @@ public sealed class EquipmentTimesheetService
     public async Task<IReadOnlyList<EquipmentTimesheetResponse>> GetAllAsync(
         Guid companyId,
         Guid? equipmentId,
+        Guid? siteId = null,
         CancellationToken cancellationToken = default)
     {
         var query = _db.EquipmentTimesheets
@@ -27,6 +28,9 @@ public sealed class EquipmentTimesheetService
 
         if (equipmentId.HasValue)
             query = query.Where(x => x.EquipmentId == equipmentId.Value);
+
+        if (siteId.HasValue)
+            query = query.Where(x => x.SiteId == siteId.Value);
 
         return await query
             .OrderByDescending(x => x.WorkDate)
@@ -164,10 +168,6 @@ public sealed class EquipmentTimesheetService
         if (workedHours < 0)
             workedHours = 0;
 
-        item.WorkedHours = Math.Round(workedHours, 2);
-
-        Console.WriteLine($"Duration={duration} Worked={item.WorkedHours}");
-
         item.EquipmentId = request.EquipmentId;
         item.SiteId = request.SiteId;
         item.WorkDate = DateOnly.FromDateTime(request.WorkDate);
@@ -176,13 +176,9 @@ public sealed class EquipmentTimesheetService
         item.StartTime = TimeOnly.FromTimeSpan(request.StartTime);
         item.EndTime = TimeOnly.FromTimeSpan(request.EndTime);
         item.BreakMinutes = request.BreakMinutes;
+        item.WorkedHours = Math.Round(workedHours, 2);
         item.Activity = request.Activity;
         item.Remarks = request.Remarks;
-
-        item.WorkedHours = Math.Round(workedHours, 2);
-
-        Console.WriteLine(
-            $"Duration={duration} Worked={item.WorkedHours}");
 
         await _db.SaveChangesAsync(cancellationToken);
 
