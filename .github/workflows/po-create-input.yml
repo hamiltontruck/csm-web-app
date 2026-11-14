@@ -4,12 +4,14 @@ on:
     paths:
       - 'CSM.Web/**'
       - 'scripts/qa/po-create-input.cjs'
+      - 'scripts/qa/goods-receipt.cjs'
       - '.github/workflows/po-create-input.yml'
   push:
     branches: [main]
     paths:
       - 'CSM.Web/**'
       - 'scripts/qa/po-create-input.cjs'
+      - 'scripts/qa/goods-receipt.cjs'
       - '.github/workflows/po-create-input.yml'
 permissions:
   contents: read
@@ -37,6 +39,8 @@ jobs:
         run: node scripts/qa/po-create-input.cjs
         env:
           CSM_SCREENSHOT_DIR: artifacts/po-create-input
+      - name: Verify Goods Receipt errors and retry against local API fixture
+        run: node scripts/qa/goods-receipt.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

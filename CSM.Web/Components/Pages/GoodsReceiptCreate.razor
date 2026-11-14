@@ -18,16 +18,21 @@
 }
 @if (!string.IsNullOrWhiteSpace(errorMessage))
 {
-    <div class="alert alert-danger">
+    <div class="alert alert-danger" role="alert">
         @errorMessage
     </div>
 }
-else
+@if (!loading && !loaded)
+{
+    <button id="retry-goods-receipt" class="btn btn-primary" @onclick="LoadAsync">Retry</button>
+}
+@if (!loading && loaded)
 {
     <EditForm Model="@request"
               OnValidSubmit="@Save"
               FormName="GoodsReceiptCreateForm">
 
+        <fieldset disabled="@saving">
         <DataAnnotationsValidator/>
 
         <div class="card shadow-sm mb-4">
@@ -51,7 +56,7 @@ else
                     <div class="col-md-12">
                         <label class="form-label">Purchase Order</label>
 
-                        <select class="form-select" @onchange="PurchaseOrderChanged">
+                        <select class="form-select" value="@request.PurchaseOrderId" @onchange="PurchaseOrderChanged">
                             <option value="">-- Select Purchase Order --</option>
 
                             @foreach (var po in purchaseOrders)
@@ -134,14 +139,15 @@ else
                 </button>
 
                 <button class="btn btn-success"
-                        type="submit">
-                    Save Goods Receipt
+                        type="submit" disabled="@(saving || loadingOrder)">
+                    @(saving ? "Saving..." : "Save Goods Receipt")
                 </button>
 
             </div>
 
         </div>
 
+        </fieldset>
     </EditForm>
 }
 
@@ -169,96 +175,134 @@ else
         line.RejectedQuantity = 0;
     }
 
+    private bool loaded, saving, loadingOrder;
+    private int selectionVersion;
+    private string? errorMessage;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
-
-        var all = await ProcurementService.GetPurchaseOrdersAsync();
-
-        foreach (var po in all)
-        {
-            Console.WriteLine(
-                $"ALL PO: {po.PurchaseOrderNumber} | Status: {po.Status}");
-        }
-
-        purchaseOrders = (await ProcurementService.GetReceivablePurchaseOrdersAsync())
-            .Where(x => x.ConstructionSiteId == SiteId)
-            .OrderByDescending(x => x.OrderDate)
-            .ToList();
-
-        foreach (var po in purchaseOrders)
-        {
-            Console.WriteLine(
-                $"RECEIVABLE PO: {po.PurchaseOrderNumber} | Status: {po.Status}");
-        }
-
-        loading = false;
-
-        await InvokeAsync(StateHasChanged);
+        if (firstRender) await LoadAsync();
     }
 
-    private string? errorMessage;
+    private async Task LoadAsync()
+    {
+        loading = true;
+        loaded = false;
+        errorMessage = null;
+        try
+        {
+            purchaseOrders = (await ProcurementService.GetReceivablePurchaseOrdersAsync())
+                .Where(x => x.ConstructionSiteId == SiteId)
+                .OrderByDescending(x => x.OrderDate).ToList();
+            loaded = true;
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = AccessError(ex, "Unable to load purchase orders. Please try again.");
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load purchase orders. Please try again.";
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private async Task PurchaseOrderChanged(ChangeEventArgs e)
     {
+        if (saving) return;
+        var version = ++selectionVersion;
         receiptLines.Clear();
-
-        if (!Guid.TryParse(e.Value?.ToString(), out var poId))
+        errorMessage = null;
+        request.PurchaseOrderId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : Guid.Empty;
+        if (request.PurchaseOrderId == Guid.Empty)
         {
-            request.PurchaseOrderId = Guid.Empty;
+            loadingOrder = false;
             return;
         }
-
-        request.PurchaseOrderId = poId;
-
-        var po = await ProcurementService.GetPurchaseOrderAsync(poId);
-
-        if (po == null)
-            return;
-
-        foreach (var line in po.Lines)
+        var poId = request.PurchaseOrderId;
+        loadingOrder = true;
+        try
         {
-            receiptLines.Add(new GoodsReceiptLineRequest
+            var po = await ProcurementService.GetPurchaseOrderAsync(poId);
+            if (version != selectionVersion) return;
+            if (po is null || po.Id != poId || po.ConstructionSiteId != SiteId)
+            {
+                errorMessage = "The selected purchase order is unavailable for this site.";
+                return;
+            }
+            receiptLines = po.Lines.Select(line => new GoodsReceiptLineRequest
             {
                 PurchaseOrderLineId = line.Id,
                 MaterialId = line.MaterialId,
                 MaterialName = line.MaterialName,
-                OrderedQuantity = line.OrderedQuantity,
-                ReceivedQuantity = 0,
-                AcceptedQuantity = 0,
-                RejectedQuantity = 0
-            });
+                OrderedQuantity = line.OrderedQuantity
+            }).ToList();
         }
-
-        await InvokeAsync(StateHasChanged);
+        catch (HttpRequestException ex)
+        {
+            if (version == selectionVersion)
+                errorMessage = AccessError(ex, "Unable to load purchase order details. Select the purchase order again to retry.");
+        }
+        catch (Exception)
+        {
+            if (version == selectionVersion)
+                errorMessage = "Unable to load purchase order details. Select the purchase order again to retry.";
+        }
+        finally
+        {
+            if (version == selectionVersion) loadingOrder = false;
+        }
     }
 
-    async Task Save()
+    private static string AccessError(HttpRequestException ex, string fallback) => ex.StatusCode switch
     {
-        request.ConstructionSiteId = SiteId;
-        request.Lines = receiptLines
-            .Where(x => x.ReceivedQuantity > 0)
-            .ToList();
+        System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+        System.Net.HttpStatusCode.Forbidden => "You do not have permission to record goods receipts.",
+        _ => fallback
+    };
 
+    private async Task Save()
+    {
+        if (saving || loading || loadingOrder || !loaded) return;
+        errorMessage = null;
+        request.ConstructionSiteId = SiteId;
+        request.Lines = receiptLines.Where(x => x.ReceivedQuantity > 0).ToList();
         if (request.PurchaseOrderId == Guid.Empty)
         {
             errorMessage = "Select a Purchase Order first.";
             return;
         }
-
         if (request.Lines.Count == 0)
         {
             errorMessage = "Enter at least one received quantity.";
             return;
         }
-
-        await ProcurementService.CreateGoodsReceiptAsync(request);
-
-        Navigation.NavigateTo($"/goods-receipts/site/{SiteId}", true);
+        saving = true;
+        try
+        {
+            await ProcurementService.CreateGoodsReceiptAsync(request);
+            Navigation.NavigateTo($"/goods-receipts/site/{SiteId}", true);
+        }
+        catch (GoodsReceiptValidationException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = AccessError(ex, ex.StatusCode == System.Net.HttpStatusCode.BadRequest
+                ? "Unable to save receipt. Check the receipt details and try again."
+                : "Unable to save receipt. Check the receipts list before trying again.");
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to save receipt. Check the receipts list before trying again.";
+        }
+        finally { saving = false; }
     }
 
-    void Cancel()
-        => Navigation.NavigateTo($"/goods-receipts/site/{SiteId}");
-
-
+    private void Cancel() => Navigation.NavigateTo($"/goods-receipts/site/{SiteId}");
 }

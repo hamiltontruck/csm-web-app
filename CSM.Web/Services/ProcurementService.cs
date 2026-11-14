@@ -263,7 +263,9 @@ public class ProcurementService : IProcurementService
 
    public async Task<List<PurchaseOrderResponse>> GetReceivablePurchaseOrdersAsync()
    {
-       var orders = await GetPurchaseOrdersAsync();
+       var client = await GetClientAsync() ?? throw new HttpRequestException(
+           "Your session has expired. Please sign in again.", null, System.Net.HttpStatusCode.Unauthorized);
+       var orders = await client.GetFromJsonAsync<List<PurchaseOrderResponse>>("purchaseorders") ?? [];
 
        return orders
            .Where(po =>
@@ -361,33 +363,25 @@ public class ProcurementService : IProcurementService
 
    public async Task CreateGoodsReceiptAsync(CreateGoodsReceiptRequest request)
    {
-       var client = await GetClientAsync();
-
-       if (client is null)
-           return;
-
-       Console.WriteLine("===== GOODS RECEIPT REQUEST =====");
-       Console.WriteLine(
-           System.Text.Json.JsonSerializer.Serialize(
-               request,
-               new System.Text.Json.JsonSerializerOptions
-               {
-                   WriteIndented = true
-               }));
-
-       var response = await client.PostAsJsonAsync("goodsreceipts", request);
-
-       if (!response.IsSuccessStatusCode)
+       var client = await GetClientAsync() ?? throw new HttpRequestException(
+           "Your session has expired. Please sign in again.", null, System.Net.HttpStatusCode.Unauthorized);
+       using var response = await client.PostAsJsonAsync("goodsreceipts", request);
+       if (response.IsSuccessStatusCode) return;
+       if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
        {
-           var error = await response.Content.ReadAsStringAsync();
-
-           Console.WriteLine("===== GOODS RECEIPT ERROR =====");
-           Console.WriteLine(error);
-
-           throw new Exception(error);
+           try
+           {
+               using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+               if (body.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                   body.RootElement.TryGetProperty("message", out var value) &&
+                   value.ValueKind == System.Text.Json.JsonValueKind.String &&
+                   !string.IsNullOrWhiteSpace(value.GetString()))
+                   throw new GoodsReceiptValidationException(value.GetString()!);
+           }
+           catch (System.Text.Json.JsonException) { }
        }
+       throw new HttpRequestException("Unable to save goods receipt.", null, response.StatusCode);
    }
-
    public async Task SendPurchaseOrderToVendorAsync(Guid purchaseOrderId)
    {
        var client = await GetClientAsync();
