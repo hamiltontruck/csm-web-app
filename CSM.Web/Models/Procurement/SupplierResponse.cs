@@ -3,6 +3,7 @@ namespace CSM.Web.Models.Procurement;
 public class SupplierResponse
 {
     public Guid Id { get; set; }
+    public Guid CompanyId { get; set; }
 
     public string VendorCode { get; set; } = string.Empty;
 

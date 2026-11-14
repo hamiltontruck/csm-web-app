@@ -8,7 +8,7 @@
 @inject IProcurementService ProcurementService
 @inject NavigationManager Navigation
 
-<PageTitle>New Purchase Order</PageTitle>
+<PageTitle>@(IsEditing ? "Edit Purchase Order" : "New Purchase Order")</PageTitle>
 
 @if (!_loaded)
 {
@@ -21,20 +21,27 @@ else
     <div class="container py-4">
 
         <button class="btn btn-outline-secondary mb-3"
-                @onclick="Cancel">
+                disabled="@saving" @onclick="Cancel">
             <i class="bi bi-arrow-left"></i> Back
         </button>
 
-        <h2 class="mb-4">New Purchase Order</h2>
+        <h2 class="mb-4">@(IsEditing ? "Edit Purchase Order" : "New Purchase Order")</h2>
 
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
-            <div class="alert alert-danger">@errorMessage</div>
+            <div class="alert alert-danger" role="alert">@errorMessage</div>
         }
 
+        @if (!_canSave && _retryLoad)
+        {
+            <button id="retry-purchase-order-form" class="btn btn-primary" @onclick="LoadFormAsync">Retry</button>
+        }
+        @if (_canSave)
+        {
         <EditForm Model="@request"
                   OnValidSubmit="@Save"
-                  FormName="PurchaseOrderCreateForm">
+                  FormName="@(IsEditing ? "PurchaseOrderEditForm" : "PurchaseOrderCreateForm")">
+            <fieldset disabled="@saving">
             <DataAnnotationsValidator />
             <ValidationSummary />
 
@@ -128,7 +135,7 @@ else
                                 </div>
 
                                 <div class="col-md-3">
-                                    <label class="form-label">Unit Price (ETB)</label>
+                                    <label class="form-label">Unit Price (@request.CurrencyCode)</label>
 
                                     <PurchaseOrderDecimalInput class="form-control"
                                                                DisplayName="Unit Price"
@@ -155,82 +162,151 @@ else
                     <button type="submit"
                             class="btn btn-success"
                             disabled="@saving">
-                        @(saving ? "Saving..." : "Save Purchase Order")
+                        @(saving ? "Saving..." : IsEditing ? "Save Changes" : "Save Purchase Order")
                     </button>
 
                 </div>
 
             </div>
 
+            </fieldset>
         </EditForm>
+        }
 
     </div>
 }
 
 @code {
     [Parameter] public Guid SiteId { get; set; }
-
-    private bool _loaded;
-    private bool saving;
+    [Parameter] public Guid? PurchaseOrderId { get; set; }
+    private bool IsEditing => PurchaseOrderId.HasValue;
+    private bool _loaded, _loadStarted, _hasParameters, _canSave, _retryLoad, saving;
+    private int _loadVersion;
+    private (Guid?, Guid) _parameterKey;
     private string? errorMessage;
-
-
     private List<MaterialResponse> materials = [];
     private List<SupplierResponse> suppliers = [];
+    private UpdatePurchaseOrderRequest request = new() { OrderDate = DateOnly.FromDateTime(DateTime.Today) };
 
-    private CreatePurchaseOrderRequest request = new()
+    protected override void OnParametersSet()
     {
-        OrderDate = DateOnly.FromDateTime(DateTime.Today)
-    };
+        var key = (PurchaseOrderId, SiteId);
+        if (_hasParameters && _parameterKey == key) return;
+        _hasParameters = true;
+        _parameterKey = key;
+        _loadVersion++;
+        _loaded = _loadStarted = _canSave = _retryLoad = saving = false;
+        errorMessage = null;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _loaded)
-            return;
-
-        _loaded = true;
-
-        try
-        {
-            request.ConstructionSiteId = SiteId;
-
-            materials = await ProcurementService.GetMaterialsAsync();
-            suppliers = await ProcurementService.GetVendorsAsync();
-
-            if (request.Lines.Count == 0)
-                request.Lines.Add(new PurchaseOrderLineRequest());
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-            Console.WriteLine(ex);
-        }
-
-        await InvokeAsync(StateHasChanged);
+        if (_loadStarted) return;
+        _loadStarted = true;
+        await LoadFormAsync();
     }
 
-    void AddLine() => request.Lines.Add(new PurchaseOrderLineRequest());
-
-    void RemoveLine(PurchaseOrderLineRequest line) => request.Lines.Remove(line);
-
-    async Task Save()
+    private async Task LoadFormAsync()
     {
-        saving = true;
-
+        var version = ++_loadVersion;
+        var editingId = PurchaseOrderId;
+        _loaded = _canSave = _retryLoad = false;
+        errorMessage = null;
         try
         {
-            await ProcurementService.CreatePurchaseOrderAsync(request);
-            Navigation.NavigateTo($"/purchase-orders/site/{SiteId}", true);
+            var model = new UpdatePurchaseOrderRequest { ConstructionSiteId = SiteId, OrderDate = DateOnly.FromDateTime(DateTime.Today) };
+            Guid? companyId = null;
+            if (editingId.HasValue)
+            {
+                var order = await ProcurementService.GetPurchaseOrderAsync(editingId.Value);
+                if (version != _loadVersion) return;
+                if (order is null || order.Id != editingId)
+                {
+                    errorMessage = "Purchase order not found.";
+                    return;
+                }
+                if (order.Status != "Draft")
+                {
+                    errorMessage = "Only Draft purchase orders can be edited.";
+                    return;
+                }
+                companyId = order.CompanyId;
+                model = new()
+                {
+                    ConstructionSiteId = order.ConstructionSiteId, ProjectId = order.ProjectId,
+                    VendorId = order.VendorId, MaterialRequestId = order.MaterialRequestId,
+                    PurchaseOrderNumber = order.PurchaseOrderNumber, OrderDate = order.OrderDate,
+                    ExpectedDeliveryDate = order.ExpectedDeliveryDate, CurrencyCode = order.CurrencyCode,
+                    ExchangeRate = order.ExchangeRate, DiscountAmount = order.DiscountAmount,
+                    DeliveryAddress = order.DeliveryAddress, PaymentTerms = order.PaymentTerms, Remarks = order.Notes,
+                    Lines = order.Lines.Select(line => new PurchaseOrderLineRequest
+                    {
+                        MaterialId = line.MaterialId, CostCodeId = line.CostCodeId,
+                        OrderedQuantity = line.OrderedQuantity, UnitPrice = line.UnitPrice, TaxAmount = line.TaxAmount
+                    }).ToList()
+                };
+            }
+            var materialTask = ProcurementService.GetMaterialsAsync();
+            var supplierTask = ProcurementService.GetVendorsAsync();
+            await Task.WhenAll(materialTask, supplierTask);
+            if (version != _loadVersion) return;
+            materials = companyId.HasValue ? materialTask.Result.Where(x => x.CompanyId == companyId).ToList() : materialTask.Result;
+            suppliers = companyId.HasValue ? supplierTask.Result.Where(x => x.CompanyId == companyId).ToList() : supplierTask.Result;
+            if (!editingId.HasValue && model.Lines.Count == 0) model.Lines.Add(new());
+            request = model;
+            _canSave = true;
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            if (version == _loadVersion) { errorMessage = SafeError(ex, "Unable to load purchase order form. Please try again."); _retryLoad = true; }
+        }
+        catch (Exception)
+        {
+            if (version == _loadVersion) { errorMessage = "Unable to load purchase order form. Please try again."; _retryLoad = true; }
         }
         finally
         {
-            saving = false;
+            if (version == _loadVersion) { _loaded = true; await InvokeAsync(StateHasChanged); }
         }
     }
 
-    void Cancel() => Navigation.NavigateTo($"/purchase-orders/site/{SiteId}");
+    private static string SafeError(HttpRequestException ex, string fallback) => ex.StatusCode switch
+    {
+        System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+        System.Net.HttpStatusCode.Forbidden => "You do not have permission to manage this purchase order.",
+        _ => fallback
+    };
+    private void AddLine() => request.Lines.Add(new PurchaseOrderLineRequest());
+    private void RemoveLine(PurchaseOrderLineRequest line) => request.Lines.Remove(line);
+
+    private async Task Save()
+    {
+        if (saving || !_loaded || !_canSave) return;
+        var version = _loadVersion;
+        var id = PurchaseOrderId;
+        var model = request;
+        saving = true;
+        errorMessage = null;
+        try
+        {
+            if (id.HasValue) await ProcurementService.UpdatePurchaseOrderAsync(id.Value, model);
+            else await ProcurementService.CreatePurchaseOrderAsync(model);
+            if (version != _loadVersion) return;
+            Navigation.NavigateTo(id.HasValue ? $"/purchase-orders/{id}" : $"/purchase-orders/site/{model.ConstructionSiteId}");
+        }
+        catch (PurchaseOrderValidationException ex)
+        {
+            if (version == _loadVersion) errorMessage = ex.Message;
+        }
+        catch (HttpRequestException ex)
+        {
+            if (version == _loadVersion) errorMessage = SafeError(ex, "Unable to save purchase order. Please try again.");
+        }
+        catch (Exception)
+        {
+            if (version == _loadVersion) errorMessage = "Unable to save purchase order. Please try again.";
+        }
+        finally { if (version == _loadVersion) saving = false; }
+    }
+    private void Cancel() => Navigation.NavigateTo(IsEditing ? $"/purchase-orders/{PurchaseOrderId}" : $"/purchase-orders/site/{SiteId}");
 }

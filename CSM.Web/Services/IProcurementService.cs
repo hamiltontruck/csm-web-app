@@ -33,6 +33,7 @@ public interface IProcurementService
     Task<List<PurchaseOrderResponse>> GetPurchaseOrdersAsync();
     Task<PurchaseOrderResponse?> GetPurchaseOrderAsync(Guid id);
     Task CreatePurchaseOrderAsync(CreatePurchaseOrderRequest request);
+    Task UpdatePurchaseOrderAsync(Guid id, UpdatePurchaseOrderRequest request);
 
     Task<List<SupplierResponse>> GetVendorsAsync();
 

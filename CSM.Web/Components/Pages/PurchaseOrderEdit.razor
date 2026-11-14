@@ -1,0 +1,20 @@
+@page "/purchase-orders/edit/{Id:guid}"
+@inherits WorkspacePageBase
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@if (!AccessLoaded)
+{
+    <p>Checking purchase order access...</p>
+}
+else if (!Access.CanVisit($"/purchase-orders/edit/{Id}"))
+{
+    <div class="alert alert-danger" role="alert">@(AccessError ?? "You do not have permission to edit purchase orders.")</div>
+}
+else
+{
+    <PurchaseOrderCreate PurchaseOrderId="Id" />
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+}

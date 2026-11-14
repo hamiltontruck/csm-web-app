@@ -21,6 +21,8 @@ public class CreatePurchaseOrderRequest
 public class PurchaseOrderLineRequest
 {
     public Guid MaterialId { get; set; }
+    public Guid? CostCodeId { get; set; }
+    public decimal TaxAmount { get; set; }
 
     public decimal OrderedQuantity { get; set; }
 
