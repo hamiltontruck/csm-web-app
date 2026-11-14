@@ -14,49 +14,46 @@ namespace CSM.Api.Controllers;
 public class EquipmentHourLogsController : ControllerBase
 {
     private readonly EquipmentHourLogService _service;
-
-    public EquipmentHourLogsController(EquipmentHourLogService service)
-    {
-        _service = service;
-    }
+    public EquipmentHourLogsController(EquipmentHourLogService service) => _service = service;
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<EquipmentHourLogResponse>>> GetAll(
-        [FromQuery] Guid? equipmentId,
-        CancellationToken cancellationToken)
+        [FromQuery] Guid? equipmentId, CancellationToken cancellationToken)
     {
-        var result = await _service.GetAllAsync(
-            GetCurrentCompanyId(),
-            equipmentId,
-            cancellationToken);
-
-        return Ok(result);
+        try
+        {
+            return Ok(await _service.GetForUserAsync(GetCurrentUserId(), equipmentId, cancellationToken));
+        }
+        catch (EquipmentManagementException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
     }
 
     [HttpPost]
     [Authorize(Policy = "Equipment.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentHourLogResponse>> Create(
-        CreateEquipmentHourLogRequest request,
-        CancellationToken cancellationToken)
+        CreateEquipmentHourLogRequest request, CancellationToken cancellationToken)
     {
-        var result = await _service.CreateAsync(
-            GetCurrentCompanyId(),
-            request,
-            cancellationToken);
-
-        return Ok(result);
+        try
+        {
+            return Ok(await _service.CreateForUserAsync(GetCurrentUserId(), request, cancellationToken));
+        }
+        catch (EquipmentManagementException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (EquipmentHourLogValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
-    private Guid GetCurrentCompanyId()
+    private Guid GetCurrentUserId()
     {
-        var value = User.FindFirst("company_id")?.Value;
-
-        if (!Guid.TryParse(value, out var companyId))
-        {
-            throw new EquipmentManagementException(
-                "Current company identity is invalid.");
-        }
-
-        return companyId;
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (!Guid.TryParse(value, out var userId))
+            throw new EquipmentManagementException("Current user identity is invalid.");
+        return userId;
     }
 }
