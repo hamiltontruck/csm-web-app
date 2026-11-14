@@ -49,14 +49,23 @@ public sealed partial class StockTransferService
         var actor = await GetActorAsync(currentUserId, cancellationToken);
         var scope = await ProcurementOfficerScope.ResolveAsync(_dbContext, actor.Id,
             GranularPermission.Procurement_Inventory_Adjust, cancellationToken,
-            message => new StockTransferManagementException(message), ["Administrator", "Storekeeper"]);
+            message => new StockTransferManagementException(message), ["SuperAdmin", "Administrator", "Storekeeper"]);
         actor = scope.For(actor);
         if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Procurement_Inventory_Adjust", cancellationToken))
             throw new StockTransferManagementException("Stock transfer management is not permitted.");
         if (!scope.IsScoped) EnsureCanManage(actor);
-        if (!actor.CompanyId.HasValue || actor.CompanyId == Guid.Empty)
+        var companyId = actor.CompanyId;
+        if (HasRole(actor, AppRoles.SuperAdmin))
+        {
+            companyId = await _dbContext.ConstructionSites.AsNoTracking()
+                .Where(x => x.Id == request.SourceConstructionSiteId && x.IsActive && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken);
+            if (!companyId.HasValue || companyId == Guid.Empty)
+                throw new StockTransferManagementException("Source transfer site is unavailable.");
+        }
+        if (!companyId.HasValue || companyId == Guid.Empty)
             throw new StockTransferManagementException("Current user is not assigned to a company.");
-        var company = actor.CompanyId.Value;
+        var company = companyId.Value;
         foreach (var siteId in new[] { request.SourceConstructionSiteId, request.DestinationConstructionSiteId })
         {
             var site = await _dbContext.ConstructionSites.AsNoTracking().SingleOrDefaultAsync(x => x.Id == siteId && x.CompanyId == company && x.IsActive && !x.IsDeleted, cancellationToken)
@@ -506,7 +515,8 @@ public sealed partial class StockTransferService
 
     private static void EnsureCanManage(User actor)
     {
-        if (HasRole(actor, AppRoles.Administrator) ||
+        if (HasRole(actor, AppRoles.SuperAdmin) ||
+            HasRole(actor, AppRoles.Administrator) ||
             HasRole(actor, AppRoles.Storekeeper) ||
             HasRole(actor, AppRoles.ProcurementOfficer))
         {

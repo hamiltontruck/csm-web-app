@@ -51,10 +51,30 @@ public sealed class StockTransferPermissionUiTests
         Assert.Contains("Save Transfer", page.Markup);
     }
 
-    private static TestContext Context(bool canAdjust, out Sites sites, out Inventory inventory)
+    [Fact]
+    public void Superadmin_history_has_new_transfer_link_for_selected_source()
+    {
+        using var context=Context(true,out _,out _,"SuperAdmin");
+        var page=context.RenderComponent<StockTransfersSite>(p=>p.Add(x=>x.SiteId,SiteId));
+        page.WaitForAssertion(()=>Assert.Contains("Hamilton Test Site",page.Markup));
+        var button=Assert.Single(page.FindAll("button").Where(x=>x.TextContent.Contains("New Transfer")));button.Click();
+        Assert.EndsWith($"/stock-transfers/create/{SiteId}",context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+    }
+
+    [Fact]
+    public void Site_create_route_prefills_source_and_loads_its_stock()
+    {
+        using var context=Context(true,out _,out var inventory,"SuperAdmin");
+        var page=context.RenderComponent<StockTransferCreate>(p=>p.Add(x=>x.SiteId,SiteId));
+        page.WaitForAssertion(()=>Assert.Contains("Cement",page.Markup));
+        Assert.Equal(SiteId,inventory.StockSite);
+        Assert.Equal(SiteId.ToString(),((AngleSharp.Html.Dom.IHtmlSelectElement)page.Find("select")).Value);
+    }
+
+    private static TestContext Context(bool canAdjust, out Sites sites, out Inventory inventory, string role = "Storekeeper")
     {
         var context = new TestContext();
-        WorkspaceTestAccess.Add(context, ["Storekeeper"], canAdjust
+        WorkspaceTestAccess.Add(context, [role], canAdjust
             ? ["Procurement_Inventory_View", "Procurement_Inventory_Adjust", "Sites_View"] : ["Procurement_Inventory_View", "Sites_View"]);
         var auth = DispatchProxy.Create<IAuthService, Auth>();
         ((Auth)(object)auth).CanAdjust = canAdjust;
@@ -92,10 +112,12 @@ public sealed class StockTransferPermissionUiTests
     public class Inventory : DispatchProxy
     {
         public int Calls { get; private set; }
+        public Guid? StockSite;
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
             Calls++;
-            return method!.Name == nameof(IInventoryService.GetStockTransfersAsync)
+            if(method!.Name == nameof(IInventoryService.GetStockBySiteAsync)) { StockSite=(Guid)args![0]!;return Task.FromResult(new List<StockBalanceResponse>{new(){MaterialId=Guid.NewGuid(),MaterialName="Cement",AvailableQuantity=5,UnitOfMeasure="Bag"}}); }
+            return method.Name == nameof(IInventoryService.GetStockTransfersAsync)
                 ? Task.FromResult(new List<StockTransferResponse> { new() { FromSiteId = SiteId, MaterialName = "Cement" } })
                 : throw new InvalidOperationException("Unexpected inventory call.");
         }
