@@ -36,12 +36,16 @@ else
             ← Back
         </button>
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
 
             <h1>@order.PurchaseOrderNumber</h1>
 
             @if (order.Status == "Draft")
             {
+                <WorkspaceAction Route="@($"/purchase-orders/edit/{order.Id}")">
+                    <button id="edit-purchase-order" class="btn btn-outline-primary"
+                            @onclick="EditOrder">Edit</button>
+                </WorkspaceAction>
                 <WorkspaceAction Route="/purchase-orders" Permission="Procurement_PurchaseOrder_Manage" Roles="SuperAdmin,CompanyAdmin,SiteManager,Accountant,ProcurementOfficer">
 <button class="btn btn-warning"
                         @onclick="SubmitForApproval">
@@ -97,7 +101,7 @@ else
                     <div class="col-md-6 mb-3">
                         <div class="text-muted small">Total Amount</div>
                         <div class="fw-semibold">
-                            ETB @order.TotalAmount.ToString("N2")
+                            @order.CurrencyCode @order.TotalAmount.ToString("N2")
                         </div>
                     </div>
 
@@ -160,6 +164,7 @@ else
 }
 
 @code {
+    private void EditOrder() => Navigation.NavigateTo($"/purchase-orders/edit/{order!.Id}");
     [Parameter] public Guid Id { get; set; }
 
     private bool loading = true;

@@ -4,6 +4,17 @@ public class PurchaseOrderResponse
 {
     public Guid Id { get; set; }
 
+    public Guid CompanyId { get; set; }
+    public Guid VendorId { get; set; }
+    public Guid? ProjectId { get; set; }
+    public Guid? MaterialRequestId { get; set; }
+    public DateOnly? ExpectedDeliveryDate { get; set; }
+    public string CurrencyCode { get; set; } = "ETB";
+    public decimal ExchangeRate { get; set; } = 1m;
+    public decimal DiscountAmount { get; set; }
+    public string? DeliveryAddress { get; set; }
+    public string? PaymentTerms { get; set; }
+
     public Guid ConstructionSiteId { get; set; }
 
     public string SiteName { get; set; } = string.Empty;
@@ -28,6 +39,7 @@ public class PurchaseOrderLineResponse
     public Guid Id { get; set; }
 
     public Guid MaterialId { get; set; }
+    public Guid? CostCodeId { get; set; }
 
     public string MaterialName { get; set; } = string.Empty;
 

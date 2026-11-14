@@ -288,6 +288,28 @@ public class ProcurementService : IProcurementService
            $"purchaseorders/{id}");
    }
 
+  public async Task UpdatePurchaseOrderAsync(Guid id, UpdatePurchaseOrderRequest request)
+  {
+      var client = await GetClientAsync() ?? throw new HttpRequestException(
+          "Your session has expired. Please sign in again.", null, System.Net.HttpStatusCode.Unauthorized);
+      using var response = await client.PutAsJsonAsync($"purchaseorders/{id}", request);
+      if (response.IsSuccessStatusCode) return;
+      if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+      {
+          try
+          {
+              using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+              if (body.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                  body.RootElement.TryGetProperty("message", out var value) &&
+                  value.ValueKind == System.Text.Json.JsonValueKind.String &&
+                  !string.IsNullOrWhiteSpace(value.GetString()))
+                  throw new PurchaseOrderValidationException(value.GetString()!);
+          }
+          catch (System.Text.Json.JsonException) { }
+      }
+      throw new HttpRequestException("Unable to update purchase order.", null, response.StatusCode);
+  }
+
   public async Task CreatePurchaseOrderAsync(CreatePurchaseOrderRequest request)
   {
       var client = await GetClientAsync();
