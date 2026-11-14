@@ -22,6 +22,15 @@
 
     <h2 class="mb-4">New Daily Material Usage</h2>
 
+    @if (loading) { <p>Loading daily material usage...</p> }
+    else if (!loaded)
+    {
+        <div class="alert alert-danger" role="alert">@rootError</div>
+        @if (canRetry) { <button class="btn btn-primary" @onclick="LoadAsync">Retry</button> }
+    }
+    else
+    {
+    <fieldset disabled="@Working">
     <div class="card shadow-sm">
         <div class="card-body">
 
@@ -30,7 +39,7 @@
                 <div class="col-md-6">
                     <label class="form-label">Construction Site</label>
 
-                    <select class="form-select" @onchange="SiteChanged">
+                    <select class="form-select" value="@model.SiteId" @onchange="SiteChanged">
                         <option value="">-- Select Site --</option>
 
                         @foreach (var site in sites)
@@ -45,7 +54,7 @@
                 <div class="col-md-6">
                     <label class="form-label">Project</label>
 
-                    <select class="form-select" @onchange="ProjectChanged">
+                    <select class="form-select" value="@model.ProjectId" @onchange="ProjectChanged">
                         <option value="">-- Select Project --</option>
 
                         @foreach (var project in projects)
@@ -60,7 +69,7 @@
                 <div class="col-md-6">
                     <label class="form-label">Daily Progress Log</label>
 
-                    <select class="form-select" @onchange="ProgressLogChanged">
+                    <select class="form-select" value="@model.ProgressLogId" @onchange="ProgressLogChanged">
                         <option value="">-- Select Daily Log --</option>
 
                         @foreach (var log in progressLogs)
@@ -70,6 +79,26 @@
                             </option>
                         }
                     </select>
+                    @if (model.ProjectId.HasValue)
+                    {
+                        <button id="reload-usage-daily-logs" class="btn btn-sm btn-outline-secondary mt-2" @onclick="ReloadLogs">Reload Daily Logs</button>
+                    }
+                    @if (logError is not null) { <div class="alert alert-danger mt-2" role="alert">@logError</div> }
+                    @if (logsReady && progressLogs.Count == 0)
+                    {
+                        <div class="alert alert-info mt-2" role="status">No daily progress logs exist for this project. Create a daily log below, or ask a daily progress reporter to create one.</div>
+                    }
+                    @if (logsReady)
+                    {
+                        <WorkspaceAction Route="@($"/projects/{model.ProjectId}/daily-progress/create")">
+                            <div class="mt-2">
+                            <label class="form-label">Daily Log Date</label>
+                            <input type="date" class="form-control" @bind="newLogDate" max="@(DateTime.UtcNow.ToString("yyyy-MM-dd"))" />
+                            <button id="create-usage-daily-log" class="btn btn-outline-primary mt-2" disabled="@(createBlocked || createdLogId.HasValue)" @onclick="CreateDailyLog">@(creatingLog ? "Creating..." : "Create Daily Log")</button>
+                            </div>
+                        </WorkspaceAction>
+                    }
+                    @if (createdLogId.HasValue) { <div class="alert alert-info mt-2">Daily log created. Reload daily logs to select it.</div> }
                 </div>
 
                 <div class="col-md-6">
@@ -85,7 +114,7 @@
                 <div class="col-md-6">
                     <label class="form-label">Material</label>
 
-                    <select class="form-select" @onchange="MaterialChanged">
+                    <select class="form-select" value="@model.MaterialId" @onchange="MaterialChanged">
                         <option value="">-- Select Material --</option>
 
                         @foreach (var item in materials)
@@ -136,11 +165,16 @@
 
             </div>
 
+            @if (optionError is not null)
+            {
+                <div class="alert alert-danger" role="alert">@optionError</div>
+                <button id="retry-usage-options" class="btn btn-outline-primary" @onclick="RetryOptions">Retry Projects and Materials</button>
+            }
             <hr />
 
             @if (!string.IsNullOrWhiteSpace(errorMessage))
             {
-                <div class="alert alert-danger mb-3">
+                <div class="alert alert-danger mb-3" role="alert">
                     @errorMessage
                 </div>
             }
@@ -152,195 +186,218 @@
                     Cancel
                 </button>
 
-                <button class="btn btn-primary"
+                <WorkspaceAction Route="/daily-material-usage/create">
+                <button id="save-daily-usage" class="btn btn-primary"
                         @onclick="SaveUsage"
-                        disabled="@saving">
+                        disabled="@(Working || saveBlocked || !model.ProgressLogId.HasValue)">
                     @(saving ? "Saving..." : "Save Usage")
                 </button>
+                </WorkspaceAction>
 
             </div>
 
         </div>
     </div>
 
+    </fieldset>
+    }
 </div>
 
 @code {
-    [Parameter]
-        public Guid? SiteId { get; set; }
-
+    [Parameter] public Guid? SiteId { get; set; }
     private UsageModel model = new();
-
     private List<SiteResponse> sites = [];
     private List<ProjectResponse> projects = [];
     private List<DailyProgressLogResponse> progressLogs = [];
     private List<StockBalanceResponse> materials = [];
+    private bool loaded, loadStarted, hasParameters, loading = true, loadingOptions, saving, creatingLog, logsReady, canRetry = true, saveBlocked, createBlocked;
+    private Guid? parameterSite, createdLogId;
+    private int version;
+    private string? rootError, optionError, logError, errorMessage;
+    private DateOnly newLogDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    private bool Working => saving || creatingLog || loadingOptions;
 
-    private bool loaded;
-    private bool saving;
-    private string? errorMessage = string.Empty;
-
+    protected override void OnParametersSet()
+    {
+        if (hasParameters && parameterSite == SiteId) return;
+        hasParameters = true; parameterSite = SiteId; version++;
+        loaded = loadStarted = false; loading = true; saving = creatingLog = loadingOptions = false;
+    }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || loaded)
-            return;
-
-        loaded = true;
-
-        sites = await ProjectService.GetSitesAsync();
-
-        if (SiteId.HasValue)
-        {
-            model.SiteId = SiteId.Value;
-
-            materials = await InventoryService.GetStockBySiteAsync(
-                SiteId.Value);
-
-            projects = await ProjectService.GetProjectsBySiteAsync(
-                SiteId.Value);
-        }
-
-        StateHasChanged();
+        if (loadStarted) return;
+        loadStarted = true;
+        await LoadAsync();
     }
-
+    private async Task LoadAsync()
+    {
+        var current = ++version;
+        loading = true; loaded = false; rootError = null; canRetry = true;
+        model = new(); projects = []; progressLogs = []; materials = []; logsReady = false;
+        optionError = logError = errorMessage = null; createdLogId = null; saveBlocked = createBlocked = false;
+        try
+        {
+            var result = await ProjectService.GetSitesAsync();
+            if (current != version) return;
+            sites = result;
+            if (SiteId.HasValue)
+            {
+                if (!sites.Any(x => x.Id == SiteId.Value))
+                    throw new HttpRequestException("Site is unavailable.", null, System.Net.HttpStatusCode.Forbidden);
+                model.SiteId = SiteId;
+                await LoadSiteOptionsAsync(SiteId.Value, current);
+            }
+            if (current == version) loaded = true;
+        }
+        catch (Exception ex)
+        {
+            if (current == version)
+            {
+                rootError = SafeError(ex, "Unable to load daily material usage. Please try again.");
+                canRetry = ex is not HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden };
+            }
+        }
+        finally { if (current == version) { loading = false; await InvokeAsync(StateHasChanged); } }
+    }
+    private async Task LoadSiteOptionsAsync(Guid site, int current)
+    {
+        var projectTask = ProjectService.GetProjectsBySiteAsync(site);
+        var materialTask = InventoryService.GetStockBySiteAsync(site);
+        await Task.WhenAll(projectTask, materialTask);
+        if (current != version) return;
+        projects = projectTask.Result.Where(x => x.ConstructionSiteId == site).ToList();
+        materials = materialTask.Result;
+    }
     private async Task SiteChanged(ChangeEventArgs e)
     {
-        if (!Guid.TryParse(e.Value?.ToString(), out var siteId))
-            return;
-
-        model.SiteId = siteId;
-        model.ProjectId = null;
-        model.ProgressLogId = null;
-
-        projects = await ProjectService.GetProjectsBySiteAsync(siteId);
-        progressLogs.Clear();
-
-        materials = await InventoryService.GetStockBySiteAsync(siteId);
-
-        StateHasChanged();
+        if (Working) return;
+        var current = ++version;
+        model.SiteId = Guid.TryParse(e.Value?.ToString(), out var id) && sites.Any(x => x.Id == id) ? id : null;
+        model.ProjectId = model.ProgressLogId = model.MaterialId = null;
+        model.Unit = ""; projects = []; progressLogs = []; materials = []; logsReady = false; createdLogId = null;
+        optionError = logError = errorMessage = null; saveBlocked = createBlocked = false;
+        if (!model.SiteId.HasValue) return;
+        loadingOptions = true;
+        try { await LoadSiteOptionsAsync(model.SiteId.Value, current); }
+        catch (Exception ex) { if (current == version) optionError = SafeError(ex, "Unable to load projects and materials. Please try again."); }
+        finally { if (current == version) loadingOptions = false; }
     }
-
-private async Task ProjectChanged(ChangeEventArgs e)
-{
-    if (!Guid.TryParse(e.Value?.ToString(), out var projectId))
-        return;
-
-    model.ProjectId = projectId;
-
-    progressLogs = await ProjectService.GetDailyProgressLogsAsync(projectId);
-
-    StateHasChanged();
-}
-private void ProgressLogChanged(ChangeEventArgs e)
-{
-    if (!Guid.TryParse(e.Value?.ToString(), out var logId))
-        return;
-
-    model.ProgressLogId = logId;
-
-    var log = progressLogs.FirstOrDefault(x => x.Id == logId);
-
-    if (log != null)
+    private async Task RetryOptions() => await SiteChanged(new ChangeEventArgs { Value = model.SiteId?.ToString() });
+    private async Task ProjectChanged(ChangeEventArgs e)
     {
-        // Keep the usage date identical to the selected log date
-        model.UsageDate = log.LogDate.Date;
+        if (Working) return;
+        version++;
+        model.ProjectId = Guid.TryParse(e.Value?.ToString(), out var id) && projects.Any(x => x.Id == id) ? id : null;
+        model.ProgressLogId = null; progressLogs = []; logsReady = false; createdLogId = null;
+        logError = errorMessage = null; createBlocked = false;
+        if (model.ProjectId.HasValue) await ReloadLogs();
     }
-}
-
-    void GoBack()
-        => Navigation.NavigateTo("/daily-material-usage");
-
+    private async Task ReloadLogs()
+    {
+        if (Working || !model.ProjectId.HasValue) return;
+        var current = ++version; var project = model.ProjectId.Value;
+        loadingOptions = true; logsReady = false; logError = null; model.ProgressLogId = null;
+        try
+        {
+            var result = await ProjectService.GetDailyProgressLogsAsync(project);
+            if (current != version) return;
+            progressLogs = result.Where(x => x.ProjectId == project).OrderByDescending(x => x.LogDate).ToList();
+            logsReady = true;
+            if (createdLogId.HasValue)
+            {
+                var created = progressLogs.FirstOrDefault(x => x.Id == createdLogId);
+                if (created is not null) { SelectLog(created); createdLogId = null; }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (current == version) { progressLogs = []; logError = SafeError(ex, "Unable to load daily progress logs. Please try again."); }
+        }
+        finally { if (current == version) loadingOptions = false; }
+    }
+    private void ProgressLogChanged(ChangeEventArgs e)
+    {
+        var log = Guid.TryParse(e.Value?.ToString(), out var id) ? progressLogs.FirstOrDefault(x => x.Id == id && x.ProjectId == model.ProjectId) : null;
+        model.ProgressLogId = null;
+        if (log is not null) SelectLog(log);
+    }
+    private void SelectLog(DailyProgressLogResponse log) { model.ProgressLogId = log.Id; model.UsageDate = log.LogDate.Date; }
+    private void MaterialChanged(ChangeEventArgs e)
+    {
+        var material = Guid.TryParse(e.Value?.ToString(), out var id) ? materials.FirstOrDefault(x => x.MaterialId == id) : null;
+        model.MaterialId = material?.MaterialId; model.Unit = material?.UnitOfMeasure ?? "";
+    }
+    private async Task CreateDailyLog()
+    {
+        if (Working || createBlocked || createdLogId.HasValue || !logsReady || !model.ProjectId.HasValue) return;
+        if (newLogDate == default || newLogDate > DateOnly.FromDateTime(DateTime.UtcNow))
+        { errorMessage = "Please select a valid daily log date that is not in the future."; return; }
+        var current = version; var project = model.ProjectId.Value;
+        creatingLog = true; errorMessage = null;
+        try
+        {
+            var id = await ProjectService.GetOrCreateDailyLogAsync(new CreateDailyProgressRequest { ProjectId = project, LogDate = newLogDate });
+            if (current != version) return;
+            if (id == Guid.Empty) throw new InvalidOperationException("Daily log confirmation is missing.");
+            createdLogId = id;
+        }
+        catch (Exception ex)
+        {
+            if (current == version)
+            {
+                errorMessage = SaveError(ex, "Unable to create daily log. Please try again.");
+                createBlocked = IsAccessError(ex);
+            }
+        }
+        finally { if (current == version) creatingLog = false; }
+        if (current == version && createdLogId.HasValue) await ReloadLogs();
+    }
+    private async Task SaveUsage()
+    {
+        if (Working || !loaded || saveBlocked) return;
+        errorMessage = null;
+        var log = progressLogs.FirstOrDefault(x => x.Id == model.ProgressLogId && x.ProjectId == model.ProjectId);
+        if (!model.SiteId.HasValue || !sites.Any(x => x.Id == model.SiteId)) { errorMessage = "Please select a construction site."; return; }
+        if (!model.ProjectId.HasValue || !projects.Any(x => x.Id == model.ProjectId)) { errorMessage = "Please select a project."; return; }
+        if (!model.MaterialId.HasValue || !materials.Any(x => x.MaterialId == model.MaterialId)) { errorMessage = "Please select a material."; return; }
+        if (log is null) { errorMessage = "Please select a Daily Progress Log."; return; }
+        if (model.QuantityIssued <= 0) { errorMessage = "Quantity issued must be greater than zero."; return; }
+        if (model.QuantityUsed < 0 || model.QuantityReturned < 0 || model.QuantityUsed + model.QuantityReturned > model.QuantityIssued)
+        { errorMessage = "Used and returned quantities must be non-negative and cannot exceed the issued quantity."; return; }
+        var current = version; var site = model.SiteId.Value;
+        var request = new CreateDailyMaterialUsageRequest { ConstructionSiteId = site, MaterialId = model.MaterialId.Value,
+            DailyProgressLogId = log.Id, Date = DateOnly.FromDateTime(log.LogDate), QuantityIssued = model.QuantityIssued,
+            QuantityUsed = model.QuantityUsed, QuantityReturned = model.QuantityReturned, Unit = model.Unit,
+            Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes };
+        saving = true;
+        try
+        {
+            if (!await InventoryService.CreateDailyMaterialUsageAsync(request)) throw new InvalidOperationException("Save was not confirmed.");
+            if (current == version) Navigation.NavigateTo($"/daily-material-usage/site/{site}");
+        }
+        catch (Exception ex) { if (current == version) { errorMessage = SaveError(ex, "Unable to save daily material usage. Please try again."); saveBlocked = IsAccessError(ex); } }
+        finally { if (current == version) saving = false; }
+    }
+    private static bool IsAccessError(Exception ex) => ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden };
+    private static string SafeError(Exception ex, string fallback) => ex is HttpRequestException http ? http.StatusCode switch
+    {
+        System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+        System.Net.HttpStatusCode.Forbidden => "You do not have permission to access this daily material usage data.",
+        _ => fallback
+    } : fallback;
+    private static string SaveError(Exception ex, string fallback) => ex is HttpRequestException { StatusCode: not null } ? ex.Message : fallback;
+    private void GoBack() => Navigation.NavigateTo(model.SiteId.HasValue ? $"/daily-material-usage/site/{model.SiteId}" : "/daily-material-usage");
     public class UsageModel
     {
         public Guid? SiteId { get; set; }
         public Guid? ProjectId { get; set; }
         public Guid? ProgressLogId { get; set; }
         public Guid? MaterialId { get; set; }
-
         public DateTime UsageDate { get; set; } = DateTime.Today;
-
         public decimal QuantityIssued { get; set; }
         public decimal QuantityUsed { get; set; }
         public decimal QuantityReturned { get; set; }
-
         public string Unit { get; set; } = "";
         public string Notes { get; set; } = "";
     }
-
-private void MaterialChanged(ChangeEventArgs e)
-{
-    if (!Guid.TryParse(e.Value?.ToString(), out var materialId))
-        return;
-
-    model.MaterialId = materialId;
-
-    var material = materials.FirstOrDefault(x => x.MaterialId == materialId);
-
-    if (material != null)
-        model.Unit = material.UnitOfMeasure;
-}
-
-private async Task SaveUsage()
-{
-    errorMessage = string.Empty;
-
-    if (model.SiteId == null)
-    {
-        errorMessage = "Please select a construction site.";
-        return;
-    }
-
-    if (model.MaterialId == null)
-    {
-        errorMessage = "Please select a material.";
-        return;
-    }
-
-    if (model.ProgressLogId == null)
-    {
-        errorMessage = "Please select a Daily Progress Log.";
-        return;
-    }
-
-    if (model.QuantityIssued <= 0)
-    {
-        errorMessage = "Quantity issued must be greater than zero.";
-        return;
-    }
-
-    if (model.QuantityUsed < 0)
-    {
-        errorMessage = "Quantity used cannot be negative.";
-        return;
-    }
-
-    if (model.QuantityReturned < 0)
-    {
-        errorMessage = "Quantity returned cannot be negative.";
-        return;
-    }
-
-    saving = true;
-
-    var success = await InventoryService.CreateDailyMaterialUsageAsync(
-                      new CreateDailyMaterialUsageRequest
-                      {
-                          ConstructionSiteId = model.SiteId!.Value,
-                          MaterialId = model.MaterialId!.Value,
-                          DailyProgressLogId = model.ProgressLogId!.Value,
-                          Date = DateOnly.FromDateTime(model.UsageDate),
-                          QuantityIssued = model.QuantityIssued,
-                          QuantityUsed = model.QuantityUsed,
-                          QuantityReturned = model.QuantityReturned,
-                          Unit = model.Unit,
-                          Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes
-                      });
-
-    saving = false;
-
-    if (success)
-        Navigation.NavigateTo("/daily-material-usage");
-    else
-        errorMessage = "Unable to create daily material usage.";
-}
 }

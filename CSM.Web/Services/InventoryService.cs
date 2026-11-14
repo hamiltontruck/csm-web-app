@@ -178,21 +178,41 @@ public sealed class InventoryService : IInventoryService
         return await ReadInventorySaveResultAsync(response, "stock issue");
     }
 
-    public async Task<bool> CreateDailyMaterialUsageAsync(
-        CreateDailyMaterialUsageRequest request)
+    public async Task<bool> CreateDailyMaterialUsageAsync(CreateDailyMaterialUsageRequest request)
     {
         await _authService.ApplyAuthenticationAsync(_http);
-
-        var response = await _http.PostAsJsonAsync(
-            "DailyMaterialUsages",
-            request);
-
-        var body = await response.Content.ReadAsStringAsync();
-
-        Console.WriteLine($"STATUS: {response.StatusCode}");
-        Console.WriteLine(body);
-
-        return response.IsSuccessStatusCode;
+        using var response = await _http.PostAsJsonAsync("DailyMaterialUsages", request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var message = response.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to save daily material usage.",
+                _ => "Unable to save daily material usage. Please try again."
+            };
+            if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.UnprocessableEntity)
+            {
+                try
+                {
+                    var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+                    if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("message", out var value)
+                        && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString())) message = value.GetString()!;
+                }
+                catch (JsonException) { }
+            }
+            throw new HttpRequestException(message, null, response.StatusCode);
+        }
+        try
+        {
+            var created = await response.Content.ReadFromJsonAsync<DailyMaterialUsageResponse>();
+            if (created is null || created.Id == Guid.Empty)
+                throw new HttpRequestException("Unable to confirm usage creation. Refresh the site usage history before trying again.", null, response.StatusCode);
+        }
+        catch (JsonException)
+        {
+            throw new HttpRequestException("Unable to confirm usage creation. Refresh the site usage history before trying again.", null, response.StatusCode);
+        }
+        return true;
     }
     public async Task<List<DailyMaterialUsageResponse>> GetDailyMaterialUsageAsync()
     {

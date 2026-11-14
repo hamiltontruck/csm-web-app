@@ -297,15 +297,9 @@ public class ProjectService : IProjectService
     public async Task<List<ProjectResponse>> GetProjectsBySiteAsync(
         Guid constructionSiteId)
     {
-        var token = await _storage.GetAsync<string>("jwt");
-
-        if (!token.Success || string.IsNullOrWhiteSpace(token.Value))
-            return [];
-
-        var client = _factory.CreateClient("CSM.Api");
-
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", token.Value);
+        var client = await CreateAuthorizedClientAsync();
+        if (client.DefaultRequestHeaders.Authorization is null)
+            throw new HttpRequestException("Your session has expired. Please sign in again.", null, System.Net.HttpStatusCode.Unauthorized);
 
         return await client.GetFromJsonAsync<List<ProjectResponse>>(
             $"projects?constructionSiteId={constructionSiteId}") ?? [];
@@ -314,15 +308,9 @@ public class ProjectService : IProjectService
     public async Task<List<DailyProgressLogResponse>> GetDailyProgressLogsAsync(
         Guid projectId)
     {
-        var token = await _storage.GetAsync<string>("jwt");
-
-        if (!token.Success || string.IsNullOrWhiteSpace(token.Value))
-            return [];
-
-        var client = _factory.CreateClient("CSM.Api");
-
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", token.Value);
+        var client = await CreateAuthorizedClientAsync();
+        if (client.DefaultRequestHeaders.Authorization is null)
+            throw new HttpRequestException("Your session has expired. Please sign in again.", null, System.Net.HttpStatusCode.Unauthorized);
 
         return await client.GetFromJsonAsync<List<DailyProgressLogResponse>>(
             $"dailyprogresslogs?projectId={projectId}") ?? [];
@@ -449,21 +437,40 @@ public class ProjectService : IProjectService
     public async Task<Guid> GetOrCreateDailyLogAsync(CreateDailyProgressRequest request)
     {
         var client = await CreateAuthorizedClientAsync();
-
-        var response = await client.PostAsJsonAsync(
-            "DailyProgressLogs",
-            request);
-
+        if (client.DefaultRequestHeaders.Authorization is null)
+            throw new HttpRequestException("Your session has expired. Please sign in again.", null, System.Net.HttpStatusCode.Unauthorized);
+        using var response = await client.PostAsJsonAsync("DailyProgressLogs", request);
         if (!response.IsSuccessStatusCode)
         {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new Exception(error);
+            var message = response.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create daily progress logs.",
+                _ => "Unable to create daily log. Please try again."
+            };
+            if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                try
+                {
+                    var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+                    if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("message", out var value)
+                        && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString())) message = value.GetString()!;
+                }
+                catch (JsonException) { }
+            }
+            throw new HttpRequestException(message, null, response.StatusCode);
         }
-
-        var log = await response.Content
-            .ReadFromJsonAsync<DailyProgressLogResponse>();
-
-        return log!.Id;
+        try
+        {
+            var log = await response.Content.ReadFromJsonAsync<DailyProgressLogResponse>();
+            if (log is null || log.Id == Guid.Empty)
+                throw new HttpRequestException("Unable to confirm daily log creation. Reload daily logs before trying again.", null, response.StatusCode);
+            return log.Id;
+        }
+        catch (JsonException)
+        {
+            throw new HttpRequestException("Unable to confirm daily log creation. Reload daily logs before trying again.", null, response.StatusCode);
+        }
     }
 
     public async Task<List<DailyProgressTaskEntryResponse>> GetTaskProgressEntriesAsync(Guid dailyLogId)
