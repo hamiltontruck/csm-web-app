@@ -44,7 +44,7 @@
 
                 <div class="col-md-6">
                     <label class="form-label">Transfer From Site</label>
-                    <select class="form-select" @onchange="FromSiteChanged">
+                    <select class="form-select" @bind="model.FromSiteId" @bind:after="LoadSourceStockAsync">
                         <option value="">-- Select Source Site --</option>
 
                         @foreach (var site in sites)
@@ -203,28 +203,27 @@
         if (SiteId.HasValue)
         {
             model.FromSiteId = SiteId.Value;
+            await LoadSourceStockAsync();
         }
 
         StateHasChanged();
     }
 
-    private async Task FromSiteChanged(ChangeEventArgs e)
+    private async Task LoadSourceStockAsync()
     {
-        if (!Guid.TryParse(e.Value?.ToString(), out var siteId))
-        {
-            model.FromSiteId = null;
-            model.MaterialId = null;
-            materials.Clear();
-            StateHasChanged();
-            return;
-        }
-
-        model.FromSiteId = siteId;
         model.MaterialId = null;
-
-        materials = await InventoryService.GetStockBySiteAsync(siteId);
-
-        StateHasChanged();
+        model.UnitOfMeasure = "";
+        materials.Clear();
+        errorMessage = null;
+        if (!model.FromSiteId.HasValue) return;
+        try
+        {
+            materials = await InventoryService.GetStockBySiteAsync(model.FromSiteId.Value);
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to load source stock. Select the source site again to retry.";
+        }
     }
 
     void GoBack()

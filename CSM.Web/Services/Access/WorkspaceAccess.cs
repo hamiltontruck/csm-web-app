@@ -153,7 +153,7 @@ public sealed class WorkspaceAccess(IEnumerable<string> roles, IEnumerable<strin
         if (root is "inventory" or "stock-items") return InventoryLinks.Any(CanVisit);
         if (root == "stock-balance") return (parts.Length > 1 && !parts.Contains("site") || Has("Sites_View")) && Has("Procurement_Inventory_View") && IsIn("SuperAdmin", "Administrator", "Supervisor", "Storekeeper", "ProcurementOfficer");
         if (root == "stock-transfers") return Has("Sites_View") && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View") &&
-            (!write || IsIn("Administrator", "Storekeeper", "ProcurementOfficer"));
+            (!write || IsIn("SuperAdmin", "Administrator", "Storekeeper", "ProcurementOfficer"));
         if (root is "stock-movements" or "stock-issues" or "stock-returns" or "stock-adjustments" or "material-return-audit")
             return IsIn(StockManagers) && Has(write ? "Procurement_Inventory_Adjust" : "Procurement_Inventory_View");
         if (root == "daily-material-usage") return (parts.Length > 1 || Has("Sites_View")) && IsIn("SuperAdmin", "CompanyAdmin", "SiteManager", "Supervisor") &&

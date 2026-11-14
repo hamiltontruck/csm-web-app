@@ -5,6 +5,7 @@ on:
       - 'CSM.Web/**'
       - 'scripts/qa/po-create-input.cjs'
       - 'scripts/qa/goods-receipt.cjs'
+      - 'scripts/qa/stock-transfer.cjs'
       - '.github/workflows/po-create-input.yml'
   push:
     branches: [main]
@@ -12,6 +13,7 @@ on:
       - 'CSM.Web/**'
       - 'scripts/qa/po-create-input.cjs'
       - 'scripts/qa/goods-receipt.cjs'
+      - 'scripts/qa/stock-transfer.cjs'
       - '.github/workflows/po-create-input.yml'
 permissions:
   contents: read
@@ -41,6 +43,8 @@ jobs:
           CSM_SCREENSHOT_DIR: artifacts/po-create-input
       - name: Verify Goods Receipt errors and retry against local API fixture
         run: node scripts/qa/goods-receipt.cjs
+      - name: Verify SuperAdmin stock transfer navigation against local API fixture
+        run: node scripts/qa/stock-transfer.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
