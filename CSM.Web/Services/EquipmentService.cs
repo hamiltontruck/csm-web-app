@@ -402,25 +402,40 @@ public class EquipmentService : IEquipmentService
             CreateEquipmentMaintenanceRequest request)
         {
             var client = await GetClientAsync();
-
-            var response = await client.PostAsJsonAsync(
-                "equipmentmaintenance",
-                request);
-
-            var body = await response.Content.ReadAsStringAsync();
-
+            using var response = await client.PostAsJsonAsync("equipmentmaintenance", request);
             if (!response.IsSuccessStatusCode)
-                throw new Exception(body);
-
-            var created =
-                System.Text.Json.JsonSerializer.Deserialize<EquipmentMaintenanceResponse>(
-                    body,
-                    new System.Text.Json.JsonSerializerOptions
+            {
+                var message = response.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                    System.Net.HttpStatusCode.Forbidden => "You do not have permission to create equipment maintenance.",
+                    _ => "Unable to save maintenance. Please try again."
+                };
+                if (response.StatusCode is System.Net.HttpStatusCode.BadRequest
+                    or System.Net.HttpStatusCode.Conflict or System.Net.HttpStatusCode.UnprocessableEntity)
+                {
+                    try
                     {
-                        PropertyNameCaseInsensitive = true
-                    });
-
-            return created!.Id;
+                        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+                        if (body.ValueKind == JsonValueKind.Object && body.TryGetProperty("message", out var value)
+                            && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()))
+                            message = value.GetString()!;
+                    }
+                    catch (JsonException) { }
+                }
+                throw new HttpRequestException(message, null, response.StatusCode);
+            }
+            try
+            {
+                var created = await response.Content.ReadFromJsonAsync<EquipmentMaintenanceResponse>();
+                if (created is null || created.Id == Guid.Empty)
+                    throw new HttpRequestException("Unable to confirm maintenance creation. Refresh the maintenance list before trying again.", null, response.StatusCode);
+                return created.Id;
+            }
+            catch (JsonException)
+            {
+                throw new HttpRequestException("Unable to confirm maintenance creation. Refresh the maintenance list before trying again.", null, response.StatusCode);
+            }
         }
 
         public async Task<EquipmentMaintenanceResponse> UpdateMaintenanceAsync(

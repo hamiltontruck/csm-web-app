@@ -1,10 +1,10 @@
 name: SuperAdmin equipment creation browser regression
 on:
   pull_request:
-    paths: ['CSM.Web/**', 'scripts/qa/equipment-create.cjs', '.github/workflows/equipment-create.yml']
+    paths: ['CSM.Web/**', 'scripts/qa/equipment-create.cjs', 'scripts/qa/equipment-maintenance.cjs', '.github/workflows/equipment-create.yml']
   push:
     branches: [main]
-    paths: ['CSM.Web/**', 'scripts/qa/equipment-create.cjs', '.github/workflows/equipment-create.yml']
+    paths: ['CSM.Web/**', 'scripts/qa/equipment-create.cjs', 'scripts/qa/equipment-maintenance.cjs', '.github/workflows/equipment-create.yml']
 permissions:
   contents: read
 jobs:
@@ -27,6 +27,8 @@ jobs:
       - run: node scripts/qa/equipment-create.cjs
         env:
           CSM_SCREENSHOT_DIR: artifacts/equipment-create
+      - name: Verify SuperAdmin equipment maintenance against local fixture
+        run: node scripts/qa/equipment-maintenance.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

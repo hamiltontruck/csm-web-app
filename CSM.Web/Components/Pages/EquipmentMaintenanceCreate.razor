@@ -262,9 +262,14 @@
             Navigation.NavigateTo(
                 $"/equipment/maintenance/site/{SiteId}");
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            errorMessage = ex.Message;
+            errorMessage = ex.StatusCode.HasValue
+                ? ex.Message : "Unable to save maintenance. Please try again.";
+        }
+        catch (Exception)
+        {
+            errorMessage = "Unable to save maintenance. Please try again.";
         }
         finally
         {
