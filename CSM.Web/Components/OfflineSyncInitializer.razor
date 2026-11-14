@@ -6,6 +6,7 @@
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
 @inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedSessionStorage SessionStorage
 @inject IConfiguration Configuration
+@inject NavigationManager Navigation
 
 
 @code {
@@ -21,8 +22,18 @@
 
         _initialized = true;
 
-        var token =
-            await SessionStorage.GetAsync<string>("jwt");
+        Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedBrowserStorageResult<string> token;
+        try
+        {
+            token = await SessionStorage.GetAsync<string>("jwt");
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            // A restart can invalidate the key for an existing protected session.
+            // Recover through sign-in without configuring sync or removing queued work.
+            Navigation.NavigateTo("/login");
+            return;
+        }
 
         if (token.Success &&
             !string.IsNullOrWhiteSpace(token.Value))
