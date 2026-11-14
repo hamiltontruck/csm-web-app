@@ -5,6 +5,7 @@
 @using CSM.Web.Services
 
 @inject IInventoryService InventoryService
+@inject IProjectService ProjectService
 @inject NavigationManager Navigation
 
 <PageTitle>Site Daily Material Usage</PageTitle>
@@ -24,7 +25,7 @@ else
             <i class="bi bi-arrow-left"></i> Back
         </button>
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
 
             <div>
                 <h2>@siteName</h2>
@@ -33,6 +34,8 @@ else
                 </div>
             </div>
 
+            @if (errorMessage is null)
+            {
             <WorkspaceAction Route="/daily-material-usage/create/{SiteId}">
                 <button class="btn btn-primary"
                     @onclick="NewUsage">
@@ -40,10 +43,16 @@ else
                 New Usage
             </button>
             </WorkspaceAction>
+            }
 
         </div>
 
-        @if (records.Count == 0)
+        @if (errorMessage is not null)
+        {
+            <div class="alert alert-danger" role="alert">@errorMessage</div>
+            @if (canRetry) { <button id="retry-daily-usage-history" class="btn btn-outline-primary" @onclick="LoadAsync">Retry</button> }
+        }
+        else if (records.Count == 0)
         {
             <div class="alert alert-info">
                 No daily usage records for this site.
@@ -123,37 +132,53 @@ else
     </div>
 }
 
-@code{
-    [Parameter]
-    public Guid SiteId { get; set; }
-
+@code {
+    [Parameter] public Guid SiteId { get; set; }
     private List<DailyMaterialUsageResponse> records = [];
-
-    private bool loading = true;
-
-    private string siteName = "";
-
-    protected override async Task OnInitializedAsync()
+    private bool loading = true, loadStarted, hasParameters, canRetry;
+    private Guid parameterSite;
+    private int version;
+    private string siteName = "Construction Site";
+    private string? errorMessage;
+    protected override void OnParametersSet()
     {
-        var all =
-            await InventoryService.GetDailyMaterialUsageAsync();
-
-        records = all
-            .Where(x => x.ConstructionSiteId == SiteId)
-            .OrderByDescending(x => x.Date)
-            .ToList();
-
-        siteName =
-            records.FirstOrDefault()?.ConstructionSiteName
-            ?? "Construction Site";
-
-        loading = false;
+        if (hasParameters && parameterSite == SiteId) return;
+        hasParameters = true; parameterSite = SiteId; version++; loading = true; loadStarted = false;
     }
-
-    void GoBack()
-        => Navigation.NavigateTo("/daily-material-usage");
-
-    void NewUsage()
-        => Navigation.NavigateTo(
-            $"/daily-material-usage/create/{SiteId}");
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (loadStarted) return;
+        loadStarted = true;
+        await LoadAsync();
+    }
+    private async Task LoadAsync()
+    {
+        var current = ++version; var siteId = SiteId;
+        loading = true; errorMessage = null; records = []; canRetry = true;
+        try
+        {
+            var sitesTask = ProjectService.GetSitesAsync();
+            var recordsTask = InventoryService.GetDailyMaterialUsageAsync();
+            await Task.WhenAll(sitesTask, recordsTask);
+            if (current != version) return;
+            var site = sitesTask.Result.FirstOrDefault(x => x.Id == siteId);
+            if (site is null) throw new HttpRequestException("Site is unavailable.", null, System.Net.HttpStatusCode.Forbidden);
+            siteName = site.Name;
+            records = recordsTask.Result.Where(x => x.ConstructionSiteId == siteId).OrderByDescending(x => x.Date).ToList();
+        }
+        catch (Exception ex)
+        {
+            if (current != version) return;
+            canRetry = ex is not HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden };
+            errorMessage = ex is HttpRequestException http ? http.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to view daily material usage for this site.",
+                _ => "Unable to load daily material usage. Please try again."
+            } : "Unable to load daily material usage. Please try again.";
+        }
+        finally { if (current == version) { loading = false; await InvokeAsync(StateHasChanged); } }
+    }
+    private void GoBack() => Navigation.NavigateTo("/daily-material-usage");
+    private void NewUsage() => Navigation.NavigateTo($"/daily-material-usage/create/{SiteId}");
 }

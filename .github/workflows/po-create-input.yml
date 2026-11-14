@@ -7,6 +7,7 @@ on:
       - 'scripts/qa/goods-receipt.cjs'
       - 'scripts/qa/stock-transfer.cjs'
       - 'scripts/qa/po-edit.cjs'
+      - 'scripts/qa/daily-material-usage.cjs'
       - '.github/workflows/po-create-input.yml'
   push:
     branches: [main]
@@ -16,6 +17,7 @@ on:
       - 'scripts/qa/goods-receipt.cjs'
       - 'scripts/qa/stock-transfer.cjs'
       - 'scripts/qa/po-edit.cjs'
+      - 'scripts/qa/daily-material-usage.cjs'
       - '.github/workflows/po-create-input.yml'
 permissions:
   contents: read
@@ -49,6 +51,8 @@ jobs:
         run: node scripts/qa/stock-transfer.cjs
       - name: Verify SuperAdmin Purchase Order edit against local API fixture
         run: node scripts/qa/po-edit.cjs
+      - name: Verify Daily Material Usage log selection and save against local fixture
+        run: node scripts/qa/daily-material-usage.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
