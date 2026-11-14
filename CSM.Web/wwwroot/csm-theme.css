@@ -183,6 +183,105 @@ body { margin: 0; background: var(--csm-canvas); font-family: Inter, 'Segoe UI',
     .csm-workspace .table > :not(caption) > * > * { padding: 12px; }
     .csm-workspace .modal-body { padding: 18px; }
 }
+
+/* Site Details and legacy page headers — responsive guardrails for phone layouts. */
+.csm-workspace .site-details-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px 24px;
+}
+.csm-workspace .site-details-header-main { min-width: 0; }
+.csm-workspace .site-details-back { margin-bottom: 18px; }
+.csm-workspace .site-details-heading { min-width: 0; }
+.csm-workspace .site-details-eyebrow {
+    margin-bottom: 4px;
+    color: #8b691e;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+}
+.csm-workspace .site-details-title {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: var(--csm-primary);
+    font-size: clamp(26px, 3vw, 38px);
+    font-weight: 700;
+    letter-spacing: -.04em;
+    line-height: 1.15;
+}
+.csm-workspace .site-details-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin-top: 7px;
+    color: var(--csm-muted);
+    font-size: 13px;
+}
+.csm-workspace .site-details-status { margin-top: 10px; }
+.csm-workspace .site-details-edit { flex: 0 0 auto; }
+.csm-workspace .site-details-kpis .card-body { min-height: 118px; display: grid; place-content: center; }
+.csm-workspace .site-details-info-card p { margin-bottom: 12px; }
+.csm-workspace .site-details-info-card p:last-child { margin-bottom: 0; }
+.csm-workspace .site-details-modules .module-card { transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+@media (hover: hover) {
+    .csm-workspace .site-details-modules .module-card:hover {
+        transform: translateY(-2px);
+        border-color: #b5c6df;
+    }
+}
+@media (max-width: 600px) {
+    .csm-workspace :is(.container, .container-fluid) { --bs-gutter-x: 1.25rem; }
+
+    .csm-workspace .site-details-page { padding-top: 12px !important; padding-bottom: 24px !important; }
+    .csm-workspace .site-details-header { flex-direction: column; gap: 14px; }
+    .csm-workspace .site-details-header-main,
+    .csm-workspace .site-details-edit { width: 100%; }
+    .csm-workspace .site-details-back { width: 100%; margin-bottom: 16px; }
+    .csm-workspace .site-details-title { font-size: clamp(24px, 8vw, 31px); }
+    .csm-workspace .site-details-meta { font-size: 12px; }
+    .csm-workspace .site-details-edit { justify-content: center; }
+    .csm-workspace .site-details-kpis > [class*="col-"] { width: 50%; }
+    .csm-workspace .site-details-kpis .card-body { min-height: 104px; padding: 14px 10px; }
+    .csm-workspace .site-details-kpis h2,
+    .csm-workspace .site-details-kpis h5 { margin: 4px 0 0; font-size: 20px; }
+    .csm-workspace .site-details-info-card .row { row-gap: 0; }
+    .csm-workspace .site-details-info-card p { display: grid; grid-template-columns: minmax(92px, 38%) 1fr; gap: 10px; margin-bottom: 10px; }
+    .csm-workspace .site-details-status-card .row { row-gap: 14px; }
+    .csm-workspace .site-details-projects-card .card-header { gap: 10px; flex-wrap: wrap; }
+
+    /* Older pages use Bootstrap flex headers directly. Stack those headers on narrow phones. */
+    .csm-workspace .container-fluid > .d-flex.justify-content-between.align-items-center.mb-3,
+    .csm-workspace .container-fluid > .d-flex.justify-content-between.align-items-start.mb-4,
+    .csm-workspace .container > .d-flex.justify-content-between.align-items-center.mb-3,
+    .csm-workspace .container > .d-flex.justify-content-between.align-items-start.mb-4 {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 12px;
+    }
+    .csm-workspace .container-fluid > .d-flex.justify-content-between.align-items-center.mb-3 > :last-child,
+    .csm-workspace .container-fluid > .d-flex.justify-content-between.align-items-start.mb-4 > :last-child,
+    .csm-workspace .container > .d-flex.justify-content-between.align-items-center.mb-3 > :last-child,
+    .csm-workspace .container > .d-flex.justify-content-between.align-items-start.mb-4 > :last-child {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        width: 100%;
+    }
+    .csm-workspace .container-fluid > .d-flex.justify-content-between.align-items-center.mb-3 > :last-child > .btn,
+    .csm-workspace .container-fluid > .d-flex.justify-content-between.align-items-start.mb-4 > :last-child > .btn,
+    .csm-workspace .container > .d-flex.justify-content-between.align-items-center.mb-3 > :last-child > .btn,
+    .csm-workspace .container > .d-flex.justify-content-between.align-items-start.mb-4 > :last-child > .btn {
+        flex: 1 1 140px;
+    }
+
+    .csm-workspace .card-header.d-flex { flex-wrap: wrap; gap: 8px; }
+    .csm-workspace .card-header.d-flex > .btn,
+    .csm-workspace .card-header.d-flex > * > .btn { min-width: 96px; }
+}
+
 @media (prefers-reduced-motion: reduce) { .csm-workspace *, .csm-workspace *::before, .csm-workspace *::after { transition: none !important; scroll-behavior: auto !important; } }
 @media print { .csm-workspace > .sidebar { display: none; } .csm-workspace .content { padding: 0; } .csm-workspace .card, .csm-workspace .dashboard-panel, .csm-workspace .metric-card { box-shadow: none !important; break-inside: avoid; } }
 /* Match the sign-in surface to the workspace without changing authentication. */
