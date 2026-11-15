@@ -36,6 +36,13 @@ public sealed class ContractorService : IContractorService
         return client;
     }
 
+    public async Task<CSM.Web.Models.Common.CompanySelectionOptions> GetContractorCompanyOptionsAsync()
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<CSM.Web.Models.Common.CompanySelectionOptions>("Contractors/company-options")
+            ?? throw new InvalidOperationException("Unable to load company options.");
+    }
+
     public async Task<IReadOnlyList<ContractorResponse>>
         GetContractorsAsync(bool? isActive = null)
     {

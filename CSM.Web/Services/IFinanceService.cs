@@ -1,3 +1,4 @@
+using CSM.Web.Models.Common;
 using CSM.Web.Models.Finance;
 
 namespace CSM.Web.Services;
@@ -12,7 +13,9 @@ public interface IFinanceService
     Task<IReadOnlyList<PettyCashCostCodeOption>> GetPettyCashCostCodeOptionsAsync(Guid accountId);
 
     Task<IReadOnlyList<CostCodeResponse>> GetActiveCostCodesAsync();
-    Task<IReadOnlyList<InvoiceVendorOption>> GetInvoiceVendorOptionsAsync(Guid? invoiceId = null);
+    Task<IReadOnlyList<InvoiceVendorOption>> GetInvoiceVendorOptionsAsync(Guid? invoiceId = null, Guid? siteId = null, Guid? companyId = null);
+    Task<CompanySelectionOptions> GetInvoiceCompanyOptionsAsync(bool forCreate = false);
+    Task<CompanySelectionOptions> GetPaymentCompanyOptionsAsync(bool forCreate = false);
     Task<IReadOnlyList<BudgetCostCodeOption>> GetBudgetCostCodeOptionsAsync(Guid budgetId);
 
     Task<CostCodeResponse?> GetCostCodeAsync(Guid id);
@@ -30,7 +33,7 @@ public interface IFinanceService
 
     Task<List<InvoiceResponse>> GetInvoicesAsync(Guid siteId);
 
-    Task<List<InvoiceResponse>> GetCompanyInvoicesAsync();
+    Task<List<InvoiceResponse>> GetCompanyInvoicesAsync(Guid? companyId = null);
 
     Task<InvoiceResponse?> GetInvoiceAsync(Guid id);
 
@@ -81,7 +84,7 @@ public interface IFinanceService
 
     Task DeletePaymentAsync(Guid paymentId);
 
-    Task<List<PaymentResponse>> GetCompanyPaymentsAsync();
+    Task<List<PaymentResponse>> GetCompanyPaymentsAsync(Guid? companyId = null);
 
     Task<byte[]> DownloadPaymentReceiptPdfAsync(Guid paymentId);
 

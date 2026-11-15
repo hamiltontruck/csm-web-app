@@ -2,6 +2,7 @@ namespace CSM.Web.Models.Compliance;
 
 public sealed class CreateDocumentRequest
 {
+    public Guid? CompanyId { get; set; }
     public string DocumentNumber { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
 

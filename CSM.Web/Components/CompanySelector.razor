@@ -1,0 +1,24 @@
+@using CSM.Web.Models.Common
+@if (Options.CanSelectCompany)
+{
+    <div class="mb-3">
+        <label class="form-label" for="@Id">Company</label>
+        <select class="form-select" id="@Id" value="@Value" @onchange="Changed" disabled="@Disabled">
+            <option value="">-- Select Company --</option>
+            @foreach (var company in Options.Companies)
+            {
+                <option value="@company.Id">@company.Code — @company.Name</option>
+            }
+        </select>
+        @if (Options.Companies.Count == 0) { <p class="text-muted mb-0">No active companies are available.</p> }
+    </div>
+}
+@code {
+    [Parameter] public CompanySelectionOptions Options { get; set; } = new();
+    [Parameter] public Guid? Value { get; set; }
+    [Parameter] public EventCallback<Guid?> ValueChanged { get; set; }
+    [Parameter] public string Id { get; set; } = "company-selection";
+    [Parameter] public bool Disabled { get; set; }
+    private Task Changed(ChangeEventArgs e) => ValueChanged.InvokeAsync(
+        Guid.TryParse(e.Value?.ToString(), out var id) && Options.Companies.Any(x => x.Id == id) ? id : (Guid?)null);
+}

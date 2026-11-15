@@ -26,6 +26,22 @@ public sealed class ShiftsController : ControllerBase
         _shiftService = shiftService;
     }
 
+    [HttpGet("company-options")]
+    [Authorize(Policy = "HRM.Shift.Submit")]
+    [Authorize(Roles = WriteRoles)]
+    public async Task<ActionResult<CSM.Application.Common.Dtos.CompanySelectionOptions>> GetCompanyOptions(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _shiftService.GetCompanyOptionsAsync(GetCurrentUserId(), cancellationToken));
+        }
+        catch (ShiftManagementException ex)
+        {
+            return ErrorResult(ex);
+        }
+    }
+
     [HttpGet]
     [Authorize(Roles = ReadRoles)]
     public async Task<
@@ -149,6 +165,7 @@ public sealed class ShiftsController : ControllerBase
             "You are not authorized to create or modify shifts." or
             "Current user is not assigned to a company." or
             "You cannot access shifts outside your company." or
+            "You cannot select a company outside your authorized company." or
             "Current user was not found or is inactive." or
             "Authenticated user identifier is invalid." => StatusCode(403, body),
             "Shift was not found." => NotFound(body),

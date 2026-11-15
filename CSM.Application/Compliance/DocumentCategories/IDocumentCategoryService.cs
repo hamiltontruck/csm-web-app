@@ -4,6 +4,7 @@ namespace CSM.Application.Compliance.DocumentCategories;
 
 public interface IDocumentCategoryService
 {
+    Task<CSM.Application.Common.Dtos.CompanySelectionOptions> GetCompanyOptionsAsync(Guid currentUserId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<DocumentCategoryResponse>> GetAllAsync(
         Guid currentUserId,
         bool? isActive,

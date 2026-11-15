@@ -1,3 +1,4 @@
+using CSM.Application.Common.Dtos;
 using CSM.Application.Finance.Payments.Dtos;
 
 namespace CSM.Application.Finance.Payments;
@@ -45,7 +46,10 @@ public interface IPaymentService
         Guid paymentId,
         CancellationToken cancellationToken = default);
 
+    Task<CompanySelectionOptions> GetCompanyOptionsAsync(
+        Guid currentUserId, bool forCreate = false, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyCollection<PaymentResponse>> GetCompanyPaymentsAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, Guid? companyId = null);
 }

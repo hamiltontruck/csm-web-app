@@ -2,6 +2,7 @@ namespace CSM.Application.HRM.Contractors.Dtos;
 
 public sealed class CreateContractorRequest
 {
+    public Guid? CompanyId { get; set; }
     public string ContractorCode { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;

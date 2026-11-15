@@ -1,6 +1,7 @@
 @page "/finance/company/invoices/create"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 
+@using CSM.Web.Models.Common
 @using CSM.Web.Models.Finance
 @using CSM.Web.Models.Procurement
 @using CSM.Web.Services
@@ -28,6 +29,8 @@
     {
         <p role="status">Loading vendors...</p>
     }
+
+    <CompanySelector Options="_companyOptions" Value="_model.CompanyId" ValueChanged="CompanyChanged" Id="invoice-company" Disabled="@(_loading || _saving)" />
 
     <EditForm Model="_model" OnValidSubmit="Save">
         <DataAnnotationsValidator />
@@ -181,6 +184,8 @@
         TotalAmount = 0
     };
 
+    private CompanySelectionOptions _companyOptions = new();
+    private int _contextVersion;
     private List<InvoiceVendorOption> _vendors = [];
     private bool _loading = true, _vendorsReady, _saving;
     private string? _error;
@@ -190,8 +195,13 @@
         if (!firstRender) return;
         try
         {
-            _vendors = (await FinanceService.GetInvoiceVendorOptionsAsync()).ToList();
-            _vendorsReady = true;
+            _companyOptions = await FinanceService.GetInvoiceCompanyOptionsAsync(forCreate: true);
+            _model.CompanyId = _companyOptions.CompanyId;
+            if (_model.CompanyId.HasValue)
+            {
+                _vendors = (await FinanceService.GetInvoiceVendorOptionsAsync(companyId: _model.CompanyId)).ToList();
+                _vendorsReady = true;
+            }
         }
         catch (Exception ex)
         {
@@ -202,6 +212,25 @@
             _loading = false;
         }
         StateHasChanged();
+    }
+
+    private async Task CompanyChanged(Guid? companyId)
+    {
+        var version = ++_contextVersion;
+        _model.CompanyId = companyId;
+        _model.VendorId = null;
+        _vendors = [];
+        _vendorsReady = false;
+        _error = null;
+        if (!companyId.HasValue) return;
+        try
+        {
+            var vendors = await FinanceService.GetInvoiceVendorOptionsAsync(companyId: companyId);
+            if (version != _contextVersion) return;
+            _vendors = vendors.ToList();
+            _vendorsReady = true;
+        }
+        catch (Exception ex) { if (version == _contextVersion) _error = ex.Message; }
     }
 
     private void CalculateTotal()

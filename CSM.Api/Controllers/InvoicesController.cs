@@ -1,3 +1,4 @@
+using CSM.Application.Common.Dtos;
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
@@ -28,12 +29,12 @@ public sealed class InvoicesController : ControllerBase
     [HttpGet("vendor-options")]
     public async Task<ActionResult<IReadOnlyCollection<InvoiceVendorOption>>> GetVendorOptions(
         [FromQuery] Guid? invoiceId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, [FromQuery] Guid? siteId = null, [FromQuery] Guid? companyId = null)
     {
         try
         {
             return Ok(await _invoiceService.GetVendorOptionsAsync(
-                GetCurrentUserId(), invoiceId, cancellationToken));
+                GetCurrentUserId(), invoiceId, cancellationToken, siteId, companyId));
         }
         catch (InvoiceManagementException ex)
         {
@@ -55,14 +56,30 @@ public sealed class InvoicesController : ControllerBase
         return Ok(invoices);
     }
 
+    [HttpGet("company-options")]
+    [Authorize(Policy = "Finance.Invoice.View")]
+    public async Task<ActionResult<CompanySelectionOptions>> GetCompanyOptions(CancellationToken cancellationToken)
+    {
+        try { return Ok(await _invoiceService.GetCompanyOptionsAsync(GetCurrentUserId(), false, cancellationToken)); }
+        catch (InvoiceManagementException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpGet("create-company-options")]
+    [Authorize(Policy = "Finance.Invoice.View")]
+    public async Task<ActionResult<CompanySelectionOptions>> GetCreateCompanyOptions(CancellationToken cancellationToken)
+    {
+        try { return Ok(await _invoiceService.GetCompanyOptionsAsync(GetCurrentUserId(), true, cancellationToken)); }
+        catch (InvoiceManagementException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [HttpGet("company")]
     [Authorize(Policy = "Finance.Invoice.View")]
     public async Task<ActionResult<IReadOnlyCollection<InvoiceResponse>>> GetCompany(
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, [FromQuery] Guid? companyId = null)
     {
         var invoices = await _invoiceService.GetCompanyInvoicesAsync(
             GetCurrentUserId(),
-            cancellationToken);
+            cancellationToken, companyId);
 
         return Ok(invoices);
     }

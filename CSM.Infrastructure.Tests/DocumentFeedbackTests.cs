@@ -29,7 +29,7 @@ public sealed class DocumentFeedbackTests
         services.AddAuthorization(o => o.AddPolicy(AppPolicies.ProcurementManagement, p => p.RequireRole(AppPolicies.ProcurementManagementRoles)));
         using var provider = services.AddGrantedBackendPermissions(role).BuildServiceProvider();
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
-        foreach (var method in new[] { "GetAll", "GetById", "Create", "Update", "UploadVersion" })
+        foreach (var method in new[] { "GetAll", "GetCompanyOptions", "GetById", "Create", "Update", "UploadVersion" })
         {
             var metadata = typeof(DocumentsController).GetCustomAttributes(true).OfType<IAuthorizeData>()
                 .Concat(typeof(DocumentsController).GetMethod(method)!.GetCustomAttributes(true).OfType<IAuthorizeData>());
@@ -252,6 +252,25 @@ public sealed class DocumentFeedbackTests
             new MemoryStream(new byte[] { 1, 2, 3 });
     }
 
+    [Fact]
+    public void Create_form_sends_the_explicitly_selected_company()
+    {
+        using var context = Context(out var state);
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        state.CompanyOptions = new() { CanSelectCompany = true, Companies = [
+            new() { Id = first, Code = "ONE", Name = "First company" },
+            new() { Id = second, Code = "TWO", Name = "Second company" }] };
+        var page = context.RenderComponent<DocumentCreate>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("#company-selection")));
+        page.Find("#company-selection").Change(second.ToString());
+        page.Find("input[maxlength='50']").Change("DOC-NEW");
+        page.Find("input[maxlength='250']").Change("New document");
+        page.Find("input[maxlength='255']").Change("document.pdf");
+        page.FindAll("button").Single(x => x.TextContent.Trim() == "Save").Click();
+        page.WaitForAssertion(() => Assert.Equal(second, Assert.IsType<CreateDocumentRequest>(state.Saved).CompanyId));
+    }
+
     private static IRenderedFragment Render(TestContext context, string route) => route switch {
         "list" => context.RenderComponent<Documents>(),
         "create" => context.RenderComponent<DocumentCreate>(),
@@ -265,7 +284,7 @@ public sealed class DocumentFeedbackTests
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         return context;
     }
-    public sealed class State { public HttpStatusCode? Status; public bool Missing; public bool VersionsDenied; public int SaveCalls; public object? Saved; }
+    public sealed class State { public HttpStatusCode? Status; public bool Missing; public bool VersionsDenied; public int SaveCalls; public object? Saved; public CSM.Web.Models.Common.CompanySelectionOptions CompanyOptions = new(); }
     public class Api : DispatchProxy
     {
         public State State = null!;
@@ -273,6 +292,9 @@ public sealed class DocumentFeedbackTests
         {
             var row = new DocumentResponse { Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 DocumentNumber = "DOC-TEST-1", Name = "Test Document", DocumentType = "General", FileName = "test.pdf", StoragePath = "/uploads/documents/test.pdf", ContentType = "application/pdf", FileSizeBytes = 3 };
+            if (method!.Name == nameof(IComplianceService.GetDocumentCompanyOptionsAsync))
+                return State.Status.HasValue ? Task.FromException<CSM.Web.Models.Common.CompanySelectionOptions>(Error(State.Status.Value))
+                    : Task.FromResult(State.CompanyOptions);
             if (method!.Name == nameof(IComplianceService.GetDocumentsAsync))
                 return State.Status.HasValue ? Task.FromException<IReadOnlyList<DocumentResponse>>(Error(State.Status.Value))
                     : Task.FromResult<IReadOnlyList<DocumentResponse>>(new[] { row });

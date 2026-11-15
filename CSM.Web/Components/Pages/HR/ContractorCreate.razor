@@ -33,8 +33,27 @@
         </div>
     }
 
+    @if (_loading)
+    {
+        <p role="status">Loading contractor form...</p>
+    }
+    else if (!_canSubmit)
+    {
+        <div class="alert alert-danger" role="alert">@_loadError</div>
+        @if (_accessStatus == System.Net.HttpStatusCode.Unauthorized)
+        {
+            <a href="/login">Sign in</a>
+        }
+        else
+        {
+            <button id="retry-contractor-create" class="btn btn-outline-primary" @onclick="LoadCompanyOptionsAsync">Retry</button>
+        }
+    }
+    else
+    {
     <div class="card shadow-sm">
         <div class="card-body">
+            <CSM.Web.Components.CompanySelector Options="_companyOptions" @bind-Value="_request.CompanyId" Id="contractor-company" Disabled="_saving" />
 
             <div class="row g-3">
 
@@ -157,11 +176,52 @@
         </div>
     </div>
 
+    }
 </div>
 
 @code {
     private readonly CreateContractorRequest _request =
         new();
+
+    private CSM.Web.Models.Common.CompanySelectionOptions _companyOptions = new();
+    private bool _loading = true;
+    private bool _canSubmit;
+    private string? _loadError;
+    private System.Net.HttpStatusCode? _accessStatus;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await LoadCompanyOptionsAsync();
+    }
+
+    private async Task LoadCompanyOptionsAsync()
+    {
+        _loading = true;
+        _canSubmit = false;
+        _loadError = null;
+        _accessStatus = null;
+        try
+        {
+            _companyOptions = await ContractorService.GetContractorCompanyOptionsAsync();
+            _request.CompanyId = _companyOptions.CompanyId;
+            _canSubmit = true;
+        }
+        catch (Exception ex)
+        {
+            _accessStatus = (ex as HttpRequestException)?.StatusCode;
+            _loadError = _accessStatus switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "Your session is missing or has expired. Please sign in again.",
+                System.Net.HttpStatusCode.Forbidden => "You do not have permission to create contractors.",
+                _ => "Unable to load contractor form. Please try again."
+            };
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private bool _saving;
     private string? _errorMessage;
@@ -169,7 +229,13 @@
 
     private async Task SaveAsync()
     {
+        if (_saving || !_canSubmit) return;
         _errorMessage = null;
+        if (_companyOptions.CanSelectCompany && !_request.CompanyId.HasValue)
+        {
+            _errorMessage = "Please select a company.";
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(_request.ContractorCode))
         {

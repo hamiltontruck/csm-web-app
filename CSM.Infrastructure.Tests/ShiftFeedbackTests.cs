@@ -227,6 +227,7 @@ public sealed class ShiftFeedbackTests
     {
         public State State = null!;
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method!.Name switch {
+            nameof(IShiftService.GetShiftCompanyOptionsAsync) => Task.FromResult(new CSM.Web.Models.Common.CompanySelectionOptions()),
             nameof(IShiftService.GetAllAsync) => State.Status.HasValue
                 ? Task.FromException<IReadOnlyCollection<ShiftResponse>>(new HttpRequestException("private diagnostic", null, State.Status))
                 : Task.FromResult<IReadOnlyCollection<ShiftResponse>>(new List<ShiftResponse> { Record() }),

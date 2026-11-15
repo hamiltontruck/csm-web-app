@@ -16,4 +16,7 @@ public sealed record CreateInvoiceRequest(
     string CurrencyCode,
     decimal ExchangeRate,
     string? Description,
-    string? ExternalReference);
+    string? ExternalReference)
+{
+    public Guid? CompanyId { get; init; }
+}

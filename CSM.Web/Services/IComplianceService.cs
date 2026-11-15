@@ -4,6 +4,8 @@ namespace CSM.Web.Services;
 
 public interface IComplianceService
 {
+    Task<CSM.Web.Models.Common.CompanySelectionOptions> GetDocumentCategoryCompanyOptionsAsync();
+    Task<CSM.Web.Models.Common.CompanySelectionOptions> GetDocumentCompanyOptionsAsync();
     Task<IReadOnlyList<DocumentCategoryResponse>> GetDocumentCategoriesAsync(
         bool? isActive = null);
 

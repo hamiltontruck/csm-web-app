@@ -26,6 +26,17 @@ public sealed class ContractorService : IContractorService
         _permissionEvaluator = permissionEvaluator;
     }
 
+    public async Task<CSM.Application.Common.Dtos.CompanySelectionOptions> GetCompanyOptionsAsync(
+        Guid currentUserId, CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanManage(actor);
+        var allowGlobal = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id,
+            [GranularPermission.HRM_Contractor_View, GranularPermission.HRM_Contractor_Manage], cancellationToken);
+        return await CompanyContextResolver.OptionsAsync(_dbContext, actor.CompanyId, allowGlobal,
+            message => new ContractorManagementException(message), cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<ContractorResponse>> GetAllAsync(
         Guid currentUserId,
         bool? isActive,
@@ -106,7 +117,10 @@ public sealed class ContractorService : IContractorService
 
         EnsureCanManage(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var allowGlobal = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id,
+            [GranularPermission.HRM_Contractor_View, GranularPermission.HRM_Contractor_Manage], cancellationToken);
+        var companyId = await CompanyContextResolver.ResolveAsync(_dbContext, actor.CompanyId,
+            allowGlobal, request.CompanyId, message => new ContractorManagementException(message), cancellationToken);
 
         var contractorCode = Clean(request.ContractorCode);
         var name = Clean(request.Name);

@@ -55,6 +55,8 @@
     <div class="card shadow-sm">
         <div class="card-body">
 
+            <CompanySelector Options="_companyOptions" @bind-Value="_request.CompanyId" Disabled="_saving" />
+
             <div class="row g-3">
 
                 <div class="col-md-6">
@@ -253,6 +255,7 @@
 @code {
     private readonly CreateDocumentRequest _request = new();
 
+    private CSM.Web.Models.Common.CompanySelectionOptions _companyOptions = new();
     private bool _saving;
     private bool _loading = true;
     private bool _ready;
@@ -272,7 +275,8 @@
         _accessStatus = null;
         try
         {
-            await ComplianceService.GetDocumentsAsync();
+            _companyOptions = await ComplianceService.GetDocumentCompanyOptionsAsync();
+            _request.CompanyId ??= _companyOptions.CompanyId;
             _ready = true;
         }
         catch (Exception ex)

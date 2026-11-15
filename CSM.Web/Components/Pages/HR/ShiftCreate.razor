@@ -51,6 +51,7 @@
         }
     <div class="card shadow-sm">
         <div class="card-body">
+            <CSM.Web.Components.CompanySelector Options="_companyOptions" @bind-Value="_model.CompanyId" Id="shift-company" Disabled="_saving" />
 
             <EditForm Model="_model"
                       OnValidSubmit="SaveAsync">
@@ -190,6 +191,7 @@
         IsNightShift = false
     };
 
+    private CSM.Web.Models.Common.CompanySelectionOptions _companyOptions = new();
     private bool _saving;
     private bool _loading = true;
     private bool _canSubmit;
@@ -216,6 +218,8 @@
                 _loadError = "You do not have permission to create shifts.";
                 return;
             }
+            _companyOptions = await ShiftService.GetShiftCompanyOptionsAsync();
+            _model.CompanyId = _companyOptions.CompanyId;
             _canSubmit = true;
         }
         catch (Exception ex)
@@ -240,8 +244,13 @@
     private async Task SaveAsync()
     {
         if (_saving || !_canSubmit) return;
-        _saving = true;
         _error = null;
+        if (_companyOptions.CanSelectCompany && !_model.CompanyId.HasValue)
+        {
+            _error = "Please select a company.";
+            return;
+        }
+        _saving = true;
 
         try
         {

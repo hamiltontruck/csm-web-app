@@ -4,6 +4,8 @@ namespace CSM.Application.HRM.Shifts;
 
 public interface IShiftService
 {
+    Task<CSM.Application.Common.Dtos.CompanySelectionOptions> GetCompanyOptionsAsync(
+        Guid currentUserId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ShiftResponse>> GetAllAsync(
         Guid currentUserId,
         CancellationToken cancellationToken = default);

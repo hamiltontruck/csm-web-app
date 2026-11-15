@@ -26,7 +26,7 @@ public sealed class DocumentCategoryFeedbackTests
         services.AddAuthorization(o => o.AddPolicy(AppPolicies.ProcurementManagement, p => p.RequireRole(AppPolicies.ProcurementManagementRoles)));
         using var provider = services.AddGrantedBackendPermissions(role).BuildServiceProvider();
         var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, role)], "test"));
-        foreach (var method in new[] { "GetAll", "GetById", "Create", "Update" })
+        foreach (var method in new[] { "GetAll", "GetCompanyOptions", "GetById", "Create", "Update" })
         {
             var metadata = typeof(DocumentCategoriesController).GetCustomAttributes(true).OfType<IAuthorizeData>()
                 .Concat(typeof(DocumentCategoriesController).GetMethod(method)!.GetCustomAttributes(true).OfType<IAuthorizeData>());
@@ -93,6 +93,24 @@ public sealed class DocumentCategoryFeedbackTests
         Assert.Empty(page.FindAll("form, input, select, textarea, #retry-category-" + route));
     }
 
+    [Fact]
+    public void Create_form_sends_the_explicitly_selected_company()
+    {
+        using var context = Context(out var state);
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        state.CompanyOptions = new() { CanSelectCompany = true, Companies = [
+            new() { Id = first, Code = "ONE", Name = "First company" },
+            new() { Id = second, Code = "TWO", Name = "Second company" }] };
+        var page = context.RenderComponent<DocumentCategoryCreate>();
+        page.WaitForAssertion(() => Assert.Single(page.FindAll("#company-selection")));
+        page.Find("#company-selection").Change(second.ToString());
+        page.Find("input[maxlength='30']").Change("CAT-NEW");
+        page.Find("input[maxlength='200']").Change("New category");
+        page.FindAll("button").Single(x => x.TextContent.Trim() == "Save").Click();
+        page.WaitForAssertion(() => Assert.Equal(second, Assert.IsType<CreateDocumentCategoryRequest>(state.Saved).CompanyId));
+    }
+
     private static IRenderedFragment Render(TestContext context, string route) => route switch {
         "list" => context.RenderComponent<DocumentCategories>(),
         "create" => context.RenderComponent<DocumentCategoryCreate>(),
@@ -105,7 +123,7 @@ public sealed class DocumentCategoryFeedbackTests
         context.Services.AddSingleton(api);
         return context;
     }
-    public sealed class State { public HttpStatusCode? Status; public bool Missing; }
+    public sealed class State { public HttpStatusCode? Status; public bool Missing; public object? Saved; public CSM.Web.Models.Common.CompanySelectionOptions CompanyOptions = new(); }
     public class Api : DispatchProxy
     {
         public State State = null!;
@@ -113,12 +131,20 @@ public sealed class DocumentCategoryFeedbackTests
         {
             var row = new DocumentCategoryResponse { Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 CategoryCode = "CAT-TEST-1", Name = "Test Category", IsActive = true };
+            if (method!.Name == nameof(IComplianceService.GetDocumentCategoryCompanyOptionsAsync))
+                return State.Status.HasValue ? Task.FromException<CSM.Web.Models.Common.CompanySelectionOptions>(Error(State.Status.Value))
+                    : Task.FromResult(State.CompanyOptions);
             if (method!.Name == nameof(IComplianceService.GetDocumentCategoriesAsync))
                 return State.Status.HasValue ? Task.FromException<IReadOnlyList<DocumentCategoryResponse>>(Error(State.Status.Value))
                     : Task.FromResult<IReadOnlyList<DocumentCategoryResponse>>(new[] { row });
             if (method.Name == nameof(IComplianceService.GetDocumentCategoryAsync))
                 return State.Status.HasValue ? Task.FromException<DocumentCategoryResponse?>(Error(State.Status.Value))
                     : Task.FromResult<DocumentCategoryResponse?>(State.Missing ? null : row);
+            if (method.Name == nameof(IComplianceService.CreateDocumentCategoryAsync))
+            {
+                State.Saved = args![0];
+                return Task.FromResult(row);
+            }
             throw new InvalidOperationException("Unexpected category mutation.");
         }
     }

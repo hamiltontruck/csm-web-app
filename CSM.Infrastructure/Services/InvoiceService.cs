@@ -1,3 +1,4 @@
+using CSM.Application.Common.Dtos;
 using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.Invoices;
@@ -24,28 +25,32 @@ public sealed class InvoiceService : IInvoiceService
     public async Task<IReadOnlyCollection<InvoiceVendorOption>> GetVendorOptionsAsync(
         Guid currentUserId,
         Guid? invoiceId = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, Guid? siteId = null, Guid? companyId = null)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
         EnsureCanModify(actor);
-        Guid companyId;
+        var allowGlobal = await HasGlobalCompanyAuthorityAsync(actor, cancellationToken);
+        Guid resolvedCompanyId;
         if (invoiceId.HasValue)
         {
             var invoice = await GetInvoiceAsync(invoiceId.Value, cancellationToken);
             EnsureCompanyAccess(actor, invoice.CompanyId);
             await EnsureSiteScopeAsync(actor, invoice.ConstructionSiteId, cancellationToken);
-            companyId = invoice.CompanyId;
+            if (siteId.HasValue && invoice.ConstructionSiteId != siteId)
+                throw new InvoiceManagementException("Invoice does not belong to the selected site.");
+            resolvedCompanyId = CompanyContextResolver.ForResource(actor.CompanyId, allowGlobal, invoice.CompanyId, companyId,
+                message => new InvoiceManagementException(message));
         }
         else
         {
-            // Match company-invoice creation; never expose every company's vendors.
-            companyId = GetActorCompanyId(actor);
+            if (siteId.HasValue) await EnsureSiteScopeAsync(actor, siteId, cancellationToken);
+            resolvedCompanyId = await ResolveCompanyAsync(actor, allowGlobal, siteId, companyId, cancellationToken);
         }
 
-        if (FinanceOfficerScope.IsOfficer(actor) && !await new FinancialReadScope(_dbContext, actor, companyId).Sites.AnyAsync(cancellationToken))
+        if (FinanceOfficerScope.IsOfficer(actor) && !await new FinancialReadScope(_dbContext, actor, resolvedCompanyId).Sites.AnyAsync(cancellationToken))
             throw new InvoiceManagementException("An active assigned site is required for invoice vendor options.");
         return await _dbContext.Vendors.AsNoTracking()
-            .Where(x => x.CompanyId == companyId && !x.IsDeleted)
+            .Where(x => x.CompanyId == resolvedCompanyId && !x.IsDeleted)
             .OrderBy(x => x.VendorCode)
             .Select(x => new InvoiceVendorOption(x.Id, x.VendorCode, x.Name))
             .ToArrayAsync(cancellationToken);
@@ -86,19 +91,20 @@ public sealed class InvoiceService : IInvoiceService
 
     public async Task<IReadOnlyCollection<InvoiceResponse>> GetCompanyInvoicesAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, Guid? companyId = null)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
         EnsureCanRead(actor);
         await EnsureSiteScopeAsync(actor, null, cancellationToken);
-        var companyId = GetActorCompanyId(actor);
+        var resolvedCompanyId = await ResolveCompanyAsync(actor, await HasGlobalCompanyAuthorityAsync(actor, cancellationToken),
+            null, companyId, cancellationToken);
 
         var invoices = await _dbContext.Invoices
             .AsNoTracking()
             .Include(i => i.Vendor)
             .Include(i => i.Project)
             .Where(i =>
-                i.CompanyId == companyId &&
+                i.CompanyId == resolvedCompanyId &&
                 i.ConstructionSiteId == null &&
                 !i.IsDeleted)
             .OrderByDescending(i => i.InvoiceDate)
@@ -107,6 +113,34 @@ public sealed class InvoiceService : IInvoiceService
         return invoices
             .Select(i => MapForActor(actor, i))
             .ToList();
+    }
+
+    public async Task<CompanySelectionOptions> GetCompanyOptionsAsync(
+        Guid currentUserId, bool forCreate = false, CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Invoice_View);
+        if (forCreate) EnsureCanModify(actor); else EnsureCanRead(actor);
+        await EnsureSiteScopeAsync(actor, null, cancellationToken);
+        return await CompanyContextResolver.OptionsAsync(_dbContext, actor.CompanyId,
+            await HasGlobalCompanyAuthorityAsync(actor, cancellationToken), message => new InvoiceManagementException(message), cancellationToken);
+    }
+
+    private async Task<bool> HasGlobalCompanyAuthorityAsync(User actor, CancellationToken cancellationToken) =>
+        IsSuperAdmin(actor) && await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id,
+            [GranularPermission.Finance_Invoice_View], cancellationToken);
+
+    private async Task<Guid> ResolveCompanyAsync(User actor, bool allowGlobal, Guid? siteId, Guid? companyId, CancellationToken cancellationToken)
+    {
+        if (siteId.HasValue)
+        {
+            var siteCompanyId = await _dbContext.ConstructionSites.AsNoTracking()
+                .Where(x => x.Id == siteId && !x.IsDeleted).Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken)
+                ?? throw new InvoiceManagementException("Construction site was not found.");
+            return CompanyContextResolver.ForResource(actor.CompanyId, allowGlobal, siteCompanyId, companyId,
+                message => new InvoiceManagementException(message));
+        }
+        return await CompanyContextResolver.ResolveAsync(_dbContext, actor.CompanyId, allowGlobal, companyId,
+            message => new InvoiceManagementException(message), cancellationToken);
     }
 
     public async Task<InvoiceResponse> GetByIdAsync(
@@ -140,7 +174,8 @@ public sealed class InvoiceService : IInvoiceService
         EnsureCanModify(actor);
         await EnsureSiteScopeAsync(actor, request.ConstructionSiteId, cancellationToken);
 
-        var companyId = GetActorCompanyId(actor);
+        var companyId = await ResolveCompanyAsync(actor, await HasGlobalCompanyAuthorityAsync(actor, cancellationToken),
+            request.ConstructionSiteId, request.CompanyId, cancellationToken);
 
         var invoiceNumber = CleanRequired(
             request.InvoiceNumber,

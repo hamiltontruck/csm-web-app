@@ -1,3 +1,4 @@
+using CSM.Application.Common.Dtos;
 using System.Security.Claims;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
@@ -178,14 +179,30 @@ public sealed class PaymentsController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("company-options")]
+    [Authorize(Policy = "Finance.Payment.View")]
+    public async Task<ActionResult<CompanySelectionOptions>> GetCompanyOptions(CancellationToken cancellationToken)
+    {
+        try { return Ok(await _paymentService.GetCompanyOptionsAsync(GetCurrentUserId(), false, cancellationToken)); }
+        catch (PaymentManagementException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpGet("create-company-options")]
+    [Authorize(Policy = "Finance.Payment.Manage")]
+    public async Task<ActionResult<CompanySelectionOptions>> GetCreateCompanyOptions(CancellationToken cancellationToken)
+    {
+        try { return Ok(await _paymentService.GetCompanyOptionsAsync(GetCurrentUserId(), true, cancellationToken)); }
+        catch (PaymentManagementException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [HttpGet("company")]
     [Authorize(Policy = "Finance.Payment.View")]
     public async Task<ActionResult<IReadOnlyCollection<PaymentResponse>>> GetCompany(
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, [FromQuery] Guid? companyId = null)
     {
         try
         {
-            var payments = await _paymentService.GetCompanyPaymentsAsync(GetCurrentUserId(), cancellationToken);
+            var payments = await _paymentService.GetCompanyPaymentsAsync(GetCurrentUserId(), cancellationToken, companyId);
             return Ok(payments);
         }
         catch (PaymentManagementException ex)

@@ -31,11 +31,14 @@ public sealed class NotificationService : INotificationService
             currentUserId,
             cancellationToken);
 
+        var globalRecipient = !actor.CompanyId.HasValue && await CompanyContextResolver.HasGlobalAuthorityAsync(
+            _dbContext, currentUserId, [GranularPermission.Notifications_View], cancellationToken);
+
         var query = _dbContext.Notifications
             .AsNoTracking()
             .Where(
                 x =>
-                    x.CompanyId == actor.CompanyId &&
+                    (globalRecipient || x.CompanyId == actor.CompanyId) &&
                     x.RecipientUserId == currentUserId);
         query = await VisibleToActorAsync(actor, query, cancellationToken);
 
@@ -71,8 +74,11 @@ public sealed class NotificationService : INotificationService
             currentUserId,
             cancellationToken);
 
+        var globalRecipient = !actor.CompanyId.HasValue && await CompanyContextResolver.HasGlobalAuthorityAsync(
+            _dbContext, currentUserId, [GranularPermission.Notifications_View], cancellationToken);
+
         var query = _dbContext.Notifications.AsNoTracking().Where(x =>
-            x.CompanyId == actor.CompanyId && x.RecipientUserId == currentUserId && !x.IsRead);
+            (globalRecipient || x.CompanyId == actor.CompanyId) && x.RecipientUserId == currentUserId && !x.IsRead);
         query = await VisibleToActorAsync(actor, query, cancellationToken);
         return await query.CountAsync(cancellationToken);
     }
@@ -89,26 +95,18 @@ public sealed class NotificationService : INotificationService
         if (!await new PermissionEvaluator(_dbContext).HasPermissionAsync(currentUserId, "Notifications_Manage", cancellationToken))
             throw new UnauthorizedAccessException("Notification management is not permitted.");
 
-        if (!actor.CompanyId.HasValue)
-        {
-            throw new NotificationManagementException(
-                "Current user is not assigned to a company.");
-        }
-
-        var recipient = await _dbContext.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                x =>
-                    x.Id == request.RecipientUserId &&
-                    x.CompanyId == actor.CompanyId &&
-                    x.IsActive,
-                cancellationToken);
-
-        if (recipient is null)
-        {
-            throw new NotificationManagementException(
-                "Notification recipient was not found in the current company.");
-        }
+        var global = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, currentUserId,
+            [GranularPermission.Notifications_View, GranularPermission.Notifications_Manage], cancellationToken);
+        var recipient = await _dbContext.Users.AsNoTracking().SingleOrDefaultAsync(
+            x => x.Id == request.RecipientUserId && x.IsActive && !x.IsDeleted, cancellationToken)
+            ?? throw new NotificationManagementException("Notification recipient was not found in the current company.");
+        if (!global && recipient.CompanyId != actor.CompanyId)
+            throw new NotificationManagementException("Notification recipient was not found in the current company.");
+        var companyId = recipient.CompanyId.HasValue
+            ? CompanyContextResolver.ForResource(actor.CompanyId, global, recipient.CompanyId.Value, request.CompanyId,
+                message => new NotificationManagementException(message))
+            : await CompanyContextResolver.ResolveAsync(_dbContext, actor.CompanyId, global, request.CompanyId,
+                message => new NotificationManagementException(message), cancellationToken);
 
         if (string.IsNullOrWhiteSpace(request.Title))
         {
@@ -124,7 +122,7 @@ public sealed class NotificationService : INotificationService
 
         var notification = new Notification
         {
-            CompanyId = actor.CompanyId.Value,
+            CompanyId = companyId,
             RecipientUserId = recipient.Id,
             Title = request.Title.Trim(),
             Message = request.Message.Trim(),
@@ -155,8 +153,11 @@ public sealed class NotificationService : INotificationService
             currentUserId,
             cancellationToken);
 
+        var globalRecipient = !actor.CompanyId.HasValue && await CompanyContextResolver.HasGlobalAuthorityAsync(
+            _dbContext, currentUserId, [GranularPermission.Notifications_View], cancellationToken);
+
         var query = _dbContext.Notifications.Where(x => x.Id == notificationId &&
-            x.CompanyId == actor.CompanyId && x.RecipientUserId == currentUserId);
+            (globalRecipient || x.CompanyId == actor.CompanyId) && x.RecipientUserId == currentUserId);
         query = await VisibleToActorAsync(actor, query, cancellationToken);
         // Scope subqueries contain AsNoTracking; explicitly track this authorized
         // notification so a successful read-state response is persisted too.

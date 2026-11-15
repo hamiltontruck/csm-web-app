@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.HRM.SiteAssignments;
 using CSM.Application.HRM.SiteAssignments.Dtos;
@@ -102,7 +103,8 @@ public sealed class SiteAssignmentService : ISiteAssignmentService
 
         EnsureCanModify(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var allowGlobal = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id,
+            [GranularPermission.HRM_SiteAssignment_Manage], cancellationToken);
 
         ValidateDates(
             request.StartDate,
@@ -114,6 +116,11 @@ public sealed class SiteAssignmentService : ISiteAssignmentService
                 cancellationToken)
             ?? throw new SiteAssignmentManagementException(
                 "Employee was not found.");
+
+        var companyId = CompanyContextResolver.ForResource(actor.CompanyId, allowGlobal,
+            employee.CompanyId, null, message => new SiteAssignmentManagementException(
+                message == "You cannot access a resource outside your authorized company."
+                    ? "Employee does not belong to your company." : message));
 
         if (employee.CompanyId != companyId)
         {
