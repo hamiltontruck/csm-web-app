@@ -42,7 +42,7 @@ const path = require('path');
     else if(route===`/invoicelines/invoice/${invoiceId}`) data=[];
     else if(route==='/invoices') data=[invoice];
     else if(route==='/payments'&&req.method==='POST'&&failNextPayment){failNextPayment=false;status=403;data={message:'Payment rejected for local test'};}
-    else if(route==='/payments'&&req.method==='POST'){payment={...payment,...body,id:paymentId,status:'Pending',direction:body.direction===1?'Incoming':'Outgoing'};data=payment;}
+    else if(route==='/payments'&&req.method==='POST'){payment={...payment,...body,companyId:id,id:paymentId,status:'Pending',direction:body.direction===1?'Incoming':'Outgoing'};data=payment;}
     else if(route===`/payments/${paymentId}/status`){payment.status=body.status===2?'Completed':'Reversed';summary();data=payment;}
     else if(route===`/payments/${paymentId}/reverse`){payment.status='Reversed';summary();data=payment;}
     else if(route===`/payments/${paymentId}`) data=payment;
