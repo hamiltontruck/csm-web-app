@@ -14,75 +14,55 @@ namespace CSM.Api.Controllers;
 public sealed class EquipmentTimesheetsController : ControllerBase
 {
     private readonly EquipmentTimesheetService _service;
-
-    public EquipmentTimesheetsController(
-        EquipmentTimesheetService service)
-    {
-        _service = service;
-    }
+    public EquipmentTimesheetsController(EquipmentTimesheetService service) => _service = service;
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<EquipmentTimesheetResponse>>> GetAll(
-        [FromQuery] Guid? equipmentId,
-        CancellationToken cancellationToken)
+        [FromQuery] Guid? equipmentId, CancellationToken cancellationToken)
     {
-        var result = await _service.GetAllAsync(
-            GetCurrentCompanyId(),
-            equipmentId,
-            cancellationToken);
-
-        return Ok(result);
+        try { return Ok(await _service.GetForUserAsync(GetCurrentUserId(), equipmentId, cancellationToken)); }
+        catch (EquipmentManagementException ex) { return ErrorResult(ex); }
     }
 
     [HttpPost]
     [Authorize(Policy = "Equipment.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentTimesheetResponse>> Create(
-        CreateEquipmentTimesheetRequest request,
-        CancellationToken cancellationToken)
+        CreateEquipmentTimesheetRequest request, CancellationToken cancellationToken)
     {
-        var result = await _service.CreateAsync(
-            GetCurrentCompanyId(),
-            request,
-            cancellationToken);
-
-        return Ok(result);
+        try { return Ok(await _service.CreateForUserAsync(GetCurrentUserId(), request, cancellationToken)); }
+        catch (EquipmentManagementException ex) { return ErrorResult(ex); }
     }
 
-    private Guid GetCurrentCompanyId()
-    {
-        var value = User.FindFirstValue("company_id");
-
-        if (!Guid.TryParse(value, out var companyId))
-            throw new EquipmentManagementException(
-                "Current company identity is invalid.");
-
-        return companyId;
-    }
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<EquipmentTimesheetResponse>> GetById(
-        Guid id,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<EquipmentTimesheetResponse>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _service.GetByIdAsync(
-            GetCurrentCompanyId(),
-            id,
-            cancellationToken);
-
-        return Ok(result);
+        try { return Ok(await _service.GetByIdForUserAsync(GetCurrentUserId(), id, cancellationToken)); }
+        catch (EquipmentManagementException ex) { return ErrorResult(ex); }
     }
+
     [HttpPut("{id:guid}")]
     [Authorize(Policy = "Equipment.Inventory.Adjust")]
     public async Task<ActionResult<EquipmentTimesheetResponse>> Update(
-        Guid id,
-        CreateEquipmentTimesheetRequest request,
-        CancellationToken cancellationToken)
+        Guid id, CreateEquipmentTimesheetRequest request, CancellationToken cancellationToken)
     {
-        var result = await _service.UpdateAsync(
-            GetCurrentCompanyId(),
-            id,
-            request,
-            cancellationToken);
+        try { return Ok(await _service.UpdateForUserAsync(GetCurrentUserId(), id, request, cancellationToken)); }
+        catch (EquipmentManagementException ex) { return ErrorResult(ex); }
+    }
 
-        return Ok(result);
+    private ActionResult ErrorResult(EquipmentManagementException ex) => ex.Message switch
+    {
+        "Timesheet not found." => NotFound(new { message = ex.Message }),
+        "Current user identity is invalid." or "Current user was not found or is inactive." or
+        "Current user is not assigned to a company." or "You do not have permission to access equipment timesheets." =>
+            StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }),
+        _ => BadRequest(new { message = ex.Message })
+    };
+
+    private Guid GetCurrentUserId()
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (!Guid.TryParse(value, out var userId))
+            throw new EquipmentManagementException("Current user identity is invalid.");
+        return userId;
     }
 }
