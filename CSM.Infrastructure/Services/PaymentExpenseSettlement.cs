@@ -16,6 +16,8 @@ public sealed partial class PaymentService
         {
             var settlement = new ExpenseSettlementService(_dbContext);
             var expense = await settlement.LoadForDisbursementAsync(currentUserId, expenseId, "payment", cancellationToken);
+            if (request.CompanyId.HasValue && request.CompanyId != expense.CompanyId)
+                throw new PaymentManagementException("The selected company does not match the expense company.");
             EnsureExpenseContext(expense, request.ConstructionSiteId, request.ProjectId, request.VendorId, request.InvoiceId, request.PayrollRecordId, request.Direction);
             ValidatePayment(request.PaymentDate, request.Amount, request.ExchangeRate, request.Direction);
             await settlement.ValidateNewSettlementAsync(expense, request.Amount, CleanCurrencyCode(request.CurrencyCode), request.ExchangeRate, false, cancellationToken);

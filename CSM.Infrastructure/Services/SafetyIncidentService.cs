@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Compliance.SafetyIncidents;
 using CSM.Application.Compliance.SafetyIncidents.Dtos;
@@ -85,7 +86,13 @@ public sealed class SafetyIncidentService : ISafetyIncidentService
 
         EnsureCanManage(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var global = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, currentUserId,
+            [GranularPermission.Compliance_View, GranularPermission.Compliance_Manage], cancellationToken);
+        var siteCompany = await _dbContext.ConstructionSites.Where(x => x.Id == request.ConstructionSiteId && !x.IsDeleted)
+            .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken)
+            ?? throw new SafetyIncidentManagementException("Construction site was not found.");
+        var companyId = CompanyContextResolver.ForResource(actor.CompanyId, global, siteCompany, null,
+            message => new SafetyIncidentManagementException(message));
 
         Validate(
             request.IncidentNumber,

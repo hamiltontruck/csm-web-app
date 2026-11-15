@@ -218,6 +218,7 @@ public sealed class InvoiceServiceAccessTests
             Invoice = new Invoice { CompanyId = company, InvoiceNumber = "OWN", Status = InvoiceStatus.Draft };
             ForeignInvoice = new Invoice { CompanyId = Guid.NewGuid(), InvoiceNumber = "FOREIGN", Status = InvoiceStatus.Draft };
             Line = new InvoiceLine { CompanyId = company, InvoiceId = Invoice.Id, Description = "original", Quantity = 1m, UnitPrice = 1m, LineTotal = 1m };
+            Db.Companies.Add(new CSM.Domain.Entities.Organization.Company { Id = company, Code = "OWN", Name = "Own", IsActive = true });
             Db.Users.Add(Actor); Db.Invoices.AddRange(Invoice, ForeignInvoice); Db.InvoiceLines.Add(Line); Save();
         }
         public void Save() => Db.SaveChanges(true);

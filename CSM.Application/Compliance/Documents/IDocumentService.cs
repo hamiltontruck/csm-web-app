@@ -7,6 +7,7 @@ namespace CSM.Application.Compliance.Documents;
 
 public interface IDocumentService
 {
+    Task<CSM.Application.Common.Dtos.CompanySelectionOptions> GetCompanyOptionsAsync(Guid currentUserId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<DocumentResponse>> GetAllAsync(
         Guid currentUserId,
         CancellationToken cancellationToken = default);

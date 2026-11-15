@@ -4,6 +4,7 @@ namespace CSM.Web.Services;
 
 public interface IShiftService
 {
+    Task<CSM.Web.Models.Common.CompanySelectionOptions> GetShiftCompanyOptionsAsync();
     Task<IReadOnlyCollection<ShiftResponse>> GetAllAsync();
 
     Task<ShiftResponse?> GetByIdAsync(Guid shiftId);

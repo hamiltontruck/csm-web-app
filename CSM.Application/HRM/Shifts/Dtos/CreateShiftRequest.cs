@@ -7,4 +7,5 @@ public sealed record CreateShiftRequest(
     TimeOnly EndTime,
     int GracePeriodMinutes,
     decimal StandardHours,
-    bool IsNightShift);
+    bool IsNightShift,
+    Guid? CompanyId = null);

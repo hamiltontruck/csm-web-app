@@ -68,7 +68,13 @@ public sealed class ExpenseService : IExpenseService
             constructionSiteId,
             cancellationToken);
 
-        var companyId = GetActorCompanyId(actor);
+        var allowGlobal = IsSuperAdmin(actor) && await CompanyContextResolver.HasGlobalAuthorityAsync(
+            _dbContext, currentUserId, [GranularPermission.Finance_Expense_View], cancellationToken);
+        var companyId = allowGlobal
+            ? await _dbContext.ConstructionSites.AsNoTracking().Where(x => x.Id == constructionSiteId && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken)
+                ?? throw new ExpenseManagementException("Construction site was not found.")
+            : GetActorCompanyId(actor);
 
         var siteExists = await _dbContext.ConstructionSites
             .AnyAsync(

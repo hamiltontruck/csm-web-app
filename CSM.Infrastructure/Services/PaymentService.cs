@@ -1,3 +1,4 @@
+using CSM.Application.Common.Dtos;
 using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Finance.Payments;
@@ -87,13 +88,12 @@ public sealed partial class PaymentService : IPaymentService
 
         EnsureCanModify(actor);
 
-        var companyId = GetActorCompanyId(actor);
-        if (FinanceOfficerScope.IsOfficer(actor))
-        {
-            await EnsureOfficerReferencesAsync(actor, companyId, request.ConstructionSiteId, request.ProjectId, request.InvoiceId, request.PayrollRecordId, cancellationToken);
-            ValidatePayment(request.PaymentDate, request.Amount, request.ExchangeRate, request.Direction);
-            await EnsureReferencesAsync(companyId, request.ConstructionSiteId, request.ProjectId, request.InvoiceId, request.VendorId, request.PayrollRecordId, request.Direction, cancellationToken);
-        }
+        var allowGlobal = await HasGlobalCompanyAuthorityAsync(actor, GranularPermission.Finance_Payment_Manage, cancellationToken);
+        var companyId = await ResolveCreateCompanyAsync(actor, allowGlobal, request, cancellationToken);
+        await EnsureSiteAccess(actor, request.ConstructionSiteId, cancellationToken);
+        await EnsureOfficerReferencesAsync(actor, companyId, request.ConstructionSiteId, request.ProjectId, request.InvoiceId, request.PayrollRecordId, cancellationToken);
+        ValidatePayment(request.PaymentDate, request.Amount, request.ExchangeRate, request.Direction);
+        await EnsureReferencesAsync(companyId, request.ConstructionSiteId, request.ProjectId, request.InvoiceId, request.VendorId, request.PayrollRecordId, request.Direction, cancellationToken);
 
         // Read existing PAY-5-### numbers (including soft-deleted)
         var existingNumbers = await _dbContext.Payments
@@ -506,18 +506,20 @@ public sealed partial class PaymentService : IPaymentService
 
     public async Task<IReadOnlyCollection<PaymentResponse>> GetCompanyPaymentsAsync(
         Guid currentUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, Guid? companyId = null)
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken, GranularPermission.Finance_Payment_View);
         EnsureCanRead(actor);
         await EnsureSiteAccess(actor, null, cancellationToken);
-        var companyId = GetActorCompanyId(actor);
+        var resolvedCompanyId = await CompanyContextResolver.ResolveAsync(_dbContext, actor.CompanyId,
+            await HasGlobalCompanyAuthorityAsync(actor, GranularPermission.Finance_Payment_View, cancellationToken), companyId,
+            message => new PaymentManagementException(message), cancellationToken);
 
         var payments = await _dbContext.Payments
             .AsNoTracking()
             .Include(p => p.Invoice)
             .Where(p =>
-                p.CompanyId == companyId &&
+                p.CompanyId == resolvedCompanyId &&
                 p.Invoice!.ConstructionSiteId == null &&
                 !p.IsDeleted)
             .OrderByDescending(p => p.PaymentDate)
@@ -527,6 +529,50 @@ public sealed partial class PaymentService : IPaymentService
     }
 
 
+
+    public async Task<CompanySelectionOptions> GetCompanyOptionsAsync(
+        Guid currentUserId, bool forCreate = false, CancellationToken cancellationToken = default)
+    {
+        var action = forCreate ? GranularPermission.Finance_Payment_Manage : GranularPermission.Finance_Payment_View;
+        var actor = await GetActorAsync(currentUserId, cancellationToken, action);
+        if (forCreate) EnsureCanModify(actor); else EnsureCanRead(actor);
+        await EnsureSiteAccess(actor, null, cancellationToken);
+        return await CompanyContextResolver.OptionsAsync(_dbContext, actor.CompanyId,
+            await HasGlobalCompanyAuthorityAsync(actor, action, cancellationToken), message => new PaymentManagementException(message), cancellationToken);
+    }
+
+    private async Task<bool> HasGlobalCompanyAuthorityAsync(User actor, GranularPermission action, CancellationToken cancellationToken) =>
+        IsSuperAdmin(actor) && await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id, [action], cancellationToken);
+
+    private async Task<Guid> ResolveCreateCompanyAsync(User actor, bool allowGlobal, CreatePaymentRequest request, CancellationToken cancellationToken)
+    {
+        Guid? resourceCompany = null;
+        void Match(Guid? company, string resource)
+        {
+            if (!company.HasValue) throw new PaymentManagementException($"{resource} was not found.");
+            if (resourceCompany.HasValue && resourceCompany != company)
+                throw new PaymentManagementException("Payment references must belong to the same company.");
+            resourceCompany = company;
+        }
+        if (request.ConstructionSiteId.HasValue)
+            Match(await _dbContext.ConstructionSites.AsNoTracking().Where(x => x.Id == request.ConstructionSiteId && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken), "Construction site");
+        if (request.InvoiceId.HasValue)
+            Match(await _dbContext.Invoices.AsNoTracking().Where(x => x.Id == request.InvoiceId && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken), "Invoice");
+        if (request.PayrollRecordId.HasValue)
+            Match(await _dbContext.PayrollRecords.AsNoTracking().Where(x => x.Id == request.PayrollRecordId && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken), "Payroll record");
+        if (request.ProjectId.HasValue)
+            Match(await _dbContext.Projects.AsNoTracking().Where(x => x.Id == request.ProjectId && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken), "Project");
+        if (request.VendorId.HasValue)
+            Match(await _dbContext.Vendors.AsNoTracking().Where(x => x.Id == request.VendorId && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken), "Vendor");
+        return resourceCompany.HasValue
+            ? CompanyContextResolver.ForResource(actor.CompanyId, allowGlobal, resourceCompany.Value, request.CompanyId, message => new PaymentManagementException(message))
+            : await CompanyContextResolver.ResolveAsync(_dbContext, actor.CompanyId, allowGlobal, request.CompanyId, message => new PaymentManagementException(message), cancellationToken);
+    }
 
     private static void EnsureCanRead(User actor)
     {

@@ -1,3 +1,6 @@
+using CSM.Domain.Enums;
+using CSM.Infrastructure.Security;
+using CSM.Application.Common.Dtos;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
 using CSM.Application.Compliance.DocumentCategories;
@@ -19,6 +22,15 @@ public sealed class DocumentCategoryService
         ApplicationDbContext dbContext)
     {
         _dbContext = dbContext;
+    }
+
+    public async Task<CompanySelectionOptions> GetCompanyOptionsAsync(Guid currentUserId, CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanManage(actor);
+        var global = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, currentUserId, [GranularPermission.Compliance_View, GranularPermission.Compliance_Manage], cancellationToken);
+        return await CompanyContextResolver.OptionsAsync(_dbContext, actor.CompanyId, global,
+            message => new DocumentCategoryManagementException(message), cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<DocumentCategoryResponse>> GetAllAsync(
@@ -105,7 +117,9 @@ public sealed class DocumentCategoryService
 
         EnsureCanManage(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var global = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, currentUserId, [GranularPermission.Compliance_View, GranularPermission.Compliance_Manage], cancellationToken);
+        var companyId = await CompanyContextResolver.ResolveAsync(_dbContext, actor.CompanyId, global,
+            request.CompanyId, message => new DocumentCategoryManagementException(message), cancellationToken);
 
         Validate(
             request.CategoryCode,

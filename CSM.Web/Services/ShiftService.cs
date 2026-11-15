@@ -36,6 +36,13 @@ public sealed class ShiftService : IShiftService
         return client;
     }
 
+    public async Task<CSM.Web.Models.Common.CompanySelectionOptions> GetShiftCompanyOptionsAsync()
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<CSM.Web.Models.Common.CompanySelectionOptions>("Shifts/company-options")
+            ?? throw new InvalidOperationException("Unable to load company options.");
+    }
+
     public async Task<IReadOnlyCollection<ShiftResponse>>
         GetAllAsync()
     {

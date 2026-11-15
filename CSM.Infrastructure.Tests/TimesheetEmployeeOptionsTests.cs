@@ -31,7 +31,7 @@ public sealed class TimesheetEmployeeOptionsTests
     [InlineData("HrOfficer", true, true, true)] [InlineData("HROfficer", true, true, true)]
     [InlineData("Administrator", true, true, false)] [InlineData("Storekeeper", true, true, false)]
     [InlineData("Employee", true, true, false)] [InlineData("Supervisor", false, true, false)]
-    [InlineData("SuperAdmin", false, true, false)] [InlineData("Supervisor", true, false, false)]
+    [InlineData("SuperAdmin", false, true, true)] [InlineData("Supervisor", true, false, false)]
     public async Task Options_follow_timesheet_manage_roles_company_and_active_actor_guards(string role, bool companyAssigned, bool active, bool allowed)
     {
         using var db = Database(role, companyAssigned, active, out var actor);
@@ -42,7 +42,8 @@ public sealed class TimesheetEmployeeOptionsTests
             return;
         }
         var result = await Options(service, actor);
-        var row = Assert.Single(result.EnumerateArray());
+        var row = result.EnumerateArray().Single(x => x.GetProperty("Id").GetGuid() == EmployeeId);
+        Assert.Equal(role == "SuperAdmin" ? 2 : 1, result.GetArrayLength());
         Assert.Equal(EmployeeId, row.GetProperty("Id").GetGuid());
         Assert.Equal("EMP-001", row.GetProperty("EmployeeNumber").GetString());
         Assert.Equal("Test Middle Employee", row.GetProperty("DisplayName").GetString());

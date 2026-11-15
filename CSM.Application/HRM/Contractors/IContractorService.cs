@@ -4,6 +4,8 @@ namespace CSM.Application.HRM.Contractors;
 
 public interface IContractorService
 {
+    Task<CSM.Application.Common.Dtos.CompanySelectionOptions> GetCompanyOptionsAsync(
+        Guid currentUserId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ContractorResponse>> GetAllAsync(
         Guid currentUserId,
         bool? isActive,

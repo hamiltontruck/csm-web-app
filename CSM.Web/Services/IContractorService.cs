@@ -4,6 +4,7 @@ namespace CSM.Web.Services;
 
 public interface IContractorService
 {
+    Task<CSM.Web.Models.Common.CompanySelectionOptions> GetContractorCompanyOptionsAsync();
     Task<IReadOnlyList<ContractorResponse>> GetContractorsAsync(
         bool? isActive = null);
 

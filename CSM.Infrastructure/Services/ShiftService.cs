@@ -1,3 +1,5 @@
+using CSM.Domain.Enums;
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.HRM.Shifts;
 using CSM.Application.HRM.Shifts.Dtos;
@@ -16,6 +18,17 @@ public sealed class ShiftService : IShiftService
     public ShiftService(ApplicationDbContext dbContext)
     {
         _dbContext = dbContext;
+    }
+
+    public async Task<CSM.Application.Common.Dtos.CompanySelectionOptions> GetCompanyOptionsAsync(
+        Guid currentUserId, CancellationToken cancellationToken = default)
+    {
+        var actor = await GetActorAsync(currentUserId, cancellationToken);
+        EnsureCanModify(actor);
+        var allowGlobal = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id,
+            [GranularPermission.HRM_Shift_View, GranularPermission.HRM_Shift_Submit], cancellationToken);
+        return await CompanyContextResolver.OptionsAsync(_dbContext, actor.CompanyId, allowGlobal,
+            message => new ShiftManagementException(message), cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<ShiftResponse>> GetAllAsync(
@@ -83,7 +96,10 @@ public sealed class ShiftService : IShiftService
 
         EnsureCanModify(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var allowGlobal = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id,
+            [GranularPermission.HRM_Shift_View, GranularPermission.HRM_Shift_Submit], cancellationToken);
+        var companyId = await CompanyContextResolver.ResolveAsync(_dbContext, actor.CompanyId,
+            allowGlobal, request.CompanyId, message => new ShiftManagementException(message), cancellationToken);
 
         var code = CleanRequired(
             request.Code,

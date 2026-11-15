@@ -1,3 +1,5 @@
+using CSM.Infrastructure.Security;
+using CSM.Application.Common.Dtos;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.Common.Security;
 using CSM.Application.Compliance.Documents;
@@ -22,6 +24,15 @@ public sealed class DocumentService : IDocumentService
     {
         _dbContext = dbContext;
         _files = new(environment);
+    }
+
+    public async Task<CompanySelectionOptions> GetCompanyOptionsAsync(Guid currentUserId, CancellationToken cancellationToken = default)
+    {
+        var actor = await RequireAccessAsync(_dbContext, currentUserId, true, cancellationToken);
+        EnsureCanManage(actor);
+        var global = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, currentUserId, [GranularPermission.Compliance_View, GranularPermission.Compliance_Manage], cancellationToken);
+        return await CompanyContextResolver.OptionsAsync(_dbContext, actor.CompanyId, global,
+            message => new DocumentManagementException(message), cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<DocumentResponse>> GetAllAsync(
@@ -117,7 +128,23 @@ public sealed class DocumentService : IDocumentService
 
         EnsureCanManage(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var global = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, currentUserId, [GranularPermission.Compliance_View, GranularPermission.Compliance_Manage], cancellationToken);
+        Guid? resourceCompany = null;
+        void Anchor(Guid? company)
+        {
+            if (!company.HasValue || (resourceCompany.HasValue && resourceCompany != company))
+                throw new DocumentManagementException("Document references must belong to the same company.");
+            resourceCompany = company;
+        }
+        if (request.ConstructionSiteId.HasValue)
+            Anchor(await _dbContext.ConstructionSites.Where(x => x.Id == request.ConstructionSiteId && !x.IsDeleted).Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken));
+        if (request.ProjectId.HasValue)
+            Anchor(await _dbContext.Projects.Where(x => x.Id == request.ProjectId && !x.IsDeleted).Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken));
+        if (request.EmployeeId.HasValue)
+            Anchor(await _dbContext.Employees.Where(x => x.Id == request.EmployeeId && !x.IsDeleted).Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken));
+        var companyId = resourceCompany.HasValue
+            ? CompanyContextResolver.ForResource(actor.CompanyId, global, resourceCompany.Value, request.CompanyId, message => new DocumentManagementException(message))
+            : await CompanyContextResolver.ResolveAsync(_dbContext, actor.CompanyId, global, request.CompanyId, message => new DocumentManagementException(message), cancellationToken);
 
         Validate(
             request.DocumentNumber,

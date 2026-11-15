@@ -18,5 +18,6 @@ public sealed record CreatePaymentRequest(
     string? ReferenceNumber,
     string? Notes)
 {
+    public Guid? CompanyId { get; init; }
     public Guid? ExpenseId { get; init; }
 }

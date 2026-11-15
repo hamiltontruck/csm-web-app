@@ -66,7 +66,13 @@ public sealed class BudgetService : IBudgetService
             actor,
             cancellationToken);
 
-        var companyId = GetActorCompanyId(actor);
+        var allowGlobal = IsSuperAdmin(actor) && await CompanyContextResolver.HasGlobalAuthorityAsync(
+            _dbContext, currentUserId, [GranularPermission.Finance_Budget_View], cancellationToken);
+        var companyId = allowGlobal
+            ? await _dbContext.ConstructionSites.AsNoTracking().Where(x => x.Id == siteId && !x.IsDeleted)
+                .Select(x => (Guid?)x.CompanyId).SingleOrDefaultAsync(cancellationToken)
+                ?? throw new BudgetManagementException("Construction site was not found.")
+            : GetActorCompanyId(actor);
 
         await EnsureSiteAccess(
             actor,

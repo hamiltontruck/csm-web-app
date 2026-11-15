@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.HRM.Attendances;
 using CSM.Application.HRM.Attendances.Dtos;
@@ -126,7 +127,8 @@ public sealed class AttendanceService : IAttendanceService
 
         EnsureCanModify(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var allowGlobal = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id,
+            [GranularPermission.HRM_Attendance_View, GranularPermission.HRM_Attendance_Submit], cancellationToken);
 
         ValidateCoordinates(
             request.Latitude,
@@ -139,6 +141,11 @@ public sealed class AttendanceService : IAttendanceService
                 cancellationToken)
             ?? throw new AttendanceManagementException(
                 "Employee was not found.");
+
+        var companyId = CompanyContextResolver.ForResource(actor.CompanyId, allowGlobal,
+            employee.CompanyId, null, message => new AttendanceManagementException(
+                message == "You cannot access a resource outside your authorized company."
+                    ? "Employee does not belong to your company." : message));
 
         if (employee.CompanyId != companyId)
         {

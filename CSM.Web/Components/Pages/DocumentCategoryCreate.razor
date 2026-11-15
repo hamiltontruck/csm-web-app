@@ -54,6 +54,8 @@
     <div class="card shadow-sm">
         <div class="card-body">
 
+            <CompanySelector Options="_companyOptions" @bind-Value="_request.CompanyId" Disabled="_saving" />
+
             <div class="row g-3">
 
                 <div class="col-md-6">
@@ -132,6 +134,7 @@
         IsActive = true
     };
 
+    private CSM.Web.Models.Common.CompanySelectionOptions _companyOptions = new();
     private bool _saving;
     private bool _loading = true;
     private bool _formReady;
@@ -151,7 +154,8 @@
         _accessStatus = null;
         try
         {
-            await ComplianceService.GetDocumentCategoriesAsync();
+            _companyOptions = await ComplianceService.GetDocumentCategoryCompanyOptionsAsync();
+            _request.CompanyId ??= _companyOptions.CompanyId;
             _formReady = true;
         }
         catch (Exception ex)

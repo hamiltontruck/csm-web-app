@@ -20,6 +20,24 @@ public sealed class ComplianceService : IComplianceService
         _storage = storage;
     }
 
+    public async Task<CSM.Web.Models.Common.CompanySelectionOptions> GetDocumentCompanyOptionsAsync()
+    {
+        var client = await ClientAsync();
+        using var response = await client.GetAsync("Documents/company-options");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<CSM.Web.Models.Common.CompanySelectionOptions>()
+            ?? throw new InvalidOperationException("Company options could not be loaded.");
+    }
+
+    public async Task<CSM.Web.Models.Common.CompanySelectionOptions> GetDocumentCategoryCompanyOptionsAsync()
+    {
+        var client = await ClientAsync();
+        using var response = await client.GetAsync("DocumentCategories/company-options");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<CSM.Web.Models.Common.CompanySelectionOptions>()
+            ?? throw new InvalidOperationException("Company options could not be loaded.");
+    }
+
     private async Task<HttpClient> ClientAsync()
     {
         var client = _factory.CreateClient("CSM.Api");

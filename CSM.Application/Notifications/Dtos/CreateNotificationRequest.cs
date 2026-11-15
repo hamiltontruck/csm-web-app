@@ -8,4 +8,5 @@ public sealed record CreateNotificationRequest(
     string Message,
     NotificationSeverity Severity,
     string? SourceEntityType,
-    Guid? SourceEntityId);
+    Guid? SourceEntityId,
+    Guid? CompanyId = null);

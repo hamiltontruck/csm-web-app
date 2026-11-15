@@ -1,3 +1,4 @@
+using CSM.Infrastructure.Security;
 using CSM.Application.Common.Exceptions;
 using CSM.Application.HRM.Leaves;
 using CSM.Application.HRM.Leaves.Dtos;
@@ -25,10 +26,12 @@ public sealed class LeaveService : ILeaveService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
         EnsureCanCreate(actor);
-        var companyId = GetActorCompanyId(actor);
+        var allowGlobal = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id,
+            [GranularPermission.HRM_Leave_View, GranularPermission.HRM_Leave_Submit], cancellationToken);
+        var companyId = allowGlobal ? (Guid?)null : GetActorCompanyId(actor);
 
         var employees = await _dbContext.Employees.AsNoTracking()
-            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.Status == EmployeeStatus.Active)
+            .Where(x => (!companyId.HasValue || x.CompanyId == companyId.Value) && !x.IsDeleted && x.Status == EmployeeStatus.Active)
             .OrderBy(x => x.EmployeeNumber).ThenBy(x => x.Id)
             .Select(x => new { x.Id, x.EmployeeNumber, x.FirstName, x.MiddleName, x.LastName })
             .ToListAsync(cancellationToken);
@@ -134,7 +137,8 @@ public sealed class LeaveService : ILeaveService
 
         EnsureCanCreate(actor);
 
-        var companyId = GetActorCompanyId(actor);
+        var allowGlobal = await CompanyContextResolver.HasGlobalAuthorityAsync(_dbContext, actor.Id,
+            [GranularPermission.HRM_Leave_View, GranularPermission.HRM_Leave_Submit], cancellationToken);
 
         ValidateDates(
             request.StartDate,
@@ -160,6 +164,11 @@ public sealed class LeaveService : ILeaveService
                 cancellationToken)
             ?? throw new LeaveManagementException(
                 "Employee was not found.");
+
+        var companyId = CompanyContextResolver.ForResource(actor.CompanyId, allowGlobal,
+            employee.CompanyId, null, message => new LeaveManagementException(
+                message == "You cannot access a resource outside your authorized company."
+                    ? "Employee does not belong to your company." : message));
 
         if (employee.CompanyId != companyId)
         {

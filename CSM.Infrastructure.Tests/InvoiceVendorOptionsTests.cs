@@ -75,6 +75,24 @@ public sealed class InvoiceVendorOptionsTests
     }
 
     [Fact]
+    public void Companyless_create_waits_for_selection_and_clears_vendor_when_company_changes()
+    {
+        using var context = Context(out var service);
+        service.RequireCompanySelection = true;
+        var page = context.RenderComponent<Page>();
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("#invoice-company")));
+        Assert.True(page.Find("button[type=submit]").HasAttribute("disabled"));
+        Assert.DoesNotContain("Hamilton Vendor", page.Markup);
+        page.Find("#invoice-company").Change(CompanyId.ToString());
+        page.WaitForAssertion(() => Assert.Contains("Hamilton Vendor", page.Markup));
+        page.FindAll("select").Single(x => x.Id != "invoice-company" && x.QuerySelector($"option[value='{VendorId}']") is not null).Change(VendorId.ToString());
+        page.Find("#invoice-company").Change("");
+        page.WaitForAssertion(() => Assert.DoesNotContain("Hamilton Vendor", page.Markup));
+        Assert.True(page.Find("button[type=submit]").HasAttribute("disabled"));
+        Assert.Null(service.Saved);
+    }
+
+    [Fact]
     public void Failed_vendor_load_is_local_and_disables_create_instead_of_terminating_the_circuit()
     {
         using var context = Context(out var service);
@@ -147,7 +165,7 @@ public sealed class InvoiceVendorOptionsTests
     {
         var method = typeof(InvoiceService).GetMethod("GetVendorOptionsAsync");
         Assert.NotNull(method);
-        var task = (Task)method.Invoke(new InvoiceService(db), new object?[] { db.Users.IgnoreQueryFilters().Single().Id, invoiceId, CancellationToken.None })!;
+        var task = (Task)method.Invoke(new InvoiceService(db), new object?[] { db.Users.IgnoreQueryFilters().Single().Id, invoiceId, CancellationToken.None, null, null })!;
         await task;
         return JsonSerializer.SerializeToElement(task.GetType().GetProperty("Result")!.GetValue(task));
     }
@@ -155,6 +173,8 @@ public sealed class InvoiceVendorOptionsTests
     private static ApplicationDbContext Database(string role)
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Companies.AddRange(new CSM.Domain.Entities.Organization.Company { Id = CompanyId, Code = "OWN", Name = "Own", IsActive = true },
+            new CSM.Domain.Entities.Organization.Company { Id = OtherCompanyId, Code = "OTHER", Name = "Other", IsActive = true });
         db.Users.Add(new User { CompanyId = CompanyId, IsActive = true, UserRoles = [new UserRole { Role = new Role { Name = role, GranularPermissions = [new() { Permission = GranularPermission.Finance_Invoice_View }] } }] });
         db.Vendors.AddRange(new Vendor { Id = VendorId, CompanyId = CompanyId, VendorCode = "HBG-VEN-001", Name = "Hamilton Vendor", BankAccountNumber = "private" },
             new Vendor { Id = OtherVendorId, CompanyId = OtherCompanyId, VendorCode = "OTHER", Name = "Other Company Vendor" },
@@ -183,10 +203,15 @@ public sealed class InvoiceVendorOptionsTests
 
     public class FinanceProxy : DispatchProxy
     {
-        public bool LoadFails, SaveFails;
+        public bool LoadFails, SaveFails, RequireCompanySelection;
         public CreateInvoiceRequest? Saved;
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
+            if (method!.Name == "GetInvoiceCompanyOptionsAsync") return Task.FromResult(new CSM.Web.Models.Common.CompanySelectionOptions
+            {
+                CompanyId = RequireCompanySelection ? null : CompanyId, CanSelectCompany = RequireCompanySelection,
+                Companies = [new() { Id = CompanyId, Code = "OWN", Name = "Own" }, new() { Id = OtherCompanyId, Code = "OTHER", Name = "Other" }]
+            });
             if (method!.Name == "GetInvoiceAsync") return Task.FromResult<InvoiceResponse?>(new InvoiceResponse { Id = InvoiceId, VendorId = VendorId, InvoiceNumber = "ACC-INV-TEST-001", InvoiceType = "VendorBill", Status = "Draft", TotalAmount = 1150, InvoiceDate = new DateTime(2026, 11, 4) });
             if (method.Name == "GetInvoiceLinesAsync") return Task.FromResult(new List<InvoiceLineResponse>());
             if (method!.Name == "GetInvoiceVendorOptionsAsync")

@@ -1,3 +1,4 @@
+using CSM.Web.Models.Common;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
@@ -82,13 +83,27 @@ public class FinanceService : IFinanceService
             $"BudgetLines/budget/{budgetId}/cost-code-options") ?? [];
     }
 
-    public async Task<IReadOnlyList<InvoiceVendorOption>> GetInvoiceVendorOptionsAsync(Guid? invoiceId = null)
+    public async Task<IReadOnlyList<InvoiceVendorOption>> GetInvoiceVendorOptionsAsync(Guid? invoiceId = null, Guid? siteId = null, Guid? companyId = null)
     {
         var client = await ClientAsync();
-        var path = invoiceId.HasValue
-            ? $"Invoices/vendor-options?invoiceId={invoiceId.Value}"
-            : "Invoices/vendor-options";
+        var query = new List<string>();
+        if (invoiceId.HasValue) query.Add($"invoiceId={invoiceId}");
+        if (siteId.HasValue) query.Add($"siteId={siteId}");
+        if (companyId.HasValue) query.Add($"companyId={companyId}");
+        var path = "Invoices/vendor-options" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
         return await client.GetFromJsonAsync<List<InvoiceVendorOption>>(path) ?? [];
+    }
+
+    public async Task<CompanySelectionOptions> GetInvoiceCompanyOptionsAsync(bool forCreate = false)
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<CompanySelectionOptions>(forCreate ? "Invoices/create-company-options" : "Invoices/company-options") ?? new();
+    }
+
+    public async Task<CompanySelectionOptions> GetPaymentCompanyOptionsAsync(bool forCreate = false)
+    {
+        var client = await ClientAsync();
+        return await client.GetFromJsonAsync<CompanySelectionOptions>(forCreate ? "Payments/create-company-options" : "Payments/company-options") ?? new();
     }
 
     public async Task<IReadOnlyList<CostCodeResponse>> GetActiveCostCodesAsync()
@@ -183,12 +198,12 @@ public class FinanceService : IFinanceService
             $"Invoices?siteId={siteId}") ?? new();
     }
 
-    public async Task<List<InvoiceResponse>> GetCompanyInvoicesAsync()
+    public async Task<List<InvoiceResponse>> GetCompanyInvoicesAsync(Guid? companyId = null)
     {
         var client = await ClientAsync();
 
         var result = await client.GetFromJsonAsync<List<InvoiceResponse>>(
-            "Invoices/company") ?? new();
+            $"Invoices/company" + (companyId.HasValue ? $"?companyId={companyId}" : "")) ?? new();
 
         Console.WriteLine($"Company invoices: {result.Count}");
 
@@ -445,12 +460,12 @@ public class FinanceService : IFinanceService
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<List<PaymentResponse>> GetCompanyPaymentsAsync()
+    public async Task<List<PaymentResponse>> GetCompanyPaymentsAsync(Guid? companyId = null)
     {
         var client = await ClientAsync();
 
         return await client.GetFromJsonAsync<List<PaymentResponse>>(
-            "Payments/company") ?? new();
+            $"Payments/company" + (companyId.HasValue ? $"?companyId={companyId}" : "")) ?? new();
     }
 
     public async Task DeletePaymentAsync(Guid paymentId)

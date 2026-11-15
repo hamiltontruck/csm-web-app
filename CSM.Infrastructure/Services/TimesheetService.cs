@@ -26,10 +26,14 @@ public sealed class TimesheetService : ITimesheetService
     {
         var actor = await GetActorAsync(currentUserId, cancellationToken);
         EnsureCanManage(actor);
-        var companyId = GetActorCompanyId(actor);
+        // Timesheets have a role-only controller contract; no granular permission exists.
+        var allowGlobal = await _dbContext.UserRoles.AsNoTracking().AnyAsync(
+            x => x.UserId == actor.Id && !x.IsDeleted && x.User.IsActive && !x.User.IsDeleted &&
+                 !x.Role.IsDeleted && x.Role.Name == AppRoles.SuperAdmin, cancellationToken);
+        var companyId = allowGlobal ? (Guid?)null : GetActorCompanyId(actor);
 
         var employees = await _dbContext.Employees.AsNoTracking()
-            .Where(x => x.CompanyId == companyId && !x.IsDeleted && x.Status == EmployeeStatus.Active)
+            .Where(x => (!companyId.HasValue || x.CompanyId == companyId.Value) && !x.IsDeleted && x.Status == EmployeeStatus.Active)
             .OrderBy(x => x.EmployeeNumber).ThenBy(x => x.Id)
             .Select(x => new { x.Id, x.EmployeeNumber, x.FirstName, x.MiddleName, x.LastName })
             .ToListAsync(cancellationToken);

@@ -22,6 +22,14 @@ public sealed class DocumentCategoriesController : ControllerBase
         _documentCategoryService = documentCategoryService;
     }
 
+    [HttpGet("company-options")]
+    [Authorize(Policy = "Compliance.Manage")]
+    public async Task<ActionResult<CSM.Application.Common.Dtos.CompanySelectionOptions>> GetCompanyOptions(CancellationToken cancellationToken)
+    {
+        try { return Ok(await _documentCategoryService.GetCompanyOptionsAsync(GetCurrentUserId(), cancellationToken)); }
+        catch (DocumentCategoryManagementException ex) { return ErrorResult(ex); }
+    }
+
     [HttpGet]
     public async Task<
         ActionResult<IReadOnlyCollection<DocumentCategoryResponse>>> GetAll(

@@ -243,7 +243,7 @@
             var sites = await ProjectService.GetSitesAsync();
             _siteName = sites.FirstOrDefault(x => x.Id == SiteId)?.Name ?? "";
             _projects = await ProjectService.GetProjectsBySiteAsync(SiteId);
-            _vendors = (await FinanceService.GetInvoiceVendorOptionsAsync()).ToList();
+            _vendors = (await FinanceService.GetInvoiceVendorOptionsAsync(siteId: SiteId)).ToList();
         }
 
             _ready = true;

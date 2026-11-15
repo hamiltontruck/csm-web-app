@@ -2,6 +2,7 @@ namespace CSM.Application.Compliance.DocumentCategories.Dtos;
 
 public sealed class CreateDocumentCategoryRequest
 {
+    public Guid? CompanyId { get; set; }
     public string CategoryCode { get; set; } = string.Empty;
 
     public string Name { get; set; } = string.Empty;

@@ -22,6 +22,21 @@ public sealed class ContractorsController : ControllerBase
         _contractorService = contractorService;
     }
 
+    [HttpGet("company-options")]
+    [Authorize(Policy = "HRM.Contractor.Manage")]
+    public async Task<ActionResult<CSM.Application.Common.Dtos.CompanySelectionOptions>> GetCompanyOptions(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _contractorService.GetCompanyOptionsAsync(GetCurrentUserId(), cancellationToken));
+        }
+        catch (ContractorManagementException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet]
     public async Task<
         ActionResult<IReadOnlyCollection<ContractorResponse>>> GetAll(
