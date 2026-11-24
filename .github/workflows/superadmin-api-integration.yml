@@ -1,0 +1,88 @@
+# CI-only real HTTP + PostgreSQL integration. No remote connections or production secrets.
+name: CSM SuperAdmin isolated API PostgreSQL acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/superadmin-api-integration.yml'
+      - 'scripts/qa/superadmin-api-postgres-e2e.py'
+      - 'CSM.Api/**'
+      - 'CSM.Application/**'
+      - 'CSM.Infrastructure/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  superadmin-api-postgres:
+    name: Real API auth, tenants, CRUD, permissions (ephemeral DB)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      GITHUB_ACTIONS: 'true'
+      CSM_DISPOSABLE_API_QA: '1'
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://127.0.0.1:5189
+      Database__ApplyMigrationsOnStartup: 'true'
+      ConnectionStrings__DefaultConnection: Host=127.0.0.1;Port=5432;Username=postgres;Password=postgres;Database=csm_superadmin_e2e;SSL Mode=Disable
+      Jwt__Issuer: CSM.Api
+      Jwt__Audience: CSM.Client
+      BootstrapAdmin__Email: superadmin-qa@example.test
+      BootstrapAdmin__Password: Qa-Temporary-Password-2026!
+
+    steps:
+      - name: Check out QA branch
+        uses: actions/checkout@v4
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Confirm PostgreSQL client
+        run: psql --version
+      - name: Create disposable QA database on local PostgreSQL only
+        run: |
+          test "${CSM_DISPOSABLE_API_QA}" = "1"
+          PGPASSWORD=postgres psql -h 127.0.0.1 -p 5432 -U postgres -d postgres -X -v ON_ERROR_STOP=1 -c 'CREATE DATABASE csm_superadmin_e2e;'
+      - name: Set ephemeral JWT key
+        run: |
+          printf 'Jwt__SecretKey=%s\n' "$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+      - name: Build CSM API
+        run: dotnet build CSM.Api/CSM.Api.csproj --configuration Release
+      - name: Start real API on loopback, with isolated DB
+        run: |
+          dotnet run --project CSM.Api/CSM.Api.csproj --configuration Release --no-build --no-launch-profile > /tmp/csm-qa-api.log 2>&1 &
+          echo $! > /tmp/csm-qa-api.pid
+          ready=0
+          for n in $(seq 1 90); do
+            status="$(curl -s --connect-timeout 2 -o /dev/null -w '%{http_code}' http://127.0.0.1:5189/api/equipment || true)"
+            if [ "$status" = "401" ]; then ready=1; break; fi
+            if ! kill -0 "$(cat /tmp/csm-qa-api.pid)" 2>/dev/null; then
+              echo 'API exited before becoming ready'; tail -n 65 /tmp/csm-qa-api.log; exit 1
+            fi
+            sleep 2
+          done
+          if [ "$ready" != "1" ]; then
+            echo 'API did not reach expected 401 endpoint'; tail -n 65 /tmp/csm-qa-api.log; exit 1
+          fi
+      - name: Execute real-HTTP PostgreSQL acceptance
+        run: python3 scripts/qa/superadmin-api-postgres-e2e.py
+      - name: Stop disposable API
+        if: always()
+        run: |
+          if [ -f /tmp/csm-qa-api.pid ]; then kill "$(cat /tmp/csm-qa-api.pid)" 2>/dev/null || true; fi
