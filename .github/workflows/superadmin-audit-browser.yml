@@ -1,0 +1,56 @@
+# PR #154 / Issue #153: disposable fixture-backed SuperAdmin UI regression.
+# Do not provide production secrets or connect to Render/Neon.
+# This temporary audit suite is separate from draft PR #151's durable CI workflow.
+name: SuperAdmin full browser audit (QA fixtures only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/superadmin-audit-browser.yml'
+      - 'CSM.Infrastructure.Tests/SuperAdmin*RegressionTests.cs'
+      - 'CSM.Web/**'
+      - 'CSM.Application/**'
+      - 'scripts/qa/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-audit:
+    name: SuperAdmin fixture-backed Blazor UI checks
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 20
+    steps:
+      - name: Check out audit branch
+        uses: actions/checkout@v4
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build actual CSM Blazor Web
+        run: dotnet build CSM.Web/CSM.Web.csproj --configuration Release
+      - name: Install pinned Playwright test framework
+        run: npm install --no-save --no-package-lock playwright@1.56.1
+      - name: Browser QA — login, company selectors, documents, shifts, invoices
+        run: node scripts/qa/superadmin-company-context.cjs
+      - name: Browser QA — equipment company selection, create and retry
+        run: node scripts/qa/equipment-create.cjs
+      - name: Browser QA — employee company selection, create and retry
+        run: node scripts/qa/employee-create.cjs
+      - name: Browser QA — assignment save, tenant validation and retry
+        run: node scripts/qa/equipment-assignment.cjs
+      - name: Browser QA — maintenance form, errors, save and ownership
+        run: node scripts/qa/equipment-maintenance.cjs
+      - name: Browser QA — hour meter load, save and site isolation
+        run: node scripts/qa/equipment-hour-meter.cjs
+      - name: Browser QA — timesheet retry and selected-site isolation
+        run: node scripts/qa/equipment-timesheets.cjs
