@@ -1,0 +1,23 @@
+name: Hostless Docker QA
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/hostless-docker-qa.yml'
+permissions:
+  contents: read
+jobs:
+  docker-build:
+    if: github.head_ref == 'fix/hostless-docker-build' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build API image from repository root
+        run: docker build --progress=plain --file CSM.Api/Dockerfile --tag csm-api:qa .
+      - name: Verify image metadata and published assembly
+        run: |
+          docker image inspect csm-api:qa --format '{{json .Config.ExposedPorts}} {{json .Config.Entrypoint}}'
+          docker run --rm --network none --entrypoint /bin/sh csm-api:qa -c 'test -f /app/CSM.Api.dll'
