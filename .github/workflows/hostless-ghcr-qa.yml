@@ -1,0 +1,40 @@
+name: Hostless GHCR QA
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/hostless-ghcr-qa.yml'
+permissions:
+  contents: read
+  packages: write
+jobs:
+  image:
+    if: github.head_ref == 'fix/hostless-docker-build' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build from tracked files only
+        run: |
+          mkdir "$RUNNER_TEMP/csm-context"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/csm-context"
+          docker build --file "$RUNNER_TEMP/csm-context/CSM.Api/Dockerfile" --tag csm-api:qa "$RUNNER_TEMP/csm-context"
+      - name: Scan image for secrets
+        run: |
+          docker save csm-api:qa -o "$RUNNER_TEMP/csm-image.tar"
+          if ! docker run --rm -v "$RUNNER_TEMP/csm-image.tar:/image.tar:ro" aquasec/trivy:0.69.3 image --input /image.tar --scanners secret --exit-code 1 --no-progress > "$RUNNER_TEMP/secret-scan.log" 2>&1; then
+            echo "::error::Secret scan failed or scanner unavailable; publication blocked."
+            exit 1
+          fi
+      - name: Verify published assembly
+        run: docker run --rm --network none --entrypoint /bin/sh csm-api:qa -c 'test -f /app/CSM.Api.dll'
+      - name: Publish scanned image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag csm-api:qa ghcr.io/hamiltontruck/csm-api:hostless-qa
+          docker push ghcr.io/hamiltontruck/csm-api:hostless-qa
+          docker logout ghcr.io
