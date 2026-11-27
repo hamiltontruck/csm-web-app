@@ -13,7 +13,13 @@ using System.Text;
 Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
 Environment.SetEnvironmentVariable("ASPNETCORE_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
 
-var builder = WebApplication.CreateBuilder(args);
+// Supply the reload setting before default JSON configuration sources are added.
+var startupArgs = args.Concat(new[]
+{
+    "--hostBuilder:reloadConfigOnChange=false"
+}).ToArray();
+
+var builder = WebApplication.CreateBuilder(startupArgs);
 
 // Honor the hosting platform's assigned port when supplied.
 var platformPort = Environment.GetEnvironmentVariable("PORT");
