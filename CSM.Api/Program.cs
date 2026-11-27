@@ -62,6 +62,7 @@ builder.Services
 
 // Built-in OpenAPI (.NET 10)
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddCors(options =>
 {
@@ -101,6 +102,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Anonymous liveness probe for container startup; exposes no database details.
+app.MapHealthChecks("/health").AllowAnonymous();
 
 // Optional read-only deployment diagnostic; never applies migrations.
 if (app.Configuration.GetValue<bool>("Database:ReportMigrationStatus"))
