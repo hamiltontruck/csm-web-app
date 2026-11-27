@@ -9,7 +9,29 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
-var builder = WebApplication.CreateBuilder(args);
+// Hosted containers may have a restricted inotify budget.
+Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
+Environment.SetEnvironmentVariable("ASPNETCORE_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
+
+// Supply the reload setting before default JSON configuration sources are added.
+var startupArgs = args.Concat(new[]
+{
+    "--hostBuilder:reloadConfigOnChange=false"
+}).ToArray();
+
+var builder = WebApplication.CreateBuilder(startupArgs);
+
+// Honor the hosting platform's assigned port when supplied.
+var platformPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(platformPort))
+{
+    if (!int.TryParse(platformPort, out var port) || port < 1 || port > 65535)
+    {
+        throw new InvalidOperationException("PORT must be an integer between 1 and 65535.");
+    }
+
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
 
 // Infrastructure
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -40,6 +62,7 @@ builder.Services
 
 // Built-in OpenAPI (.NET 10)
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddCors(options =>
 {
@@ -79,6 +102,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Anonymous liveness probe for container startup; exposes no database details.
+app.MapHealthChecks("/health").AllowAnonymous();
 
 // Optional read-only deployment diagnostic; never applies migrations.
 if (app.Configuration.GetValue<bool>("Database:ReportMigrationStatus"))

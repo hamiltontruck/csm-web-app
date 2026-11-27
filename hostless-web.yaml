@@ -1,0 +1,30 @@
+build:
+  command: ""
+  system: docker
+  min_cpu: 0.01
+  max_cpu: 2
+  min_memory: 256
+  max_memory: 10240
+dockerfile_path: CSM.Web/Dockerfile
+working_directory: /
+build_context_directory: /
+pre_build_command: ""
+post_build_command: ""
+start_command: ""
+scaling:
+  min_cpu: 0.01
+  max_cpu: 0.1
+  min_memory: 128
+  max_memory: 256
+  min_replicas: 1
+  max_replicas: 1
+  max_http_requests_per_replica: 100
+health_check:
+  type: http
+  interval_in_seconds: 10
+  http_path: /login
+cron_jobs: []
+workers: []
+review_apps:
+  enabled: false
+  ttl_days: 1
