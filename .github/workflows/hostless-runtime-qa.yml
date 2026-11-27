@@ -1,0 +1,62 @@
+name: Hostless QA runtime diagnostic
+on:
+  push:
+    branches: [fix/hostless-api-qa-config]
+    paths: ['.github/workflows/hostless-runtime-qa.yml', 'CSM.Api/**', 'CSM.Infrastructure/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtime:
+    if: github.ref == 'refs/heads/fix/hostless-api-qa-config'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f CSM.Api/Dockerfile -t csm-runtime-qa .
+      - name: Isolated PostgreSQL and API
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker network create --internal csm-qa
+          docker run -d --name csm-pg --network csm-qa -e POSTGRES_PASSWORD=local-test-only -e POSTGRES_DB=csmqa postgres:16
+          for i in {1..60}; do
+            if docker exec csm-pg pg_isready -U postgres -d csmqa; then break; fi
+            sleep 2
+          done
+          docker exec csm-pg pg_isready -U postgres -d csmqa
+          sudo sysctl -w fs.inotify.max_user_instances=128
+          docker run -d --name csm-api-qa --network csm-qa -p 127.0.0.1:8000:8000 \
+            -e PORT=8000 -e ASPNETCORE_ENVIRONMENT=Production \
+            -e ASPNETCORE_URLS=http://0.0.0.0:8000 \
+            -e DOTNET_USE_POLLING_FILE_WATCHER=1 \
+            -e DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE=false \
+            -e ASPNETCORE_HOSTBUILDER__RELOADCONFIGONCHANGE=false \
+            -e Database__Provider=PostgreSQL -e Database__ApplyMigrationsOnStartup=true \
+            -e 'ConnectionStrings__DefaultConnection=Host=csm-pg;Database=csmqa;Username=postgres;Password=local-test-only' \
+            -e Jwt__SecretKey="$(openssl rand -hex 48)" \
+            -e BootstrapAdmin__Email=qa@example.invalid \
+            -e BootstrapAdmin__Password="Qa!$(openssl rand -hex 16)" csm-runtime-qa
+          for i in {1..90}; do
+            if [ "$(docker inspect -f '{{.State.Running}}' csm-api-qa)" != true ]; then exit 1; fi
+            if [ "$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health || true)" = 200 ]; then
+              sleep 10
+              test "$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health)" = 200
+              exit 0
+            fi
+            sleep 3
+          done
+          exit 1
+      - name: Capture diagnostics
+        if: always()
+        run: |
+          sysctl fs.inotify.max_user_instances
+          ulimit -n
+          docker inspect --format '{{json .State}}' csm-api-qa || true
+          docker logs --timestamps csm-api-qa 2>&1 || true
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f csm-api-qa csm-pg || true
+          docker network rm csm-qa || true
