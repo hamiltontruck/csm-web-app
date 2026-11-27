@@ -19,6 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          docker pull curlimages/curl:8.12.1
           docker network create --internal csm-qa
           docker run -d --name csm-pg --network csm-qa -e POSTGRES_PASSWORD=local-test-only -e POSTGRES_DB=csmqa postgres:16
           for i in {1..60}; do
@@ -27,7 +28,7 @@ jobs:
           done
           docker exec csm-pg pg_isready -U postgres -d csmqa
           sudo sysctl -w fs.inotify.max_user_instances=128
-          docker run -d --name csm-api-qa --network csm-qa -p 127.0.0.1:8000:8000 \
+          docker run -d --name csm-api-qa --network csm-qa \
             -e PORT=8000 -e ASPNETCORE_ENVIRONMENT=Production \
             -e ASPNETCORE_URLS=http://0.0.0.0:8000 \
             -e DOTNET_USE_POLLING_FILE_WATCHER=1 \
@@ -38,15 +39,19 @@ jobs:
             -e Jwt__SecretKey="$(openssl rand -hex 48)" \
             -e BootstrapAdmin__Email=qa@example.invalid \
             -e BootstrapAdmin__Password="Qa!$(openssl rand -hex 16)" csm-runtime-qa
+          probe() { docker run --rm --network csm-qa curlimages/curl:8.12.1 -sS --max-time 3 -o /dev/null -w '%{http_code}' http://csm-api-qa:8000/health; }
           for i in {1..90}; do
-            if [ "$(docker inspect -f '{{.State.Running}}' csm-api-qa)" != true ]; then exit 1; fi
-            if [ "$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health || true)" = 200 ]; then
+            if [ "$(docker inspect -f '{{.State.Running}}' csm-api-qa)" != true ]; then echo 'API container stopped'; exit 1; fi
+            status=$(probe || true)
+            echo "Health attempt $i: $status"
+            if [ "$status" = 200 ]; then
               sleep 10
-              test "$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/health)" = 200
+              test "$(probe)" = 200
               exit 0
             fi
             sleep 3
           done
+          echo 'Health probe timed out'
           exit 1
       - name: Capture diagnostics
         if: always()
@@ -54,7 +59,7 @@ jobs:
           sysctl fs.inotify.max_user_instances
           ulimit -n
           docker inspect --format '{{json .State}}' csm-api-qa || true
-          docker logs --timestamps csm-api-qa 2>&1 || true
+          docker logs --timestamps csm-api-qa 2>&1 | tail -n 150 || true
       - name: Cleanup
         if: always()
         run: |
