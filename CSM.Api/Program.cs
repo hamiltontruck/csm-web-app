@@ -9,7 +9,23 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
+// Hosted containers may have a restricted inotify budget.
+Environment.SetEnvironmentVariable("DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
+Environment.SetEnvironmentVariable("ASPNETCORE_HOSTBUILDER__RELOADCONFIGONCHANGE", "false");
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Honor the hosting platform's assigned port when supplied.
+var platformPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(platformPort))
+{
+    if (!int.TryParse(platformPort, out var port) || port < 1 || port > 65535)
+    {
+        throw new InvalidOperationException("PORT must be an integer between 1 and 65535.");
+    }
+
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
 
 // Infrastructure
 builder.Services.AddInfrastructure(builder.Configuration);
