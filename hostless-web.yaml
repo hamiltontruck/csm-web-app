@@ -4,7 +4,7 @@ build:
   min_cpu: 0.01
   max_cpu: 2
   min_memory: 256
-  max_memory: 2560
+  max_memory: 10240
 dockerfile_path: CSM.Web/Dockerfile
 working_directory: /
 build_context_directory: /
@@ -15,7 +15,7 @@ scaling:
   min_cpu: 0.01
   max_cpu: 0.1
   min_memory: 128
-  max_memory: 1024
+  max_memory: 256
   min_replicas: 1
   max_replicas: 1
   max_http_requests_per_replica: 100
